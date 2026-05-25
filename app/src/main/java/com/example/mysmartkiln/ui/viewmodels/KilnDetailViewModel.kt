@@ -699,19 +699,32 @@ class KilnDetailViewModel(
 
     private fun uploadProfileIfLocal(programId: String, programName: String) {
         pendingProgramUploadId = programId
-        if (!WifiUtils.isOnSmartKilnNetwork(appContext)) {
-            // Sin WiFi del horno solo guardamos el id pendiente; el upload se
-            // dispara cuando refreshConnection() lo reintenta.
-            return
-        }
         viewModelScope.launch {
-            performProgramUpload(programId, programName)
+            uploadProgramWithProgress(programId, programName)
         }
     }
 
-    private suspend fun performProgramUpload(programId: String, programName: String) {
+    /**
+     * Sube el perfil al horno mostrando el mismo diálogo modal con círculo
+     * girando que usan los comandos. Si no estamos en la red del horno,
+     * usa la auto-conexión vía WifiNetworkSpecifier (igual que sendLocalCommand).
+     * Si la auto-conexión falla, deja el programa como pendingProgramUploadId
+     * para que refreshConnection() lo reintente más tarde.
+     */
+    private suspend fun uploadProgramWithProgress(programId: String, programName: String) {
+        _sendingCommandPhase.value = "Cargando «$programName»…"
+        _sendingCommandDetail.value = "Conectando al horno…"
+        _isSendingCommand.value = true
         _isUploadingProgram.value = true
         try {
+            if (!ensureLocalConnection()) {
+                // ensureLocalConnection ya gestionó el manualWifiDialog si hizo falta.
+                Log.w(TAG, "Upload pospuesto: sin conexión local")
+                return
+            }
+
+            _sendingCommandDetail.value = "Enviando programa al horno…"
+
             KilnProgramUploader.uploadProgram(
                 appContext,
                 programRepository,
@@ -729,14 +742,21 @@ class KilnDetailViewModel(
                 }
         } finally {
             _isUploadingProgram.value = false
+            _isSendingCommand.value = false
+            _sendingCommandPhase.value = ""
+            _sendingCommandDetail.value = ""
         }
     }
 
     private suspend fun retryPendingProgramUpload() {
         val programId = pendingProgramUploadId ?: return
+        // Reintento silencioso: solo si ya estamos en el WiFi del horno. No
+        // disparamos diálogos invasivos en cada ON_RESUME o refresh; el
+        // diálogo modal de progreso solo aparece cuando el usuario
+        // explícitamente carga el programa.
         if (!WifiUtils.isOnSmartKilnNetwork(appContext)) return
         val program = programRepository.getProgramById(programId) ?: return
-        performProgramUpload(programId, program.name)
+        uploadProgramWithProgress(programId, program.name)
     }
 
     fun checkRunningProgram() {

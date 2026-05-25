@@ -498,15 +498,16 @@ class KilnDetailViewModel(
         }
 
         // Auto-conexión vía WifiNetworkSpecifier (Android 10+). Android muestra
-        // un diálogo nativo encima de la app: el usuario aprueba y volvemos
-        // sin pasar por Settings.
+        // un diálogo nativo encima de la app la primera vez (después recuerda
+        // la aprobación). NO sobrescribimos _sendingCommandPhase para que el
+        // título del diálogo modal del comando (Iniciando/Pausando/...) se
+        // mantenga estable durante toda la operación.
         if (KilnNetworkConnector.isSupported && currentMacAddress.isNotEmpty()) {
             val ssid = KilnNetworkConnector.ssidFromMac(currentMacAddress)
             val pass = KilnNetworkConnector.passphraseFromMac(currentMacAddress)
             if (ssid != null && pass != null) {
                 _isConnectingToAp.value = true
-                _sendingCommandPhase.value = "Conectando al horno…"
-                _sendingCommandDetail.value = "Aprobá el aviso del sistema para usar la red del horno."
+                _sendingCommandDetail.value = "Conectando al WiFi del horno…"
                 try {
                     val network = KilnNetworkConnector.connect(appContext, ssid, pass)
                     if (network != null) {
@@ -544,26 +545,30 @@ class KilnDetailViewModel(
 
     private suspend fun sendLocalCommand(cmd: String): Boolean {
         // El diálogo modal con el círculo girando se muestra durante TODO el
-        // proceso (conexión al AP + envío HTTP + lectura de status), no solo
-        // mientras Android pide la aprobación del WiFi.
-        val initialPhase = when (cmd) {
+        // proceso (conexión al AP + envío HTTP + lectura de status). El título
+        // (phase) se queda fijo durante toda la operación; solo el subtítulo
+        // (detail) cambia para informar de la sub-fase.
+        val title = when (cmd) {
             "START" -> "Iniciando horno…"
             "PAUSE" -> "Pausando horno…"
             "STOP" -> "Deteniendo horno…"
             else -> "Enviando comando…"
         }
-        _sendingCommandPhase.value = initialPhase
+        _sendingCommandPhase.value = title
         _sendingCommandDetail.value = "Conectando al horno…"
         _isSendingCommand.value = true
         try {
             if (!ensureLocalConnection()) return false
 
-            _sendingCommandPhase.value = initialPhase
-            _sendingCommandDetail.value = "Enviando comando al horno…"
+            _sendingCommandDetail.value = "Enviando comando…"
 
             return kilnHttpClient.sendCommand(cmd)
                 .onSuccess {
                     Log.d(TAG, "Command $cmd OK")
+                    // Update optimista: anticipamos el estado del horno antes
+                    // de que llegue la confirmación del HTTP/Firebase, así el
+                    // botón en pantalla cambia en cuanto cierra el diálogo.
+                    applyOptimisticCommandState(cmd)
                     delay(400)
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
                 }
@@ -573,6 +578,34 @@ class KilnDetailViewModel(
             _isSendingCommand.value = false
             _sendingCommandPhase.value = ""
             _sendingCommandDetail.value = ""
+        }
+    }
+
+    /**
+     * Refleja el efecto esperado del comando en _kilnStatus al instante, sin
+     * esperar la confirmación del horno. Esto evita que el botón muestre el
+     * estado anterior durante los segundos que tarda el handoff a Firebase.
+     * Si la confirmación real difiere, applyLocalStatus / Firebase la
+     * sobrescriben en la próxima actualización.
+     */
+    private fun applyOptimisticCommandState(cmd: String) {
+        _kilnStatus.value = when (cmd) {
+            "START" -> _kilnStatus.value.copy(
+                isRunning = true,
+                isPaused = false,
+                espStatus = "CALENTANDO"
+            )
+            "PAUSE" -> _kilnStatus.value.copy(
+                isRunning = true,
+                isPaused = true,
+                espStatus = "PAUSADO"
+            )
+            "STOP" -> _kilnStatus.value.copy(
+                isRunning = false,
+                isPaused = false,
+                espStatus = "FINALIZADO"
+            )
+            else -> _kilnStatus.value
         }
     }
 

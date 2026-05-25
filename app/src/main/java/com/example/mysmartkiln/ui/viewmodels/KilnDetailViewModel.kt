@@ -146,9 +146,6 @@ class KilnDetailViewModel(
         private const val LOCAL_POLL_INTERVAL_MS = 1_500L
         private const val LOCAL_PROBE_ATTEMPTS = 6
         private const val LOCAL_PROBE_DELAY_MS = 350L
-        private const val AP_RELEASE_USER_HINT =
-            " El horno cerrará su WiFi unos segundos: vuelve a tu red de casa. " +
-                "Para el próximo control, reconéctate a SmartKiln-…"
         private val ACTIVE_KILN_STATUSES = setOf(
             "CALENTANDO", "PAUSADO", "FINALIZADO"
         )
@@ -497,7 +494,6 @@ class KilnDetailViewModel(
             refreshApInfo()
             kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
             _canControlLocally.value = true
-            _connectionMessage.value = "Conexión local establecida."
             return true
         }
 
@@ -535,14 +531,8 @@ class KilnDetailViewModel(
         }
 
         _canControlLocally.value = false
-        _connectionMessage.value = if (WifiUtils.isOnSmartKilnNetwork(appContext)) {
-            "En el WiFi del horno pero sin respuesta en 192.168.4.1. ¿El equipo está encendido?"
-        } else if (KilnNetworkConnector.isSupported) {
-            "No se pudo conectar al horno automáticamente."
-        } else {
-            "Conéctate al WiFi del horno (SmartKiln-...) para controlar."
-        }
-        // Solo pedimos abrir Settings si el atajo automático no es viable.
+        // Solo pedimos abrir Settings si el atajo automático no es viable
+        // (API <29 o el usuario no aprobó el diálogo del sistema).
         _shouldShowManualWifiDialog.value = !KilnNetworkConnector.isSupported ||
             !WifiUtils.isOnSmartKilnNetwork(appContext)
         return false
@@ -574,20 +564,10 @@ class KilnDetailViewModel(
             return kilnHttpClient.sendCommand(cmd)
                 .onSuccess {
                     Log.d(TAG, "Command $cmd OK")
-                    _connectionMessage.value = when (cmd) {
-                        "START" -> "Horno en marcha.$AP_RELEASE_USER_HINT"
-                        "PAUSE" -> "Horno en pausa.$AP_RELEASE_USER_HINT"
-                        "STOP" -> "Horno detenido.$AP_RELEASE_USER_HINT"
-                        else -> "Comando enviado.$AP_RELEASE_USER_HINT"
-                    }
                     delay(400)
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
                 }
-                .onFailure {
-                    Log.e(TAG, "Command $cmd failed: ${it.message}")
-                    _connectionMessage.value =
-                        "No se pudo enviar el comando. ¿Sigues en el WiFi del horno?"
-                }
+                .onFailure { Log.e(TAG, "Command $cmd failed: ${it.message}") }
                 .isSuccess
         } finally {
             _isSendingCommand.value = false
@@ -685,13 +665,12 @@ class KilnDetailViewModel(
     }
 
     private fun uploadProfileIfLocal(programId: String, programName: String) {
+        pendingProgramUploadId = programId
         if (!WifiUtils.isOnSmartKilnNetwork(appContext)) {
-            pendingProgramUploadId = programId
-            _connectionMessage.value =
-                "Programa «$programName» listo en el teléfono. Conéctate al WiFi del horno para enviarlo."
+            // Sin WiFi del horno solo guardamos el id pendiente; el upload se
+            // dispara cuando refreshConnection() lo reintenta.
             return
         }
-        pendingProgramUploadId = programId
         viewModelScope.launch {
             performProgramUpload(programId, programName)
         }
@@ -710,13 +689,10 @@ class KilnDetailViewModel(
                     pendingProgramUploadId = null
                     _canControlLocally.value = true
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-                    _connectionMessage.value =
-                        "Programa «$programName» enviado al horno.$AP_RELEASE_USER_HINT"
-                    Log.d(TAG, "Profile uploaded for $programId")
+                    Log.d(TAG, "Profile uploaded for $programId ($programName)")
                 }
                 .onFailure {
-                    _connectionMessage.value =
-                        "Error al enviar programa: ${it.message ?: "desconocido"}"
+                    Log.e(TAG, "Profile upload failed for $programId: ${it.message}")
                 }
         } finally {
             _isUploadingProgram.value = false

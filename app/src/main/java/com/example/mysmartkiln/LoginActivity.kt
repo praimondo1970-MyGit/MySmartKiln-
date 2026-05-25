@@ -11,7 +11,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.mysmartkiln.ui.screens.LoginScreen
-import com.example.mysmartkiln.ui.screens.TemplateScreen
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 class LoginActivity : ComponentActivity() {

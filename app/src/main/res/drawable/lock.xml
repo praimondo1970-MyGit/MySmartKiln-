@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    
+    <!-- Lock body with thin outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M6,8 L6,6 C6,3.79 7.79,2 10,2 C12.21,2 14,3.79 14,6 L14,8 L16,8 C17.1,8 18,8.9 18,10 L18,18 C18,19.1 17.1,20 16,20 L4,20 C2.9,20 2,19.1 2,18 L2,10 C2,8.9 2.9,8 4,8 Z" />
+    
+    <!-- Keyhole -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M10,11.5 C10.83,11.5 11.5,12.17 11.5,13 C11.5,13.83 10.83,14.5 10,14.5 C9.17,14.5 8.5,13.83 8.5,13 C8.5,12.17 9.17,11.5 10,11.5 Z" />
+    
+    <!-- Keyhole slot -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M10,14.5 L10,16" />
+    
+</vector>

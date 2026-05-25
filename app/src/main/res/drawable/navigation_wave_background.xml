@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="390dp"
+    android:height="96dp"
+    android:viewportWidth="390"
+    android:viewportHeight="96">
+    
+    <!-- Wave background for navigation bar -->
+    <path
+        android:fillColor="#99C2FF"
+        android:pathData="M0,0 L0,72 Q97.5,60 195,72 Q292.5,84 390,72 L390,0 Z" />
+    
+</vector>
+
+
+
+
+
+
+
+
+

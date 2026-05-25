@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="390dp"
+    android:height="130dp"
+    android:viewportWidth="390"
+    android:viewportHeight="130">
+    
+    <!-- Barra de navegación con forma curva en el centro extendida a todo el ancho -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M147,34 C158.046,34 166.586,43.8745 173.422,52.5508 C178.915,59.5232 187.435,64 197,64 C206.565,64 215.085,59.5232 220.578,52.5508 C227.414,43.8745 235.954,34 247,34 L390,34 C390,42.9543 390,54 390,54 L390,130 L0,130 L0,54 C0,42.9543 0,34 0,34 L147,34 Z" />
+        
+</vector>
+

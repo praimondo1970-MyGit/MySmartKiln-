@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme for dark mode. -->
+    <style name="Base.Theme.MySmartKiln" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary Colors -->
+        <item name="android:colorPrimary">@color/primary_400</item>
+        <item name="android:colorPrimaryDark">@color/primary_600</item>
+        <item name="android:colorAccent">@color/secondary_400</item>
+        
+        <!-- Background Colors -->
+        <item name="android:colorBackground">@color/neutral_900</item>
+        <item name="android:textColorPrimary">@color/neutral_50</item>
+        <item name="android:textColorSecondary">@color/neutral_300</item>
+        
+        <!-- Status Bar -->
+        <item name="android:statusBarColor">@color/primary_800</item>
+        <item name="android:windowLightStatusBar">false</item>
+        
+        <!-- Navigation Bar -->
+        <item name="android:navigationBarColor">@color/primary_900</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        
+        <!-- Window Background -->
+        <item name="android:windowBackground">@color/neutral_900</item>
+    </style>
+
+    <style name="Theme.MySmartKiln" parent="Base.Theme.MySmartKiln" />
+</resources>

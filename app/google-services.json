@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "436509819869",
+    "firebase_url": "https://ia-based-kiln-default-rtdb.firebaseio.com",
+    "project_id": "ia-based-kiln",
+    "storage_bucket": "ia-based-kiln.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436509819869:android:b352e6981540998eacac34",
+        "android_client_info": {
+          "package_name": "com.example.firebaselogin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ1-qpZ4aKzUaHm5-uwFXLWguRoDSRdt0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436509819869:android:1953a5340c185b4bacac34",
+        "android_client_info": {
+          "package_name": "com.example.mykilnapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ1-qpZ4aKzUaHm5-uwFXLWguRoDSRdt0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436509819869:android:4bc82f13e55bc441acac34",
+        "android_client_info": {
+          "package_name": "com.example.mysmartkiln"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ1-qpZ4aKzUaHm5-uwFXLWguRoDSRdt0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

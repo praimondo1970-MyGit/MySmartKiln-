@@ -239,8 +239,9 @@ fun KilnCard(
     LaunchedEffect(kiln.macAddress, currentUserId) {
         val firebaseManager = com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager()
         
-        // Usar el UID del usuario actual o el almacenado en el horno como fallback
-        val userIdToUse = currentUserId ?: kiln.userId
+        // Ruta donde el ESP publica: la del horno al darlo de alta, no la sesión si difieren
+        val userIdToUse = kiln.userId.takeIf { it.isNotBlank() }
+            ?: currentUserId.orEmpty().ifBlank { "test_user_123" }
         android.util.Log.d("KilnCard", "🔍 Observando temperatura - userId: $userIdToUse, macAddress: ${kiln.macAddress}")
         android.util.Log.d("KilnCard", "📍 Ruta Firebase: users/$userIdToUse/kilns/${kiln.macAddress}/realtimeData")
         
@@ -289,7 +290,8 @@ fun KilnCard(
             }
             
                        // Verificar estado de conexión basado en timestamp
-                       val timestamp = (data["timestamp"] as? Number)?.toLong() ?: 0L
+                       val timestamp = com.example.mysmartkiln.utils.UserIdUtils
+                           .parseFirebaseTimestamp(data["timestamp"])
                        lastOnlineTimestamp = timestamp
                        val currentTimeMs = System.currentTimeMillis()
                        val CONNECTION_TIMEOUT_MS = 30000L // 30 segundos

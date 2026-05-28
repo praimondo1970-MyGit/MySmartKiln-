@@ -28,6 +28,8 @@ import com.example.mysmartkiln.ui.components.KilnStatusScreen
 import com.example.mysmartkiln.ui.components.KilnProgramScreen
 import com.example.mysmartkiln.ui.components.KilnCurveScreen
 import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
+import com.example.mysmartkiln.ui.components.KilnInterruptedDialog
+import com.example.mysmartkiln.ui.components.KilnEspStatusBadge
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
@@ -49,6 +51,8 @@ fun KilnDetailScreen(
     val isSendingCommand by viewModel.isSendingCommand.collectAsState()
     val sendingPhase by viewModel.sendingCommandPhase.collectAsState()
     val sendingDetail by viewModel.sendingCommandDetail.collectAsState()
+    val showInterruptedDialog by viewModel.showInterruptedDialog.collectAsState()
+    val kilnProgram by viewModel.kilnProgram.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(kilnMacAddress) {
@@ -75,51 +79,68 @@ fun KilnDetailScreen(
                 .fillMaxSize()
                 .padding(vertical = 10.dp)
         ) {
-            // Título del horno con estado de conexión - misma posición que "Programas" y "Mis Hornos"
+            // Título a la izquierda; conexión + estado operativo apilados a la derecha
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 15.dp),
+                    .padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                // Nombre del horno
                 Text(
                     text = kilnName,
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleLarge.copy(
                         color = Color(0xFF1E3A8A),
                         fontWeight = FontWeight.Bold
                     )
                 )
-                
+
                 val statusLabel = when (dataSource) {
                     KilnDataSource.LOCAL_AP -> "Local"
                     KilnDataSource.FIREBASE -> "Remoto"
-                    KilnDataSource.DISCONNECTED -> if (kilnStatus.currentTemperature > 0f) "Local" else "—"
+                    KilnDataSource.DISCONNECTED ->
+                        if (kilnStatus.currentTemperature > 0f) "Local" else "—"
                 }
                 val statusColor = when (dataSource) {
                     KilnDataSource.LOCAL_AP -> Color(0xFF10B981)
-                    KilnDataSource.FIREBASE -> if (kilnStatus.isConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
+                    KilnDataSource.FIREBASE -> when {
+                        kilnStatus.isConnected -> Color(0xFF10B981)
+                        kilnStatus.isReconnecting -> Color(0xFFF59E0B)
+                        else -> Color(0xFF94A3B8)
+                    }
                     KilnDataSource.DISCONNECTED ->
                         if (kilnStatus.currentTemperature > 0f) Color(0xFF10B981) else Color(0xFF94A3B8)
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                val badgeStatus = when {
+                    showInterruptedDialog -> "INTERRUMPIDO"
+                    kilnStatus.isReconnecting -> "RECONNECTING"
+                    else -> kilnStatus.espStatus
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = statusLabel,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF1E3A8A),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 13.sp
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = statusLabel,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color(0xFF1E3A8A),
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
                         )
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(statusColor, CircleShape)
-                    )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(statusColor, CircleShape)
+                        )
+                    }
+                    KilnEspStatusBadge(espStatus = badgeStatus)
                 }
             }
 
@@ -364,6 +385,17 @@ fun KilnDetailScreen(
             KilnSendingCommandDialog(
                 phase = sendingPhase.ifBlank { "Enviando comando…" },
                 detail = sendingDetail.ifBlank { null }
+            )
+        }
+
+        // Diálogo "Programa interrumpido": el ESP detectó al boot que estaba
+        // calentando antes del corte. Si está abierto el modal de envío de
+        // comando, lo dejamos arriba (estamos justo respondiendo al usuario).
+        if (showInterruptedDialog && !isSendingCommand) {
+            KilnInterruptedDialog(
+                programName = kilnProgram.name,
+                onResume = { viewModel.resumeKiln() },
+                onCancel = { viewModel.cancelInterruptedProgram() }
             )
         }
     }

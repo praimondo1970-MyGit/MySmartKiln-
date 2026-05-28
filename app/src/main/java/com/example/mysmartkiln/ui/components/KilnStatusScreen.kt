@@ -145,7 +145,7 @@ fun KilnStatusScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             // Temperature Display with optional circular progress
             Box(
                 modifier = Modifier.size(235.dp),
@@ -308,6 +308,17 @@ fun KilnStatusScreen(
                             fontSize = 16.sp
                         )
                     }
+                }
+                espStatus == "INTERRUMPIDO" -> {
+                    Text(
+                        text = "Programa interrumpido. Usá el aviso para reanudar o cancelar.",
+                        color = AppColors.Primary600,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp)
+                    )
                 }
                 espStatus == "FINALIZADO" -> {
                     Button(

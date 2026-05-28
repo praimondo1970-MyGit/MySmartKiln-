@@ -104,9 +104,16 @@ fun AppNavigation(
                     // Navegar a pantalla de edición de horno
                     navController.navigate("configure_kiln/$macAddress")
                 },
-                onNavigateToConfigureKiln = { macAddress, deviceName ->
+                onNavigateToConfigureKiln = { macAddress, deviceName, deviceModel, deviceVolume ->
                     val encodedName = Uri.encode(deviceName)
-                    navController.navigate("configure_kiln/$macAddress?deviceName=$encodedName") {
+                    val encodedModel = Uri.encode(deviceModel)
+                    val encodedVolume = Uri.encode(deviceVolume)
+                    navController.navigate(
+                        "configure_kiln/$macAddress" +
+                            "?deviceName=$encodedName" +
+                            "&deviceModel=$encodedModel" +
+                            "&deviceVolume=$encodedVolume"
+                    ) {
                         popUpTo("kilns") { inclusive = false }
                     }
                 },
@@ -273,7 +280,7 @@ fun AppNavigation(
         
         // Pantalla de Configuración del Horno
         composable(
-            route = "configure_kiln/{macAddress}?deviceName={deviceName}",
+            route = "configure_kiln/{macAddress}?deviceName={deviceName}&deviceModel={deviceModel}&deviceVolume={deviceVolume}",
             arguments = listOf(
                 navArgument("macAddress") {
                     type = NavType.StringType
@@ -282,22 +289,43 @@ fun AppNavigation(
                     type = NavType.StringType
                     defaultValue = ""
                     nullable = true
+                },
+                navArgument("deviceModel") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                    nullable = true
+                },
+                navArgument("deviceVolume") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                    nullable = true
                 }
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
+            // Sugerencia de nombre: primero lo que vino del horno (HTTP info),
+            // luego el nombre BLE del scan (compatibilidad con flujo legacy),
+            // por último vacío para que el usuario lo complete.
             val deviceNameFromWifi = backStackEntry.arguments?.getString("deviceName")
-                ?.takeIf { it.isNotBlank() }
+                ?.takeIf { it.isNotBlank() && it != "Mi Kiln Cerámico" }
             val deviceName = deviceNameFromWifi
                 ?: bleViewModel.scannedDevices.value.find {
                     it.address.equals(macAddress, ignoreCase = true) ||
                         it.address.replace(":", "").equals(macAddress, ignoreCase = true)
                 }?.name
-                ?: "SmartKiln - Ceramica"
-            
+                ?: ""
+            val deviceModel = backStackEntry.arguments?.getString("deviceModel")
+                ?.takeIf { it.isNotBlank() }
+                .orEmpty()
+            val deviceVolume = backStackEntry.arguments?.getString("deviceVolume")
+                ?.takeIf { it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true }
+                .orEmpty()
+
             ConfigureKilnScreen(
                 macAddress = macAddress,
                 deviceName = deviceName,
+                deviceModel = deviceModel,
+                deviceVolume = deviceVolume,
                 bleViewModel = bleViewModel,
                 authViewModel = authViewModel,
                 existingKiln = null, // Se buscará automáticamente si existe

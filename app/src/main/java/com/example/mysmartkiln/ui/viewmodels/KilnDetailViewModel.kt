@@ -10,6 +10,7 @@ import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnProgramUploader
 import com.example.mysmartkiln.data.local.KilnStatusDto
+import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.data.repository.ProgramRepository
 import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.ProgramStatusUtils
@@ -27,6 +28,8 @@ import kotlinx.coroutines.launch
 
 data class KilnStatus(
     val isConnected: Boolean = false,
+    /** Tras perder Firebase mientras horneaba: el ESP puede estar reiniciando. */
+    val isReconnecting: Boolean = false,
     val currentTemperature: Float = 0f,
     val targetTemperature: Float = 0f,
     val isRunning: Boolean = false,
@@ -66,6 +69,7 @@ data class ProgramStage(
 
 class KilnDetailViewModel(
     private val programRepository: ProgramRepository,
+    private val kilnRepository: KilnRepository,
     private val appContext: Context
 ) : ViewModel() {
 
@@ -126,28 +130,57 @@ class KilnDetailViewModel(
     private val _shouldShowManualWifiDialog = MutableStateFlow(false)
     val shouldShowManualWifiDialog: StateFlow<Boolean> = _shouldShowManualWifiDialog.asStateFlow()
 
+    /**
+     * Verdadero cuando detectamos que el horno reporta status="INTERRUMPIDO".
+     * El firmware lo deja así si el ESP se reseteó mientras estaba CALENTANDO
+     * o PAUSADO. La UI muestra un diálogo "Reanudar / Cancelar" no
+     * descartable para que el usuario decida qué hacer.
+     */
+    private val _showInterruptedDialog = MutableStateFlow(false)
+    val showInterruptedDialog: StateFlow<Boolean> = _showInterruptedDialog.asStateFlow()
+
     private var pendingProgramUploadId: String? = null
 
     private val firebaseManager = FirebaseRealtimeManager()
     private val kilnHttpClient = KilnHttpClient(appContext)
     private var currentMacAddress: String = ""
     private var firebaseJob: Job? = null
+    private var firebaseSyncJob: Job? = null
     private var localPollJob: Job? = null
+  /** userId de la ruta Firebase donde el ESP publica (el guardado en el horno). */
+    private var kilnFirebaseUserId: String? = null
+    private var firebaseListenerUserId: String? = null
 
-    private val userId: String
-        get() {
-            val email = FirebaseAuth.getInstance().currentUser?.email
-            return if (email != null) UserIdUtils.getCurrentUserId(email) else "test_user_123"
-        }
+    /** Tras corte de luz / pérdida de RTDB mientras había cocción activa. */
+    private var awaitingKilnReconnect = false
+    private var reconnectDeadlineMs = 0L
+
+    private fun authFirebaseUserId(): String {
+        val email = FirebaseAuth.getInstance().currentUser?.email
+        return if (email != null) UserIdUtils.getCurrentUserId(email) else "test_user_123"
+    }
+
+    private fun resolveFirebaseUserId(): String? {
+        val fromKiln = kilnFirebaseUserId?.takeIf { it.isNotBlank() }
+        return fromKiln ?: authFirebaseUserId().takeIf { it.isNotBlank() }
+    }
 
     companion object {
         private const val TAG = "KilnDetailViewModel"
-        private const val CONNECTION_TIMEOUT_MS = 30_000L
+        private const val CONNECTION_TIMEOUT_MS = 10_000L
         private const val LOCAL_POLL_INTERVAL_MS = 1_500L
         private const val LOCAL_PROBE_ATTEMPTS = 6
         private const val LOCAL_PROBE_DELAY_MS = 350L
+        /** Poll RTDB en modo remoto por si el listener no dispara (p. ej. tras reinicio del ESP). */
+        private const val FIREBASE_STATUS_POLL_MS = 5_000L
+        private const val FIREBASE_FAST_POLL_MS = 2_000L
+        /** Tiempo para que el ESP vuelva a WiFi + Firebase tras un corte. */
+        private const val RECONNECT_GRACE_MS = 120_000L
         private val ACTIVE_KILN_STATUSES = setOf(
             "CALENTANDO", "PAUSADO", "FINALIZADO"
+        )
+        private val RECONNECT_TRIGGER_STATUSES = setOf(
+            "CALENTANDO", "PAUSADO", "INTERRUMPIDO"
         )
     }
 
@@ -166,7 +199,18 @@ class KilnDetailViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                val kiln = kilnRepository.getKilnByMacAddress(macAddress)
+                kilnFirebaseUserId = kiln?.userId?.takeIf { it.isNotBlank() }
+                val authUid = authFirebaseUserId()
+                if (kilnFirebaseUserId != null && kilnFirebaseUserId != authUid) {
+                    Log.w(
+                        TAG,
+                        "Firebase userId del horno ($kilnFirebaseUserId) ≠ sesión ($authUid). " +
+                            "Escuchando la ruta del horno (donde publica el ESP)."
+                    )
+                }
                 checkRunningProgram()
+                syncFirebaseStatusOnce()
                 detectAndStartMonitoring()
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading kiln data: ${e.message}", e)
@@ -179,6 +223,10 @@ class KilnDetailViewModel(
     /** Re-evalúa WiFi del horno al volver a la pantalla (p. ej. tras conectar en Ajustes). */
     fun refreshConnection() {
         viewModelScope.launch {
+            firebaseJob?.cancel()
+            firebaseJob = null
+            firebaseListenerUserId = null
+            syncFirebaseStatusOnce()
             detectAndStartMonitoring()
             retryPendingProgramUpload()
         }
@@ -260,8 +308,83 @@ class KilnDetailViewModel(
     private fun stopMonitoring() {
         firebaseJob?.cancel()
         firebaseJob = null
+        firebaseListenerUserId = null
+        firebaseSyncJob?.cancel()
+        firebaseSyncJob = null
         localPollJob?.cancel()
         localPollJob = null
+        awaitingKilnReconnect = false
+        reconnectDeadlineMs = 0L
+    }
+
+    private fun updateReconnectGrace(latestStatus: String, isFirebaseLive: Boolean) {
+        val now = System.currentTimeMillis()
+        if (isFirebaseLive) {
+            awaitingKilnReconnect = false
+            reconnectDeadlineMs = 0L
+            return
+        }
+        val prev = _kilnStatus.value
+        val wasActive = prev.isRunning ||
+            prev.espStatus in RECONNECT_TRIGGER_STATUSES ||
+            latestStatus in RECONNECT_TRIGGER_STATUSES ||
+            _kilnProgram.value.name.isNotEmpty() && prev.espStatus == "CALENTANDO"
+        if (wasActive && !awaitingKilnReconnect) {
+            awaitingKilnReconnect = true
+            reconnectDeadlineMs = now + RECONNECT_GRACE_MS
+            Log.d(TAG, "Sin datos RTDB recientes — esperando reconexión del horno")
+        }
+        if (awaitingKilnReconnect && now >= reconnectDeadlineMs) {
+            awaitingKilnReconnect = false
+            Log.d(TAG, "Ventana de reconexión finalizada")
+        }
+    }
+
+    private fun inReconnectGrace(): Boolean {
+        return awaitingKilnReconnect && System.currentTimeMillis() < reconnectDeadlineMs
+    }
+
+    private fun resolveStatusForUi(statusRaw: String, isFirebaseLive: Boolean): String {
+        val inGrace = inReconnectGrace()
+        return when {
+            isFirebaseLive -> statusRaw
+            inGrace -> when (statusRaw) {
+                "INTERRUMPIDO", "CALENTANDO", "PAUSADO" -> statusRaw
+                "IDLE", "" -> {
+                    val prev = _kilnStatus.value.espStatus
+                    if (prev in RECONNECT_TRIGGER_STATUSES) prev else "RECONNECTING"
+                }
+                else -> statusRaw
+            }
+            statusRaw == "INTERRUMPIDO" -> "IDLE"
+            statusRaw in setOf("CALENTANDO", "PAUSADO") -> "IDLE"
+            else -> statusRaw.ifEmpty { "IDLE" }
+        }
+    }
+
+    private suspend fun syncFirebaseStatusOnce() {
+        val mac = currentMacAddress.ifEmpty { return }
+        val uid = resolveFirebaseUserId() ?: return
+        firebaseManager.getRealtimeData(uid, mac)
+            .onSuccess { applyFirebaseSnapshot(it) }
+            .onFailure { Log.w(TAG, "syncFirebaseStatusOnce: ${it.message}") }
+    }
+
+    private fun startFirebaseStatusPolling() {
+        firebaseSyncJob?.cancel()
+        firebaseSyncJob = viewModelScope.launch {
+            while (isActive && currentMacAddress.isNotEmpty()) {
+                if (_dataSource.value != KilnDataSource.LOCAL_AP) {
+                    syncFirebaseStatusOnce()
+                }
+                val pollMs = if (awaitingKilnReconnect) {
+                    FIREBASE_FAST_POLL_MS
+                } else {
+                    FIREBASE_STATUS_POLL_MS
+                }
+                delay(pollMs)
+            }
+        }
     }
 
     private fun startLocalMonitoring() {
@@ -324,17 +447,27 @@ class KilnDetailViewModel(
     }
 
     private fun startFirebaseMonitoring(macAddress: String) {
-        // Idempotente: si ya hay un listener vivo (mismo MAC, no cancelado), no
-        // re-engancha. Permite que el listener corra en paralelo al poll local.
-        if (firebaseJob?.isActive == true) return
+        val uid = resolveFirebaseUserId() ?: return
+        // Idempotente solo si el listener ya escucha la misma ruta Firebase.
+        if (firebaseJob?.isActive == true && firebaseListenerUserId == uid) {
+            if (firebaseSyncJob?.isActive != true) startFirebaseStatusPolling()
+            return
+        }
+
+        firebaseJob?.cancel()
+        firebaseListenerUserId = uid
 
         if (_dataSource.value == KilnDataSource.DISCONNECTED) {
             _dataSource.value = KilnDataSource.FIREBASE
         }
 
+        Log.d(TAG, "Firebase listen: users/$uid/kilns/$macAddress/realtimeData")
+
+        startFirebaseStatusPolling()
+
         firebaseJob = viewModelScope.launch {
             try {
-                firebaseManager.observeRealtimeData(userId, macAddress).collect { data ->
+                firebaseManager.observeRealtimeData(uid, macAddress).collect { data ->
                     applyFirebaseSnapshot(data)
                 }
             } catch (e: Exception) {
@@ -352,9 +485,12 @@ class KilnDetailViewModel(
 
         if (data == null) {
             if (!isLocalAuthoritative) {
+                updateReconnectGrace(_kilnStatus.value.espStatus, isFirebaseLive = false)
+                val grace = inReconnectGrace()
                 _kilnStatus.value = _kilnStatus.value.copy(
                     isConnected = false,
-                    currentTemperature = 0f
+                    isReconnecting = grace,
+                    currentTemperature = if (grace) _kilnStatus.value.currentTemperature else 0f
                 )
             }
             return
@@ -365,17 +501,17 @@ class KilnDetailViewModel(
             is String -> v.toFloatOrNull() ?: 0f
             else -> 0f
         }
-        val timestamp = when (val v = data["timestamp"]) {
-            is Number -> v.toLong()
-            is String -> v.toLongOrNull() ?: 0L
-            else -> 0L
-        }
+        val timestamp = UserIdUtils.parseFirebaseTimestamp(data["timestamp"])
         val statusRaw = (data["status"] as? String)?.trim()?.uppercase().orEmpty()
         val programName = (data["programName"] as? String)?.trim().orEmpty()
 
         val currentTimeMs = System.currentTimeMillis()
         val isConnected = timestamp > 0 &&
             (currentTimeMs - timestamp) < CONNECTION_TIMEOUT_MS
+
+        updateReconnectGrace(statusRaw, isConnected)
+        val statusForUi = resolveStatusForUi(statusRaw, isConnected)
+        val isReconnecting = inReconnectGrace() && !isConnected
 
         val programRunningState = ProgramStatusUtils.determineProgramState(
             hasBleConnection = false,
@@ -387,31 +523,44 @@ class KilnDetailViewModel(
                 ?.sumOf { it.durationMinutes }
         )
 
-        val shouldUpdateRunning = when (programRunningState) {
+        val shouldUpdateRunning = if (!isConnected) {
+            false
+        } else when (programRunningState) {
             ProgramStatusUtils.ProgramRunningState.CONFIRMED_RUNNING,
             ProgramStatusUtils.ProgramRunningState.ESTIMATED_RUNNING -> true
             ProgramStatusUtils.ProgramRunningState.CONFIRMED_STOPPED,
             ProgramStatusUtils.ProgramRunningState.ESTIMATED_STOPPED -> false
-            else -> programName.isNotEmpty() && statusRaw in ACTIVE_KILN_STATUSES
+            else -> programName.isNotEmpty() && statusForUi in ACTIVE_KILN_STATUSES
         }
-        val isPaused = statusRaw == "PAUSADO"
+        val isPaused = statusForUi == "PAUSADO"
+
+        // Diálogo solo con INTERRUMPIDO reciente confirmado por el ESP en Firebase.
+        _showInterruptedDialog.value =
+            (statusForUi == "INTERRUMPIDO" && isConnected)
 
         if (isLocalAuthoritative) {
-            // Solo refrescamos el indicador de "conectado" y la temperatura
-            // remota, sin tocar programName/status que el local ya gobierna.
+            // Temperatura remota + estado (p. ej. INTERRUMPIDO tras reinicio del ESP
+            // mientras el teléfono aún cree que está en sesión local).
+            _kilnStatus.value = _kilnStatus.value.copy(
+                isConnected = isConnected,
+                isReconnecting = isReconnecting,
+                currentTemperature = temperature,
+                espStatus = statusForUi.ifEmpty { _kilnStatus.value.espStatus }
+            )
             return
         }
 
-        if (programName.isNotEmpty() && programName != _kilnProgram.value.name) {
+        if (isConnected && programName.isNotEmpty() && programName != _kilnProgram.value.name) {
             _kilnProgram.value = _kilnProgram.value.copy(name = programName)
         }
 
         _kilnStatus.value = _kilnStatus.value.copy(
             isConnected = isConnected,
+            isReconnecting = isReconnecting,
             currentTemperature = temperature,
             isRunning = shouldUpdateRunning,
             isPaused = isPaused,
-            espStatus = statusRaw
+            espStatus = statusForUi
         )
     }
 
@@ -426,12 +575,17 @@ class KilnDetailViewModel(
         val isPaused = status == "PAUSADO"
         val isActive = hasActiveProgram && status in ACTIVE_KILN_STATUSES
 
+        _showInterruptedDialog.value = (status == "INTERRUMPIDO")
+
         if (programName.isNotEmpty() && programName != _kilnProgram.value.name) {
             _kilnProgram.value = _kilnProgram.value.copy(name = programName)
         }
 
+        awaitingKilnReconnect = false
+        reconnectDeadlineMs = 0L
         _kilnStatus.value = _kilnStatus.value.copy(
             isConnected = true,
+            isReconnecting = false,
             currentTemperature = dto.temperature,
             espStatus = status,
             isPaused = isPaused,
@@ -550,6 +704,7 @@ class KilnDetailViewModel(
         // (detail) cambia para informar de la sub-fase.
         val title = when (cmd) {
             "START" -> "Iniciando horno…"
+            "RESUME" -> "Reanudando horno…"
             "PAUSE" -> "Pausando horno…"
             "STOP" -> "Deteniendo horno…"
             else -> "Enviando comando…"
@@ -590,7 +745,7 @@ class KilnDetailViewModel(
      */
     private fun applyOptimisticCommandState(cmd: String) {
         _kilnStatus.value = when (cmd) {
-            "START" -> _kilnStatus.value.copy(
+            "START", "RESUME" -> _kilnStatus.value.copy(
                 isRunning = true,
                 isPaused = false,
                 espStatus = "CALENTANDO"
@@ -603,7 +758,7 @@ class KilnDetailViewModel(
             "STOP" -> _kilnStatus.value.copy(
                 isRunning = false,
                 isPaused = false,
-                espStatus = "FINALIZADO"
+                espStatus = "IDLE"
             )
             else -> _kilnStatus.value
         }
@@ -624,6 +779,28 @@ class KilnDetailViewModel(
     fun pauseKiln() {
         viewModelScope.launch {
             sendLocalCommand("PAUSE")
+        }
+    }
+
+    /**
+     * Acción "Reanudar" del diálogo de interrupción: el ESP arranca el
+     * programa desde el segmento/fase guardados en NVS antes del corte.
+     */
+    fun resumeKiln() {
+        viewModelScope.launch {
+            sendLocalCommand("RESUME")
+            _showInterruptedDialog.value = false
+        }
+    }
+
+    /**
+     * Acción "Cancelar" del diálogo de interrupción: limpia el run_state
+     * en el ESP (manda STOP) y el horno vuelve a IDLE.
+     */
+    fun cancelInterruptedProgram() {
+        viewModelScope.launch {
+            sendLocalCommand("STOP")
+            _showInterruptedDialog.value = false
         }
     }
 

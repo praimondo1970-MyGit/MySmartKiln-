@@ -184,4 +184,13 @@ object KilnNetworkConnector {
         if (clean.length < 8) return null
         return clean.takeLast(8)
     }
+
+    /**
+     * Variante de [passphraseFromMac] que acepta el BSSID que devuelve el
+     * scan WiFi (`aa:bb:cc:dd:ee:ff`). Funciona porque el ESP32-S3 deriva
+     * el MAC del SoftAP del MAC base del SoC, conservando los últimos 4
+     * bytes idénticos al MAC del controlador BT/STA con el que el firmware
+     * arma SSID y passphrase.
+     */
+    fun passphraseFromBssid(bssid: String): String? = passphraseFromMac(bssid)
 }

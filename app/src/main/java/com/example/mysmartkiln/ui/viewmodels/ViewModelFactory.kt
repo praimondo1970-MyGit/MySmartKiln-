@@ -3,7 +3,9 @@ package com.example.mysmartkiln.ui.viewmodels
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager
 import com.example.mysmartkiln.data.local.database.BakingDatabase
+import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.data.repository.ProgramRepository
 
 /**
@@ -27,7 +29,8 @@ class ViewModelFactory(private val context: Context) : ViewModelProvider.Factory
             programDao = database.programDao(),
             stageDao = database.stageDao()
         )
-        
+        val kilnRepository = KilnRepository(context, FirebaseRealtimeManager())
+
         // Crear el ViewModel correspondiente
         return when {
             modelClass.isAssignableFrom(CreateProgramViewModel::class.java) -> {
@@ -37,7 +40,7 @@ class ViewModelFactory(private val context: Context) : ViewModelProvider.Factory
                 ProgramsListViewModel(repository) as T
             }
             modelClass.isAssignableFrom(KilnDetailViewModel::class.java) -> {
-                KilnDetailViewModel(repository, context.applicationContext) as T
+                KilnDetailViewModel(repository, kilnRepository, context.applicationContext) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

@@ -61,11 +61,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager
 import com.example.mysmartkiln.data.repository.KilnRepository
-import com.example.mysmartkiln.data.local.KilnConnectionVerifier
-import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.ui.components.KilnCard
+import com.example.mysmartkiln.ui.components.KilnDiscoveryDialog
 import com.example.mysmartkiln.ui.components.KilnSearchInProgressOverlay
-import com.example.mysmartkiln.ui.components.KilnWifiLinkDialog
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
@@ -73,10 +71,6 @@ import com.example.mysmartkiln.ble.HybridConnectionState
 import com.example.mysmartkiln.utils.WifiUtils
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.utils.UserIdUtils
-
-private const val WIFI_KILN_SEARCH_TIMEOUT_MS = 25_000L
-private const val WIFI_KILN_SEARCH_POLL_MS = 2_000L
-private const val WIFI_KILN_SEARCH_MIN_DISPLAY_MS = 1_500L
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -91,7 +85,9 @@ fun KilnsScreen(
     onKilnSelected: (String, String) -> Unit = { _, _ -> }, // Para navegar a monitoreo del horno (macAddress, kilnName)
     onNavigateToSelectProgram: (String, String) -> Unit = { _, _ -> },
     onEditKiln: (String) -> Unit = { _ -> }, // Para navegar a edición de horno (macAddress)
-    onNavigateToConfigureKiln: (String, String) -> Unit = { _, _ -> }, // MAC limpia, nombre sugerido
+    // MAC limpia, nombre, modelo y volumen sugeridos por el horno (vienen
+    // de GET /api/info al terminar la auto-conexión durante el alta).
+    onNavigateToConfigureKiln: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     startScanningAutomatically: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -158,52 +154,14 @@ fun KilnsScreen(
     
     // Estado para controlar el menú "+"
     var isMenuOpen by remember { mutableStateOf(false) }
-    var showWifiLinkDialog by remember { mutableStateOf(false) }
-    var showWifiLinkTimeoutAlert by remember { mutableStateOf(false) }
-    var isWifiKilnSearchActive by remember { mutableStateOf(false) }
-    var wifiSearchHandled by remember { mutableStateOf(false) }
-    val kilnHttpClient = remember { KilnHttpClient(context.applicationContext) }
+    var showDiscoveryDialog by remember { mutableStateOf(false) }
 
-    // Sondeo continuo mientras el overlay está activo (no depende solo de ON_RESUME)
-    LaunchedEffect(isWifiKilnSearchActive) {
-        if (!isWifiKilnSearchActive || wifiSearchHandled) return@LaunchedEffect
-
-        val searchStartedAt = System.currentTimeMillis()
-        val deadline = searchStartedAt + WIFI_KILN_SEARCH_TIMEOUT_MS
-        var foundMac: String? = null
-        var foundName: String? = null
-
-        delay(1500)
-
-        while (System.currentTimeMillis() < deadline && foundMac == null && isWifiKilnSearchActive) {
-            val result = KilnConnectionVerifier.verify(context, kilnHttpClient)
-            if (result.isSuccess) {
-                val (mac, name) = result.getOrThrow()
-                foundMac = mac
-                foundName = name
-            } else {
-                delay(WIFI_KILN_SEARCH_POLL_MS)
-            }
-        }
-
-        if (foundMac != null && foundName != null) {
-            val elapsed = System.currentTimeMillis() - searchStartedAt
-            if (elapsed < WIFI_KILN_SEARCH_MIN_DISPLAY_MS) {
-                delay(WIFI_KILN_SEARCH_MIN_DISPLAY_MS - elapsed)
-            }
-            wifiSearchHandled = true
-            isWifiKilnSearchActive = false
-            onNavigateToConfigureKiln(foundMac, foundName)
-        } else if (!wifiSearchHandled && isWifiKilnSearchActive) {
-            isWifiKilnSearchActive = false
-            showWifiLinkTimeoutAlert = true
-        }
-    }
-    
+    // El nuevo flujo de alta encapsula el escaneo, la auto-conexión y el GET
+    // /api/info dentro de KilnDiscoveryDialog, así que ya no necesitamos el
+    // overlay de polling ni la alerta de timeout que existían antes.
     fun beginAddKilnWifiFlow() {
         isMenuOpen = false
-        wifiSearchHandled = false
-        showWifiLinkDialog = true
+        showDiscoveryDialog = true
     }
 
     // Desde menú "+" u otras pantallas: mismas instrucciones que el primer horno
@@ -452,7 +410,7 @@ fun KilnsScreen(
                                         hasStartedScanning = true
                                         bleViewModel.scanDevices(5000)
                                     }
-                                    else -> showWifiLinkDialog = true
+                                    else -> showDiscoveryDialog = true
                                 }
                             }
                         },
@@ -523,40 +481,6 @@ fun KilnsScreen(
             )
         }
 
-        // Búsqueda del horno por WiFi (al volver de Ajustes) — misma pantalla que escaneo BT
-        if (isWifiKilnSearchActive) {
-            KilnSearchInProgressOverlay(
-                title = "Buscando horno...",
-                subtitleLine1 = "Por favor ten paciencia ya que este",
-                subtitleLine2 = "proceso puede durar hasta 15 segundos",
-                subtitleLine3 = "en completarse.",
-                modifier = Modifier.zIndex(4f),
-                bottomNav = {
-                    ResponsiveBottomNavigation(
-                        onKilnsClick = { },
-                        onProgramsClick = onNavigateToPrograms,
-                        onActivityClick = onNavigateToActivity,
-                        onSettingsClick = onNavigateToSettings,
-                        onPlusClick = { isMenuOpen = !isMenuOpen },
-                        isKilnsActive = true,
-                        isProgramsActive = false,
-                        isActivityActive = false,
-                        isSettingsActive = false,
-                        showFab = true,
-                        isMenuOpen = isMenuOpen,
-                        modifier = Modifier.align(alignment = Alignment.BottomStart)
-                    )
-                },
-                homeIndicator = {
-                    HomeIndicatorWhite(
-                        modifier = Modifier
-                            .align(alignment = Alignment.TopStart)
-                            .offset(x = 0.dp, y = 810.dp)
-                    )
-                }
-            )
-        }
-        
         // Overlay del menú de agregar - SE SUPERPONE cuando isMenuOpen = true
         if (isMenuOpen) {
             AddMenuScreen(
@@ -693,44 +617,21 @@ fun KilnsScreen(
                 .offset(x = 0.dp, y = 810.dp)
         )
 
-        if (showWifiLinkDialog) {
-            KilnWifiLinkDialog(
-                onDismiss = { showWifiLinkDialog = false },
-                onOpenWifiSettings = {
-                    showWifiLinkDialog = false
-                    wifiSearchHandled = false
-                    isWifiKilnSearchActive = true
-                }
-            )
-        }
-
-        if (showWifiLinkTimeoutAlert) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showWifiLinkTimeoutAlert = false },
-                title = {
-                    Text(
-                        text = "No se detectó el horno",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E3A8A)
-                        )
+        if (showDiscoveryDialog) {
+            KilnDiscoveryDialog(
+                onDismiss = { showDiscoveryDialog = false },
+                onKilnSelected = { info ->
+                    // El AP del horno ya está unido al proceso vía
+                    // KilnNetworkConnector. ConfigureKilnScreen va a poder
+                    // hacer un POST /api/kiln-info al terminar el alta sin
+                    // necesidad de volver a conectarse manualmente.
+                    showDiscoveryDialog = false
+                    onNavigateToConfigureKiln(
+                        info.macAddress.replace(":", "").uppercase(),
+                        info.name,
+                        info.model,
+                        info.volume
                     )
-                },
-                text = {
-                    Text(
-                        text = "No pudimos conectar con el horno en 15 segundos.\n\n" +
-                            "• ¿Te conectaste a la red SmartKiln-XXXX?\n" +
-                            "• ¿El horno está encendido y cerca?\n\n" +
-                            "Pulsa Comenzar para intentar de nuevo.",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF475569)
-                        )
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = { showWifiLinkTimeoutAlert = false }) {
-                        Text("Entendido", color = AppColors.Primary700)
-                    }
                 }
             )
         }

@@ -10,6 +10,22 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnApiDefaults
 
+/**
+ * Descripción de un AP de horno detectado por el escáner WiFi.
+ *
+ * - [ssid]   `SmartKiln-XXXX` (últimos 4 hex del MAC del horno).
+ * - [bssid]  MAC del SoftAP (lo expone el sistema operativo). Sus últimos 4
+ *            bytes (8 caracteres hex) coinciden con los del MAC base del
+ *            ESP32-S3, así que sirven para derivar la passphrase WPA2 del
+ *            AP, que el firmware arma con esos mismos 8 hex (uppercase).
+ * - [signalLevel] dBm de señal (más cercano a 0 = más fuerte).
+ */
+data class KilnAccessPoint(
+    val ssid: String,
+    val bssid: String,
+    val signalLevel: Int
+)
+
 object WifiUtils {
 
     fun isOnSmartKilnNetwork(context: Context): Boolean {
@@ -126,5 +142,46 @@ object WifiUtils {
             android.util.Log.e("WifiUtils", "Error escaneando redes: ${e.message}")
         }
         return emptyList()
+    }
+
+    /**
+     * Devuelve los SSIDs visibles que arrancan con `SmartKiln-`, ordenados
+     * por intensidad de señal. Útil cuando solo necesitamos el SSID (por ej.
+     * mostrar nombres en una lista o filtrarlos en otro diálogo).
+     *
+     * Importante: requiere que el WiFi esté habilitado y, en Android 13+,
+     * el permiso NEARBY_WIFI_DEVICES (en versiones anteriores
+     * ACCESS_FINE_LOCATION) para que `scanResults` devuelva algo distinto a
+     * lista vacía.
+     */
+    fun getSmartKilnNetworks(context: Context): List<String> {
+        return getSmartKilnAccessPoints(context).map { it.ssid }.distinct()
+    }
+
+    /**
+     * Variante detallada de [getSmartKilnNetworks] que también devuelve el
+     * BSSID y la potencia de cada AP. La usa el flujo de alta para listar
+     * los hornos detectados y derivar la passphrase WPA2 a partir del BSSID
+     * (los 8 últimos caracteres hex del MAC), porque el SSID solo expone 4.
+     */
+    @Suppress("DEPRECATION")
+    fun getSmartKilnAccessPoints(context: Context): List<KilnAccessPoint> {
+        return try {
+            val wifiManager =
+                context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            if (wifiManager?.isWifiEnabled != true) return emptyList()
+            wifiManager.startScan()
+            wifiManager.scanResults
+                .asSequence()
+                .filter { !it.SSID.isNullOrBlank() && isSmartKilnSsid(it.SSID) }
+                .filter { !it.BSSID.isNullOrBlank() }
+                .sortedByDescending { it.level }
+                .map { KilnAccessPoint(ssid = it.SSID, bssid = it.BSSID, signalLevel = it.level) }
+                .distinctBy { it.bssid }
+                .toList()
+        } catch (e: Exception) {
+            android.util.Log.e("WifiUtils", "Error escaneando hornos: ${e.message}")
+            emptyList()
+        }
     }
 }

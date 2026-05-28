@@ -50,6 +50,7 @@ import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
 import com.example.mysmartkiln.ui.components.WifiScanDialog
+import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.WifiUtils
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
@@ -64,6 +65,8 @@ fun ConfigureKilnScreen(
     deviceName: String,
     bleViewModel: BleViewModel,
     authViewModel: AuthViewModel,
+    deviceModel: String = "",
+    deviceVolume: String = "",
     existingKiln: KilnEntity? = null, // Opcional: horno existente para modo edición
     onKilnConfigured: () -> Unit = {},
     onBack: () -> Unit = {},
@@ -74,10 +77,22 @@ fun ConfigureKilnScreen(
     onCreateProgram: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // Pre-cargar datos si estamos editando un horno existente
-    var kilnName by remember { mutableStateOf(existingKiln?.name ?: "") }
-    var manufacturer by remember { mutableStateOf(existingKiln?.manufacturer ?: "") }
-    var volume by remember { mutableStateOf(existingKiln?.volume ?: "") }
+    // Pre-cargar datos:
+    //   - Si el horno ya existe en Room (modo edición), usamos esos valores.
+    //   - Si no, prellenamos con lo que devolvió GET /api/info al alta
+    //     (deviceName / deviceModel / deviceVolume). Para volumen ignoramos
+    //     el "0.0" del firmware sin configurar para que el campo aparezca
+    //     vacío y obligue al usuario a completarlo.
+    var kilnName by remember { mutableStateOf(existingKiln?.name ?: deviceName) }
+    var manufacturer by remember { mutableStateOf(existingKiln?.manufacturer ?: deviceModel) }
+    var volume by remember {
+        mutableStateOf(
+            existingKiln?.volume
+                ?: deviceVolume.takeIf {
+                    it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true
+                }.orEmpty()
+        )
+    }
     var wifiSSID by remember { mutableStateOf("") }
     var wifiPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -175,10 +190,15 @@ fun ConfigureKilnScreen(
             kilnRepository.saveKiln(kilnEntity)
         }
 
-        onKilnConfigured()
-
-        if (WifiUtils.isOnSmartKilnNetwork(context)) {
-            kilnRepository.runInBackground {
+        // Intentamos POST /api/kiln-info ANTES de salir de la pantalla, para
+        // que el ESP reciba el userId y los datos correctos. Tras la auto-
+        // conexión del KilnDiscoveryDialog la red del horno sigue bound vía
+        // WifiNetworkSpecifier, así que un ping responde aunque el sistema
+        // operativo siga reportando la WiFi de casa como red activa
+        // (esto invalidaba el viejo check WifiUtils.isOnSmartKilnNetwork).
+        val httpReachable = withContext(Dispatchers.IO) { kilnHttpClient.ping() }
+        if (httpReachable) {
+            withContext(Dispatchers.IO) {
                 kilnHttpClient.uploadKilnInfo(kilnInfoJson)
                     .onSuccess {
                         android.util.Log.d("ConfigureKilnScreen", "✅ kiln-info enviado por HTTP")
@@ -190,7 +210,19 @@ fun ConfigureKilnScreen(
                         )
                     }
             }
+        } else {
+            android.util.Log.w(
+                "ConfigureKilnScreen",
+                "⚠️ Sin conexión local al horno: kiln-info no se envió. " +
+                    "El ESP conserva el userId anterior hasta el próximo alta."
+            )
         }
+
+        // Soltamos la red del horno (la app vuelve a usar la WiFi de casa con
+        // internet validada) antes de navegar de regreso.
+        KilnNetworkConnector.release(context)
+
+        onKilnConfigured()
     }
 
     Box(

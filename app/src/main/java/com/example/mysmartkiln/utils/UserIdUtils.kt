@@ -48,6 +48,20 @@ object UserIdUtils {
             "anonymous_user"
         }
     }
+
+    /** Firebase RTDB timestamp en segundos o milisegundos → siempre ms. */
+    fun firebaseTimestampMs(raw: Long): Long {
+        return if (raw in 1..9_999_999_999L) raw * 1000L else raw
+    }
+
+    fun parseFirebaseTimestamp(value: Any?): Long {
+        val raw = when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull() ?: 0L
+            else -> 0L
+        }
+        return firebaseTimestampMs(raw)
+    }
 }
 
 

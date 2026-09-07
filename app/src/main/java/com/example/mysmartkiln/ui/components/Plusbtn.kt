@@ -19,7 +19,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -41,14 +41,14 @@ fun Plusbtn(
                 modifier = Modifier
                     .requiredSize(size = 53.dp)
                     .clip(shape = CircleShape)
-                    .background(color = AppColors.color_Terciary_800)
+                    .background(color = LocalKilnColors.current.fab)
             )
             
             // Icono plus SVG
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.plusicon),
                 contentDescription = "plus-icon",
-                tint = Color.White,
+                tint = LocalKilnColors.current.onFab,
                 modifier = Modifier
                     .align(alignment = Alignment.Center)
                     .requiredSize(size = 26.dp)

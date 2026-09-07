@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 data class StageData(
@@ -58,6 +59,7 @@ fun StageCard(
     onDeleteClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     var isSwiped by remember { mutableStateOf(false) }
     var offsetX by remember { mutableStateOf(0f) }
     
@@ -97,7 +99,12 @@ fun StageCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = kilnColors.cardBackground,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = kilnColors.cardBorder,
                     shape = RoundedCornerShape(12.dp)
                 )
                        .pointerInput(Unit) {
@@ -153,7 +160,7 @@ fun StageCard(
                 Text(
                     text = "Etapa ${stageData.stageNumber}",
                     style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
-                        color = AppColors.Primary600,
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.sp
                     )
@@ -164,14 +171,14 @@ fun StageCard(
                     modifier = Modifier
                         .requiredSize(24.dp)
                         .clip(CircleShape)
-                        .background(color = AppColors.Primary600)
+                        .background(color = kilnColors.accent)
                         .clickable { onStageClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = ">",
                         style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.White,
+                            color = kilnColors.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
@@ -220,6 +227,7 @@ private fun ParameterColumn(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = modifier.requiredWidth(100.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -230,14 +238,14 @@ private fun ParameterColumn(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = kilnColors.accent.copy(alpha = 0.15f))
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = kilnColors.accent,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -246,7 +254,7 @@ private fun ParameterColumn(
         Text(
             text = value,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary700,
+                color = kilnColors.body,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             ),
@@ -257,7 +265,7 @@ private fun ParameterColumn(
         Text(
             text = label,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall.copy(
-                color = AppColors.Primary700,
+                color = kilnColors.body,
                 fontSize = 12.sp
             ),
             modifier = Modifier.padding(top = 6.dp)
@@ -273,10 +281,12 @@ fun ReadOnlyStageCard(
     isCompleted: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
+
     val backgroundColor = when {
-        isCurrentStage -> AppColors.Primary50
-        isCompleted -> Color(0xFFE8F5E9)
-        else -> Color.White
+        isCurrentStage -> kilnColors.cardBackground
+        isCompleted -> kilnColors.cardBackground
+        else -> kilnColors.cardBackground
     }
 
     Box(
@@ -286,9 +296,9 @@ fun ReadOnlyStageCard(
             .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp))
             .then(
                 if (isCurrentStage) {
-                    Modifier.border(2.dp, AppColors.Primary600, RoundedCornerShape(12.dp))
+                    Modifier.border(2.dp, kilnColors.accent, RoundedCornerShape(12.dp))
                 } else {
-                    Modifier
+                    Modifier.border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
                 }
             )
             .background(color = backgroundColor, shape = RoundedCornerShape(12.dp))
@@ -304,7 +314,7 @@ fun ReadOnlyStageCard(
             Text(
                 text = "Etapa ${stageData.stageNumber}",
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary600,
+                    color = kilnColors.title,
                     fontWeight = FontWeight.Medium,
                     fontSize = 16.sp
                 )
@@ -313,7 +323,7 @@ fun ReadOnlyStageCard(
                 Text(
                     text = "En curso",
                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
-                        color = AppColors.Primary600,
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
@@ -322,7 +332,7 @@ fun ReadOnlyStageCard(
                 Text(
                     text = "Completada",
                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
-                        color = Color(0xFF2E7D32),
+                        color = kilnColors.success,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp
                     )

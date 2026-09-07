@@ -280,6 +280,10 @@ fun KilnStatusScreen(
             // diálogo guía «Conéctate al horno» en vez de mandar el comando.
             // Solo se desactivan visualmente mientras se sube un perfil.
             val buttonsClickable = !isUploadingProgram && !isConnectingToAp
+            // Stop solo tiene sentido si hay cocción activa o pausada; si ya
+            // está detenido/idle no debe intentar conectar ni mandar STOP.
+            val canStop = kilnStatus.isRunning || kilnStatus.isPaused ||
+                espStatus in setOf("CALENTANDO", "PAUSADO")
 
             // El ViewModel intenta primero conectarse al AP del horno por
             // WifiNetworkSpecifier (Android 10+). Si Android no lo permite,
@@ -332,13 +336,14 @@ fun KilnStatusScreen(
                 espStatus == "FINALIZADO" -> {
                     Button(
                         onClick = guardedAction { viewModel.stopKiln() },
-                        enabled = buttonsClickable,
+                        enabled = buttonsClickable && canStop,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 10.dp)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = kilnColors.accent
+                            // Mockup Fase A: Stop = negro/gris oscuro; Iniciar = naranja
+                            containerColor = if (kilnColors.isEsp) Color.Black else kilnColors.accent
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -450,12 +455,13 @@ fun KilnStatusScreen(
 
                         Button(
                             onClick = guardedAction { viewModel.stopKiln() },
-                            enabled = buttonsClickable,
+                            enabled = buttonsClickable && canStop,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = kilnColors.accent
+                                // Mockup Fase A: Stop = negro; Iniciar/Pausa = naranja (fab)
+                                containerColor = if (kilnColors.isEsp) Color.Black else kilnColors.accent
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {

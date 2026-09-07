@@ -1,5 +1,7 @@
 package com.example.mysmartkiln.ui.components
 
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -32,7 +34,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
         modifier = modifier
                 .requiredWidth(width = 388.dp)
                 .requiredHeight(height = 301.dp)
-                .background(color = Color(0xffccced3))
+                .background(color = LocalKilnColors.current.navBar)
         ) {
         Box(
             modifier = Modifier
@@ -41,7 +43,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
             Box(
                 modifier = Modifier
                                 .fillMaxSize()
-                                .background(color = Color(0xffd1d5db)))
+                                .background(color = LocalKilnColors.current.cardBorder))
             }
         Box(
             modifier = Modifier
@@ -62,11 +64,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "3",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -75,7 +77,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "DEF",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -95,11 +97,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "2",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -108,7 +110,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "ABC",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -128,11 +130,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "1",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -141,7 +143,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = " ",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -161,11 +163,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "6",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -174,7 +176,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "MNO",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -194,11 +196,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "5",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -207,7 +209,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "JKL",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -216,7 +218,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "JKL",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -236,11 +238,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "4",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -249,7 +251,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "GHI",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -269,11 +271,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "9",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -282,7 +284,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "WXYZ",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -302,11 +304,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "8",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -315,7 +317,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "TUV",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -335,11 +337,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "7",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -348,7 +350,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                         .fillMaxSize())
                 Text(
                     text = "PQRS",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 10.sp,
@@ -368,11 +370,11 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(color = Color.White)
+                                        .background(color = LocalKilnColors.current.cardBackground)
                                         .clip(shape = RoundedCornerShape(5.dp)))
                 Text(
                     text = "0",
-                    color = Color.Black,
+                    color = LocalKilnColors.current.title,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
                                         fontSize = 25.sp,
@@ -387,7 +389,7 @@ fun SystemKeyboardsIPhoneLightNumbers(modifier: Modifier = Modifier) {
                                                 y = 179.98.dp)
                                 .requiredWidth(width = 25.dp)
                                 .requiredHeight(height = 19.dp)
-                                .background(color = Color(0xffdadada))
+                                .background(color = LocalKilnColors.current.muted)
                                 .clip(shape = RoundedCornerShape(3.dp)))
             }
         }

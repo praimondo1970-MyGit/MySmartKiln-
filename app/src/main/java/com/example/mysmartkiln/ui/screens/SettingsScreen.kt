@@ -48,6 +48,7 @@ import com.example.mysmartkiln.R
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
@@ -196,88 +197,11 @@ fun SettingsScreen(
                 .requiredHeight(height = 200.dp)
                 .zIndex(2f) // Por encima del overlay del menú
         ) {
-            // Navigation Bar Background - Full width with precise curved top
-            Box(
+            // Navigation Bar Background
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = kilnColors.navBar,
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    
-                                    // Convert dp to pixels for precise positioning
-                                    val densityValue = density.density
-                                    
-                                    // Start from left edge at y=34 (relative to top of shape)
-                                    val startY = 34f * densityValue
-                                    val curveStartY = startY
-                                    
-                                    // Move to start position (left edge, y=34)
-                                    moveTo(0f, curveStartY)
-                                    
-                                    // Left side straight line (from 0,34 to 147,34)
-                                    lineTo(width * (147f/390f), curveStartY)
-                                    
-                                    // First curve: C158.046,34 166.586,43.8745 173.422,52.5508
-                                    cubicTo(
-                                        width * (158.046f/390f), curveStartY,
-                                        width * (166.586f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Second curve: C178.915,59.5232 187.435,64 197,64
-                                    cubicTo(
-                                        width * (178.915f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), curveStartY + (30f * densityValue),
-                                        width * (197f/390f), curveStartY + (30f * densityValue)
-                                    )
-                                    
-                                    // Third curve: C206.565,64 215.085,59.5232 220.578,52.5508
-                                    cubicTo(
-                                        width * (206.565f/390f), curveStartY + (30f * densityValue),
-                                        width * (215.085f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Fourth curve: C227.414,43.8745 235.954,34 247,34
-                                    cubicTo(
-                                        width * (227.414f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), curveStartY,
-                                        width * (247f/390f), curveStartY
-                                    )
-                                    
-                                    // Right side straight line (from 247,34 to right edge, y=34)
-                                    lineTo(width, curveStartY)
-                                    
-                                    // Continue to right edge at y=54
-                                    lineTo(width, curveStartY + (20f * densityValue))
-                                    
-                                    // Bottom right corner
-                                    lineTo(width, height)
-                                    
-                                    // Bottom edge
-                                    lineTo(0f, height)
-                                    
-                                    // Left side back to start
-                                    lineTo(0f, curveStartY + (20f * densityValue))
-                                    
-                                    // Close the path back to start
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
         
             // Responsive Bottom Navigation Bar
@@ -313,14 +237,14 @@ private fun AccountDetailsCard() {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .background(LocalKilnColors.current.cardBackground)
             .padding(20.dp)
     ) {
         Column {
             Text(
                 text = "Pablo Raimondo",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AppColors.Primary600,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Medium,
                     fontSize = 17.sp // Incrementado en 1sp desde bodyLarge (16sp)
                 ),
@@ -330,7 +254,7 @@ private fun AccountDetailsCard() {
             Text(
                 text = "praimondo1970@hotmail.com",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = AppColors.Primary600
+                    color = LocalKilnColors.current.body
                 )
             )
         }
@@ -351,7 +275,7 @@ private fun LanguageSelector(
         Text(
             text = "Idioma",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary800,
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -363,8 +287,8 @@ private fun LanguageSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                    .background(LocalKilnColors.current.cardBackground)
+                    .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -376,7 +300,7 @@ private fun LanguageSelector(
                     Text(
                         text = selectedLanguage,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = AppColors.Primary600
+                            color = LocalKilnColors.current.body
                         )
                     )
                     
@@ -386,7 +310,7 @@ private fun LanguageSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = AppColors.Primary600
+                        tint = LocalKilnColors.current.body
                     )
                 }
             }
@@ -398,8 +322,8 @@ private fun LanguageSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                        .background(LocalKilnColors.current.cardBackground)
+                        .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -418,7 +342,7 @@ private fun LanguageSelector(
                                 Text(
                                     text = language,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = AppColors.Primary600
+                                        color = LocalKilnColors.current.body
                                     )
                                 )
                                 
@@ -427,7 +351,7 @@ private fun LanguageSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = AppColors.Primary600,
+                                        tint = LocalKilnColors.current.body,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -437,7 +361,7 @@ private fun LanguageSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(AppColors.Primary100)
+                                        .background(LocalKilnColors.current.accent.copy(alpha = 0.15f))
                                 )
                             }
                         }
@@ -462,7 +386,7 @@ private fun UnitsSelector(
         Text(
             text = "Unidades",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary800,
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -474,8 +398,8 @@ private fun UnitsSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                    .background(LocalKilnColors.current.cardBackground)
+                    .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -487,7 +411,7 @@ private fun UnitsSelector(
                     Text(
                         text = selectedUnits,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = AppColors.Primary600
+                            color = LocalKilnColors.current.body
                         )
                     )
                     
@@ -497,7 +421,7 @@ private fun UnitsSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = AppColors.Primary600
+                        tint = LocalKilnColors.current.body
                     )
                 }
             }
@@ -509,8 +433,8 @@ private fun UnitsSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                        .background(LocalKilnColors.current.cardBackground)
+                        .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -529,7 +453,7 @@ private fun UnitsSelector(
                                 Text(
                                     text = unit,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = AppColors.Primary600
+                                        color = LocalKilnColors.current.body
                                     )
                                 )
                                 
@@ -538,7 +462,7 @@ private fun UnitsSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = AppColors.Primary600,
+                                        tint = LocalKilnColors.current.body,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -548,7 +472,7 @@ private fun UnitsSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(AppColors.Primary100)
+                                        .background(LocalKilnColors.current.accent.copy(alpha = 0.15f))
                                 )
                             }
                         }

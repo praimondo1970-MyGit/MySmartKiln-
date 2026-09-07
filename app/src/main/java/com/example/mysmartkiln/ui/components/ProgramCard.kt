@@ -3,6 +3,7 @@ package com.example.mysmartkiln.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 data class ProgramCardData(
@@ -63,6 +65,7 @@ fun ProgramCard(
     showArrow: Boolean = true, // Parámetro para controlar si se muestra el botón ">"
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     var offsetX by remember { mutableStateOf(0f) }
     
     // Sincronizar el estado local con el estado externo
@@ -101,7 +104,12 @@ fun ProgramCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = kilnColors.cardBackground,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = kilnColors.cardBorder,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .then(
@@ -164,7 +172,7 @@ fun ProgramCard(
             Text(
                 text = program.name,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary600,
+                    color = kilnColors.title,
                     fontWeight = FontWeight.Bold, // Cambiar de Medium a Bold
                     fontSize = 16.sp
                 )
@@ -176,7 +184,7 @@ fun ProgramCard(
                     modifier = Modifier
                         .requiredSize(24.dp)
                         .clip(CircleShape)
-                        .background(color = AppColors.Primary600)
+                        .background(color = kilnColors.accent)
                         .clickable { 
                             android.util.Log.d("ProgramCard", "🎯 ProgramCard arrow clicked - calling onCardClick")
                             onCardClick() 
@@ -186,7 +194,7 @@ fun ProgramCard(
                     Text(
                         text = ">",
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.White,
+                            color = kilnColors.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
@@ -214,14 +222,14 @@ fun ProgramCard(
                     modifier = Modifier
                         .requiredSize(35.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(color = AppColors.Primary100)
+                        .background(color = kilnColors.accent.copy(alpha = 0.15f))
                         .padding(6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.etapa_temp),
                         contentDescription = "Temperature",
-                        tint = AppColors.Primary600,
+                        tint = kilnColors.accent,
                         modifier = Modifier.requiredSize(24.dp)
                     )
                 }
@@ -231,7 +239,7 @@ fun ProgramCard(
                     Text(
                         text = "${program.maxTemperature}°C",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = kilnColors.body,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -239,7 +247,7 @@ fun ProgramCard(
                     Text(
                         text = "Temp max.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = AppColors.Primary700,
+                            color = kilnColors.body,
                             fontSize = 12.sp
                         )
                     )
@@ -256,14 +264,14 @@ fun ProgramCard(
                     modifier = Modifier
                         .requiredSize(35.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(color = AppColors.Primary100)
+                        .background(color = kilnColors.accent.copy(alpha = 0.15f))
                         .padding(6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.etapa_mes),
                         contentDescription = "Duration",
-                        tint = AppColors.Primary600,
+                        tint = kilnColors.accent,
                         modifier = Modifier.requiredSize(24.dp)
                     )
                 }
@@ -273,7 +281,7 @@ fun ProgramCard(
                     Text(
                         text = program.duration,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = kilnColors.body,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -281,7 +289,7 @@ fun ProgramCard(
                     Text(
                         text = "Duracion",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = AppColors.Primary700,
+                            color = kilnColors.body,
                             fontSize = 12.sp
                         )
                     )
@@ -299,6 +307,7 @@ private fun ParameterColumn(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = modifier.requiredWidth(100.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -309,14 +318,14 @@ private fun ParameterColumn(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = kilnColors.accent.copy(alpha = 0.15f))
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = kilnColors.accent,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -325,7 +334,7 @@ private fun ParameterColumn(
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary700,
+                color = kilnColors.body,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             ),
@@ -336,7 +345,7 @@ private fun ParameterColumn(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall.copy(
-                color = AppColors.Primary700,
+                color = kilnColors.body,
                 fontSize = 12.sp
             ),
             modifier = Modifier.padding(top = 6.dp)

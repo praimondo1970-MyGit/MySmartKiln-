@@ -16,10 +16,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.TemperatureSample
 import com.example.mysmartkiln.utils.KilnCurveBuilder
-
-private val RealCurveColor = Color(0xFFFF6F00)
 
 @Composable
 fun KilnTemperatureChart(
@@ -30,6 +29,12 @@ fun KilnTemperatureChart(
     showProgress: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
+    val bodyColor = kilnColors.body
+    val mutedColor = kilnColors.muted
+    val onAccentColor = kilnColors.onAccent
+    val gridColor = kilnColors.cardBorder
+    val realCurveColor = kilnColors.accent
     val totalMin = chartModel.totalMinutes.coerceAtLeast(1f)
     val minTemp = chartModel.minTemp
     val maxTemp = chartModel.maxTemp
@@ -51,17 +56,17 @@ fun KilnTemperatureChart(
             ) {
                 Text(
                     text = KilnCurveBuilder.formatAxisTemp(maxTemp),
-                    color = AppColors.Primary400,
+                    color = mutedColor,
                     fontSize = 10.sp
                 )
                 Text(
                     text = KilnCurveBuilder.formatAxisTemp(midTemp),
-                    color = AppColors.Primary400,
+                    color = mutedColor,
                     fontSize = 10.sp
                 )
                 Text(
                     text = KilnCurveBuilder.formatAxisTemp(minTemp),
-                    color = AppColors.Primary400,
+                    color = mutedColor,
                     fontSize = 10.sp
                 )
             }
@@ -89,8 +94,7 @@ fun KilnTemperatureChart(
                 }
 
                 // Grid
-                val gridColor = AppColors.Neutral200
-                for (i in 0..4) {
+                                for (i in 0..4) {
                     val y = padT + plotH * i / 4f
                     drawLine(gridColor, Offset(padL, y), Offset(padL + plotW, y), strokeWidth = 1f)
                 }
@@ -104,7 +108,7 @@ fun KilnTemperatureChart(
                     points = chartModel.theoretical,
                     mapX = ::mapX,
                     mapY = ::mapY,
-                    color = AppColors.Primary700,
+                    color = bodyColor,
                     strokeWidth = 3f
                 )
 
@@ -120,12 +124,12 @@ fun KilnTemperatureChart(
                         points = realPoints,
                         mapX = ::mapX,
                         mapY = ::mapY,
-                        color = RealCurveColor,
+                        color = realCurveColor,
                         strokeWidth = 2.5f
                     )
                 } else if (realPoints.size == 1 && showProgress) {
                     drawCircle(
-                        color = RealCurveColor,
+                        color = realCurveColor,
                         radius = 6f,
                         center = Offset(mapX(realPoints[0].timeMin), mapY(realPoints[0].tempC))
                     )
@@ -135,7 +139,7 @@ fun KilnTemperatureChart(
                 if (showProgress && currentElapsedMin >= 0f) {
                     val progressX = mapX(currentElapsedMin.coerceAtMost(totalMin))
                     drawLine(
-                        color = AppColors.Primary400.copy(alpha = 0.7f),
+                        color = mutedColor.copy(alpha = 0.7f),
                         start = Offset(progressX, padT),
                         end = Offset(progressX, padT + plotH),
                         strokeWidth = 1.5f,
@@ -143,12 +147,12 @@ fun KilnTemperatureChart(
                     )
                     if (currentTemperature > 0f) {
                         drawCircle(
-                            color = RealCurveColor,
+                            color = realCurveColor,
                             radius = 7f,
                             center = Offset(progressX, mapY(currentTemperature))
                         )
                         drawCircle(
-                            color = Color.White,
+                            color = onAccentColor,
                             radius = 4f,
                             center = Offset(progressX, mapY(currentTemperature))
                         )
@@ -165,17 +169,17 @@ fun KilnTemperatureChart(
         ) {
             Text(
                 text = "0",
-                color = AppColors.Primary400,
+                color = mutedColor,
                 fontSize = 10.sp
             )
             Text(
                 text = KilnCurveBuilder.formatAxisMinutes(midTime),
-                color = AppColors.Primary400,
+                color = mutedColor,
                 fontSize = 10.sp
             )
             Text(
                 text = KilnCurveBuilder.formatAxisMinutes(totalMin),
-                color = AppColors.Primary400,
+                color = mutedColor,
                 fontSize = 10.sp
             )
         }

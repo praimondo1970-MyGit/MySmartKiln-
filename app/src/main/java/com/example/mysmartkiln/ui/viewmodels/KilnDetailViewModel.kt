@@ -1454,6 +1454,13 @@ class KilnDetailViewModel(
     }
 
     fun stopKiln() {
+        val status = _kilnStatus.value
+        val canStop = status.isRunning || status.isPaused ||
+            status.espStatus in setOf("CALENTANDO", "PAUSADO")
+        if (!canStop) {
+            Log.d(TAG, "stopKiln ignorado: horno ya detenido (${status.espStatus})")
+            return
+        }
         viewModelScope.launch {
             sendLocalCommand("STOP")
         }

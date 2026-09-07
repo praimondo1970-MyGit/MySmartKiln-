@@ -20,8 +20,10 @@ import com.example.mysmartkiln.ble.BleViewModel
 import com.example.mysmartkiln.ui.components.DeviceCard
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Pantalla que muestra los dispositivos BLE encontrados
@@ -124,59 +126,10 @@ fun DevicesFoundScreen(
                 .zIndex(2f)
         ) {
             // Navigation Bar Background
-            Box(
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = Color(0xFF003D99),
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    val densityValue = density.density
-                                    
-                                    val startY = 34f * densityValue
-                                    moveTo(0f, startY)
-                                    lineTo(width * (147f/390f), startY)
-                                    cubicTo(
-                                        width * (158.046f/390f), startY,
-                                        width * (166.586f/390f), startY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (178.915f/390f), startY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), startY + (30f * densityValue),
-                                        width * (197f/390f), startY + (30f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (206.565f/390f), startY + (30f * densityValue),
-                                        width * (215.085f/390f), startY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (227.414f/390f), startY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), startY,
-                                        width * (247f/390f), startY
-                                    )
-                                    lineTo(width, startY)
-                                    lineTo(width, startY + (20f * densityValue))
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    lineTo(0f, startY + (20f * densityValue))
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
             
             // Responsive Bottom Navigation Bar

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -31,7 +32,7 @@ fun AgregarEtapa(
         Text(
             text = text,
             style = MaterialTheme.typography.titleLarge.copy(
-                color = Color(0xFF1E3A8A), // Dark blue - same as CrearPrograma
+                color = LocalKilnColors.current.title, // Dark blue - same as CrearPrograma
                 fontWeight = FontWeight.Bold
             ),
             textAlign = TextAlign.Start // Left align instead of center

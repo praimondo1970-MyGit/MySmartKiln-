@@ -34,23 +34,25 @@ git checkout master
 
 ## Fases
 
-### Fase A — Theme / tokens + toggle (EN CURSO)
+### Fase A — Theme / tokens + toggle (CUMPLIDA — validar en dispositivo)
 **Impacto:** alto percibido · **Riesgo:** bajo · **Esfuerzo:** 1–3 días
 
-1. Tokens ESP (`EspBrand` / `KilnColors` semánticos).
-2. Preferencia persistida `ThemeMode`: `CLASSIC` | `ESP`.
-3. `MySmartKilnTheme` + `LocalKilnColors` + `LocalThemeController`.
-4. Toggle en Ajustes (reutilizar selector Claro/Oscuro).
-5. Migrar pantallas clave a colores semánticos (sin cambiar layout):
-   - KilnDetail / Status
-   - Kilns
-   - Settings
-   - Bottom nav (tintes básicos)
-6. ProgressArcs: track/progress desde `KilnColors` (sigue layout actual).
+1. Tokens ESP (`EspBrand` / `KilnColors` semánticos). ✅
+2. Preferencia persistida `ThemeMode`: `CLASSIC` | `ESP`. ✅
+3. `MySmartKilnTheme` + `LocalKilnColors` + `LocalThemeController`. ✅
+4. Toggle en Ajustes (reutilizar selector Claro/Oscuro). ✅
+5. Migrar pantallas clave a colores semánticos (sin cambiar layout): ✅
+   - Hornos, Programas, Actividad, Ajustes, Detalle (Estado/Programa/Curva)
+   - Crear/editar programa, etapas, seleccionar programa
+   - Bottom nav, cards, buscador, inputs compartidos
+6. ProgressArcs / curva: colores desde `KilnColors`. ✅
+7. Ajustes de marca: naranja `#FF9800`, cards/nav más claras, bordes, Stop negro. ✅
 
 **No hacer en A:** rediseñar jerarquía tipo dashboard ESP.
 
-**Done cuando:** con Oscuro la app se ve negra/naranja; con Claro idéntica (o casi) a hoy.
+**Done cuando:** con Oscuro la app se ve negra/naranja; con Claro idéntica (o casi) a hoy. → **alcanzado**
+
+**Restos menores (no bloquean A):** Login/Splash/SignIn, flujos BLE/Scan/Configure kiln pueden tener hex sueltos; se pueden pulir en C.
 
 ---
 

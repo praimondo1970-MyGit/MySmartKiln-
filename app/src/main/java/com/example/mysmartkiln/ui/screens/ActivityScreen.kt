@@ -3,6 +3,7 @@ package com.example.mysmartkiln.ui.screens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -53,9 +54,11 @@ import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.OrangeHexagon
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 // Estructura de datos para las actividades de horneado
@@ -121,7 +124,7 @@ fun ActivityScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal
         Column(
@@ -133,7 +136,7 @@ fun ActivityScreen(
             Text(
                 text = "Actividad",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -151,7 +154,7 @@ fun ActivityScreen(
             Text(
                 text = "Septiembre 2025",
                 style = MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary800,
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Medium
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
@@ -183,7 +186,7 @@ fun ActivityScreen(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -218,59 +221,10 @@ fun ActivityScreen(
                 .zIndex(2f)
         ) {
             // Navigation Bar Background
-            Box(
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = Color(0xFF003D99),
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    val densityValue = density.density
-                                    
-                                    val startY = 34f * densityValue
-                                    moveTo(0f, startY)
-                                    lineTo(width * (147f/390f), startY)
-                                    cubicTo(
-                                        width * (158.046f/390f), startY,
-                                        width * (166.586f/390f), startY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (178.915f/390f), startY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), startY + (30f * densityValue),
-                                        width * (197f/390f), startY + (30f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (206.565f/390f), startY + (30f * densityValue),
-                                        width * (215.085f/390f), startY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (227.414f/390f), startY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), startY,
-                                        width * (247f/390f), startY
-                                    )
-                                    lineTo(width, startY)
-                                    lineTo(width, startY + (20f * densityValue))
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    lineTo(0f, startY + (20f * densityValue))
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
             
             // Responsive Bottom Navigation Bar
@@ -339,7 +293,12 @@ private fun ActivityCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = LocalKilnColors.current.cardBackground,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = LocalKilnColors.current.cardBorder,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .pointerInput(Unit) {
@@ -388,7 +347,7 @@ private fun ActivityCard(
                     Text(
                         text = activity.kilnName,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -397,7 +356,7 @@ private fun ActivityCard(
                     Text(
                         text = activity.executionDate,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -408,7 +367,7 @@ private fun ActivityCard(
                 Text(
                     text = activity.programName,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = AppColors.Primary600,
+                        color = LocalKilnColors.current.body,
                         fontSize = 14.sp
                     ),
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -456,14 +415,14 @@ private fun ActivityDetailItem(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = LocalKilnColors.current.body,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -473,7 +432,7 @@ private fun ActivityDetailItem(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.accent,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -481,7 +440,7 @@ private fun ActivityDetailItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.accent,
                     fontSize = 12.sp
                 )
             )
@@ -506,7 +465,7 @@ private fun ActivitySwipeActions(
                 .align(alignment = Alignment.CenterEnd)
                 .requiredSize(size = 64.dp)
                 .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = AppColors.Primary400) // Mismo color que ProgramSwipeActions
+                .background(color = LocalKilnColors.current.fab) // Mismo color que ProgramSwipeActions
                 .clickable { onDelete() }
         ) {
             Box(
@@ -526,7 +485,7 @@ private fun ActivitySwipeActions(
                 )
                 Text(
                     text = "borrar",
-                    color = AppColors.White,
+                    color = LocalKilnColors.current.onAccent,
                     lineHeight = 1.em,
                     style = TextStyle(fontSize = 10.sp),
                     modifier = Modifier

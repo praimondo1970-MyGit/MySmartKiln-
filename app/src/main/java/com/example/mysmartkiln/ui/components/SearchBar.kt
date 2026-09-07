@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -45,12 +46,12 @@ fun SearchBar(
                 shape = RoundedCornerShape(12.dp)
             )
             .background(
-                color = Color.White,
+                color = LocalKilnColors.current.cardBackground,
                 shape = RoundedCornerShape(12.dp)
             )
             .border(
                 width = 1.dp,
-                color = AppColors.Primary100,
+                color = LocalKilnColors.current.cardBorder,
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -69,17 +70,17 @@ fun SearchBar(
                     value = query,
                     onValueChange = onQueryChange,
                     textStyle = TextStyle(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontSize = 16.sp
                     ),
-                    cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                    cursorBrush = SolidColor(LocalKilnColors.current.accent),
                     singleLine = true,
                     decorationBox = { innerTextField ->
                         if (query.isEmpty()) {
                             Text(
                                 text = placeholder,
                                 style = TextStyle(
-                                    color = Color(0xFF6B7280), // Gray
+                                    color = LocalKilnColors.current.muted,
                                     fontSize = 16.sp
                                 )
                             )
@@ -99,7 +100,7 @@ fun SearchBar(
                     painter = painterResource(id = R.drawable.ic_search),
                     contentDescription = "Search",
                     modifier = Modifier.size(20.dp),
-                    tint = Color(0xFF6B7280) // Gray
+                    tint = LocalKilnColors.current.muted
                 )
             }
         }

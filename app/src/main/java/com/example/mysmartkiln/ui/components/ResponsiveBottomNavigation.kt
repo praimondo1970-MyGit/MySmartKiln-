@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Componente de navegación inferior responsive que se adapta automáticamente
@@ -215,6 +216,11 @@ private fun NavigationTab(
     modifier: Modifier = Modifier,
     enabled: Boolean = true // Nuevo parámetro para habilitar/deshabilitar el botón
 ) {
+    val kilnColors = LocalKilnColors.current
+    val activeColor = if (kilnColors.isEsp) kilnColors.accent else kilnColors.onAccent
+    val inactiveColor = if (kilnColors.isEsp) kilnColors.muted else kilnColors.onAccent.copy(alpha = 0.85f)
+    val contentColor = if (isActive) activeColor else inactiveColor
+
     Column(
         modifier = modifier
             .clickable(enabled = enabled) { onClick() } // Solo responde a clicks si está habilitado
@@ -226,14 +232,14 @@ private fun NavigationTab(
         Icon(
             painter = painterResource(id = icon),
             contentDescription = "$text-icon",
-            tint = Color.White,
+            tint = contentColor,
             modifier = Modifier.size(24.dp)
         )
         
         // Text
         Text(
             text = text,
-            color = Color.White,
+            color = contentColor,
             style = TextStyle(
                 fontSize = 12.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
@@ -247,7 +253,7 @@ private fun NavigationTab(
                     .width(20.dp)
                     .height(3.dp)
                     .background(
-                        color = Color.White,
+                        color = activeColor,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
                     )
             )

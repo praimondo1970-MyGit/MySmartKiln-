@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -36,13 +37,13 @@ fun CircularTerciary(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(shape = CircleShape)
-                .background(color = AppColors.Primary700)
+                .background(color = LocalKilnColors.current.accent)
         )
         // Placeholder for icon - will be replaced when the actual icon is available
         Icon(
             imageVector = Icons.Filled.Close,
             contentDescription = "Close",
-            tint = Color.White,
+            tint = LocalKilnColors.current.onAccent,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(start = 9.dp,

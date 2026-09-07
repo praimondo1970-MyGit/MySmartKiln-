@@ -114,11 +114,11 @@ fun CreateProgramScreen(
         }
     }
     
-    // Navegar a Programas después de guardar exitosamente
+    // Volver a la pantalla anterior tras guardar (detalle del horno o lista de programas)
     LaunchedEffect(viewModel.programSavedSuccessfully) {
         if (viewModel.programSavedSuccessfully) {
-            onNavigateToPrograms()
             viewModel.resetSaveState()
+            onNavigateBack()
         }
     }
     

@@ -80,6 +80,10 @@ object ProgramStatusUtils {
                         Log.d(TAG, "⏸️ Estado CONFIRMED_STOPPED desde Firebase (pausado)")
                         return ProgramRunningState.CONFIRMED_STOPPED
                     }
+                    "INTERRUMPIDO" -> {
+                        Log.d(TAG, "⚠️ Estado CONFIRMED_STOPPED desde Firebase (interrumpido)")
+                        return ProgramRunningState.CONFIRMED_STOPPED
+                    }
                     "stopped", "DETENIDO", "finished", "FINALIZADO", "idle", "IDLE" -> {
                         Log.d(TAG, "🛑 Estado CONFIRMED_STOPPED desde Firebase ($status)")
                         return ProgramRunningState.CONFIRMED_STOPPED

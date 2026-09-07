@@ -662,6 +662,7 @@ fun KilnCard(
                                 "PAUSADO" -> "Pausa"
                                 "DETENIDO" -> "Detenido"
                                 "FINALIZADO" -> "Finalizado"
+                                "INTERRUMPIDO" -> "Interrumpido"
                                 "IDLE" -> "Inactivo"
                                 else -> "Inactivo"
                             }
@@ -673,6 +674,7 @@ fun KilnCard(
                                 "paused", "PAUSADO" -> "Pausa"
                                 "stopped", "DETENIDO" -> "Detenido"
                                 "finished", "FINALIZADO" -> "Finalizado"
+                                "INTERRUMPIDO" -> "Interrumpido"
                                 "idle", "IDLE" -> "Inactivo"
                                 else -> "Inactivo"
                             }

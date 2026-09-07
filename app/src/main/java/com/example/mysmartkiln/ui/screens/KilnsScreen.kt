@@ -47,6 +47,7 @@ import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.Plusbtn
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -182,10 +183,11 @@ fun KilnsScreen(
             }
         }
     }
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = kilnColors.screenBackground)
     ) {
         // Contenido principal - Mostrar hornos registrados o estado vacío
         // Si hay hornos registrados, mostrar lista siempre (mismo formato que ProgramsScreen)
@@ -197,7 +199,7 @@ fun KilnsScreen(
                 Text(
                     text = "Mis Hornos",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -309,7 +311,7 @@ fun KilnsScreen(
                         else -> "¿Listo para comenzar?"
                     },
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold
                     ),
                     textAlign = TextAlign.Center,
@@ -337,21 +339,21 @@ fun KilnsScreen(
                             Text(
                                 text = "Por favor ten paciencia ya que este",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "proceso puede durar hasta 10 segundos",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "en completarse.",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -360,7 +362,7 @@ fun KilnsScreen(
                             Text(
                                 text = "Asegúrate que el horno al que intentas conectarte esté encendido y dentro del alcance del bluetooth",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -369,14 +371,14 @@ fun KilnsScreen(
                             Text(
                                 text = "Cuando estés listo presiona comenzar",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "para detectar los hornos disponibles",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Color(0xFF1E3A8A)
+                                    color = kilnColors.title
                                 ),
                                 textAlign = TextAlign.Center
                             )

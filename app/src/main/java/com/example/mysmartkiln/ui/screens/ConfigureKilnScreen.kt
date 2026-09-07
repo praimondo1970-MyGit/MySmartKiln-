@@ -49,6 +49,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
+import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
 import com.example.mysmartkiln.ui.components.WifiScanDialog
 import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.WifiUtils
@@ -56,6 +57,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -95,7 +97,9 @@ fun ConfigureKilnScreen(
     }
     var wifiSSID by remember { mutableStateOf("") }
     var wifiPassword by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
+    var isSendingToKiln by remember { mutableStateOf(false) }
+    var sendingPhase by remember { mutableStateOf("") }
+    var sendingDetail by remember { mutableStateOf("") }
     var isMenuOpen by remember { mutableStateOf(false) }
     var showValidationAlert by remember { mutableStateOf(false) }
     var showSaveErrorAlert by remember { mutableStateOf(false) }
@@ -154,6 +158,10 @@ fun ConfigureKilnScreen(
     }
 
     suspend fun saveKiln() {
+        sendingPhase = if (isEditMode) "Actualizando horno…" else "Configurando horno…"
+        sendingDetail = "Guardando en la app…"
+        isSendingToKiln = true
+
         val name = kilnName.trim()
         val brand = manufacturer.trim()
         val vol = volume.trim()
@@ -186,43 +194,39 @@ fun ConfigureKilnScreen(
             homeWifiPassword = homePassword.takeIf { shouldSendHomeWifi }
         )
 
-        withContext(Dispatchers.IO) {
-            kilnRepository.saveKiln(kilnEntity)
-        }
-
-        // Intentamos POST /api/kiln-info ANTES de salir de la pantalla, para
-        // que el ESP reciba el userId y los datos correctos. Tras la auto-
-        // conexión del KilnDiscoveryDialog la red del horno sigue bound vía
-        // WifiNetworkSpecifier, así que un ping responde aunque el sistema
-        // operativo siga reportando la WiFi de casa como red activa
-        // (esto invalidaba el viejo check WifiUtils.isOnSmartKilnNetwork).
-        val httpReachable = withContext(Dispatchers.IO) { kilnHttpClient.ping() }
-        if (httpReachable) {
+        try {
             withContext(Dispatchers.IO) {
-                kilnHttpClient.uploadKilnInfo(kilnInfoJson)
-                    .onSuccess {
-                        android.util.Log.d("ConfigureKilnScreen", "✅ kiln-info enviado por HTTP")
-                    }
-                    .onFailure {
-                        android.util.Log.w(
-                            "ConfigureKilnScreen",
-                            "⚠️ kiln-info HTTP: ${it.message}"
-                        )
-                    }
+                kilnRepository.saveKiln(kilnEntity)
             }
-        } else {
-            android.util.Log.w(
-                "ConfigureKilnScreen",
-                "⚠️ Sin conexión local al horno: kiln-info no se envió. " +
-                    "El ESP conserva el userId anterior hasta el próximo alta."
+
+            val espSynced = syncKilnInfoToEsp(
+                context = context,
+                kilnMacNoColons = cleanMacAddress,
+                kilnHttpClient = kilnHttpClient,
+                kilnInfoJson = kilnInfoJson,
+                onDetail = { sendingDetail = it }
             )
+
+            if (espSynced) {
+                onKilnConfigured()
+            } else {
+                val detail = if (!KilnNetworkConnector.isSupported) {
+                    "Conéctate manualmente al WiFi del horno (SmartKiln-XXXX) y pulsa «Actualizar horno» de nuevo."
+                } else if (!KilnNetworkConnector.hasRequiredPermissions(context)) {
+                    "Activa el permiso de WiFi cercano en Ajustes de la app e inténtalo otra vez."
+                } else {
+                    "Acepta el diálogo de Android para unirte al AP del horno e inténtalo otra vez."
+                }
+                saveErrorMessage =
+                    "Los datos quedaron guardados en la app, pero no se enviaron al ESP.\n\n$detail"
+                showSaveErrorAlert = true
+                android.util.Log.w("ConfigureKilnScreen", "kiln-info no enviado al ESP")
+            }
+        } finally {
+            isSendingToKiln = false
+            sendingPhase = ""
+            sendingDetail = ""
         }
-
-        // Soltamos la red del horno (la app vuelve a usar la WiFi de casa con
-        // internet validada) antes de navegar de regreso.
-        KilnNetworkConnector.release(context)
-
-        onKilnConfigured()
     }
 
     Box(
@@ -526,17 +530,17 @@ fun ConfigureKilnScreen(
                         showValidationAlert = true
                         return@Button
                     }
-                    if (isLoading) return@Button
-                    isLoading = true
+                    if (isSendingToKiln) return@Button
                     coroutineScope.launch {
                         try {
                             saveKiln()
                         } catch (e: Exception) {
+                            isSendingToKiln = false
+                            sendingPhase = ""
+                            sendingDetail = ""
                             android.util.Log.e("ConfigureKilnScreen", "💥 Error al guardar: ${e.message}", e)
                             saveErrorMessage = e.message ?: "Error desconocido"
                             showSaveErrorAlert = true
-                        } finally {
-                            isLoading = false
                         }
                     }
                 },
@@ -552,18 +556,10 @@ fun ConfigureKilnScreen(
                 ),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = if (isEditMode) "Actualizar horno" else "Agregar Horno",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+                Text(
+                    text = if (isEditMode) "Actualizar horno" else "Agregar Horno",
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
             
             // Bottom spacing for navigation
@@ -705,7 +701,7 @@ fun ConfigureKilnScreen(
                 onDismissRequest = { showSaveErrorAlert = false },
                 title = {
                     Text(
-                        text = "No se pudo guardar",
+                        text = "Horno no sincronizado",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -736,6 +732,13 @@ fun ConfigureKilnScreen(
             )
         }
 
+        if (isSendingToKiln) {
+            KilnSendingCommandDialog(
+                phase = sendingPhase.ifBlank { "Enviando al horno…" },
+                detail = sendingDetail.ifBlank { null }
+            )
+        }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -751,6 +754,51 @@ private fun formatBleMacAddress(mac: String): String {
     val clean = mac.replace(":", "").uppercase()
     if (clean.length != 12) return mac
     return clean.chunked(2).joinToString(":")
+}
+
+/**
+ * Envía kiln-info al ESP: ping directo o conexión automática al AP SmartKiln-*.
+ */
+private suspend fun syncKilnInfoToEsp(
+    context: android.content.Context,
+    kilnMacNoColons: String,
+    kilnHttpClient: KilnHttpClient,
+    kilnInfoJson: String,
+    onDetail: (String) -> Unit
+): Boolean {
+    suspend fun tryUpload(): Boolean {
+        onDetail("Enviando configuración al horno…")
+        if (!kilnHttpClient.ping()) return false
+        return kilnHttpClient.uploadKilnInfo(kilnInfoJson)
+            .onSuccess {
+                android.util.Log.d("ConfigureKilnScreen", "kiln-info enviado por HTTP")
+            }
+            .onFailure {
+                android.util.Log.w("ConfigureKilnScreen", "kiln-info HTTP: ${it.message}")
+            }
+            .isSuccess
+    }
+
+    try {
+        onDetail("Comprobando conexión con el horno…")
+        if (tryUpload()) return true
+
+        if (!KilnNetworkConnector.isSupported) return false
+        if (!KilnNetworkConnector.hasRequiredPermissions(context)) return false
+
+        val ssid = KilnNetworkConnector.ssidFromMac(kilnMacNoColons) ?: return false
+        val pass = KilnNetworkConnector.passphraseFromMac(kilnMacNoColons) ?: return false
+
+        onDetail("Conectando al WiFi del horno…")
+        android.util.Log.d("ConfigureKilnScreen", "Auto-conexión a $ssid para kiln-info")
+        if (KilnNetworkConnector.connect(context, ssid, pass) == null) {
+            return false
+        }
+        delay(500)
+        return tryUpload()
+    } finally {
+        KilnNetworkConnector.release(context)
+    }
 }
 
 @Preview(showBackground = true)

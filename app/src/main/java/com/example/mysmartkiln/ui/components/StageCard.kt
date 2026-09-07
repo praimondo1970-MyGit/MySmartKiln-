@@ -3,6 +3,7 @@ package com.example.mysmartkiln.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -261,6 +262,97 @@ private fun ParameterColumn(
             ),
             modifier = Modifier.padding(top = 6.dp)
         )
+    }
+}
+
+/** Vista de etapa sin edición (p. ej. pestaña Programa del horno). */
+@Composable
+fun ReadOnlyStageCard(
+    stageData: StageData,
+    isCurrentStage: Boolean = false,
+    isCompleted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = when {
+        isCurrentStage -> AppColors.Primary50
+        isCompleted -> Color(0xFFE8F5E9)
+        else -> Color.White
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .requiredHeight(120.dp)
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp))
+            .then(
+                if (isCurrentStage) {
+                    Modifier.border(2.dp, AppColors.Primary600, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                }
+            )
+            .background(color = backgroundColor, shape = RoundedCornerShape(12.dp))
+            .padding(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopStart),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Etapa ${stageData.stageNumber}",
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
+                    color = AppColors.Primary600,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp
+                )
+            )
+            if (isCurrentStage) {
+                Text(
+                    text = "En curso",
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = AppColors.Primary600,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                )
+            } else if (isCompleted) {
+                Text(
+                    text = "Completada",
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = Color(0xFF2E7D32),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp
+                    )
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ParameterColumn(
+                icon = R.drawable.etapa_temp,
+                value = "${stageData.temperature}°C",
+                label = "Temperatura"
+            )
+            ParameterColumn(
+                icon = R.drawable.etapa_vel,
+                value = "${stageData.speed}°C/Min",
+                label = "Velocidad"
+            )
+            ParameterColumn(
+                icon = R.drawable.etapa_mes,
+                value = "${stageData.maintenance} min",
+                label = "Meseta"
+            )
+        }
     }
 }
 

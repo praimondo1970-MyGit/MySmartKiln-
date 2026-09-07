@@ -38,6 +38,16 @@ object KilnNetworkConnector {
     var activeNetwork: Network? = null
         private set
 
+    /** Tras release(): evita re-pedir el AP en el mismo ciclo de resume (perfil B). */
+    @Volatile
+    var lastReleaseAtMs: Long = 0L
+        private set
+
+    fun isInPostHandoffCooldown(cooldownMs: Long): Boolean {
+        if (lastReleaseAtMs <= 0L) return false
+        return System.currentTimeMillis() - lastReleaseAtMs < cooldownMs
+    }
+
     val isSupported: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
@@ -163,6 +173,7 @@ object KilnNetworkConnector {
         }
         activeCallback = null
         activeNetwork = null
+        lastReleaseAtMs = System.currentTimeMillis()
     }
 
     /**

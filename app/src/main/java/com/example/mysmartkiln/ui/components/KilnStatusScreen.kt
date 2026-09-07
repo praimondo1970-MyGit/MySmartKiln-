@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.ui.viewmodels.ProgramStage
 import com.example.mysmartkiln.utils.KilnNetworkConnector
@@ -45,6 +47,7 @@ fun KilnStatusScreen(
     val isUploadingProgram by viewModel.isUploadingProgram.collectAsState()
     val isConnectingToAp by viewModel.isConnectingToAp.collectAsState()
     val shouldShowManualWifiDialog by viewModel.shouldShowManualWifiDialog.collectAsState()
+    val kilnColors = LocalKilnColors.current
 
     // Pedimos el permiso runtime que necesita WifiNetworkSpecifier
     // (NEARBY_WIFI_DEVICES en Android 13+, ACCESS_FINE_LOCATION antes). Sin
@@ -58,6 +61,7 @@ fun KilnStatusScreen(
         if (kilnProgram.name.isEmpty()) {
             viewModel.loadKilnData(kilnMacAddress)
         }
+        viewModel.ensureProgramStagesLoaded()
         if (KilnNetworkConnector.isSupported &&
             !KilnNetworkConnector.hasRequiredPermissions(context)
         ) {
@@ -76,8 +80,13 @@ fun KilnStatusScreen(
             .fillMaxWidth()
             .height(450.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (kilnColors.isEsp) 0.dp else 4.dp),
+        border = if (kilnColors.isEsp) {
+            androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder)
+        } else {
+            null
+        }
     ) {
         Column(
             modifier = Modifier
@@ -100,7 +109,7 @@ fun KilnStatusScreen(
                     ) {
                         Text(
                             text = kilnProgram.name,
-                            color = AppColors.Primary700,
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -111,7 +120,7 @@ fun KilnStatusScreen(
                         modifier = Modifier
                             .width(1.dp)
                             .height(40.dp)
-                            .background(AppColors.Primary200)
+                            .background(kilnColors.cardBorder)
                     )
 
                     // Right side - Total Duration
@@ -124,20 +133,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.icon_time),
                                 contentDescription = "Time",
-                                tint = AppColors.Primary700,
+                                tint = kilnColors.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = kilnStatus.totalTime,
-                                color = AppColors.Primary700,
+                                color = kilnColors.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                         }
                         Text(
                             text = "Duración",
-                            color = AppColors.Primary400,
+                            color = kilnColors.muted,
                             fontSize = 13.sp
                         )
                     }
@@ -166,7 +175,7 @@ fun KilnStatusScreen(
                             style = SpanStyle(
                                 fontSize = 80.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = AppColors.Primary700
+                                color = kilnColors.body
                             )
                         ) {
                             append("${kilnStatus.currentTemperature.toInt()}")
@@ -175,7 +184,7 @@ fun KilnStatusScreen(
                             style = SpanStyle(
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = AppColors.Primary700,
+                                color = kilnColors.body,
                                 baselineShift = BaselineShift(0.6f)
                             )
                         ) {
@@ -210,20 +219,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.etapa_temp),
                                 contentDescription = "Max Temperature",
-                                tint = AppColors.Primary700,
+                                tint = kilnColors.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "${kilnStatus.targetTemperature.toInt()}°C",
-                                color = AppColors.Primary700,
+                                color = kilnColors.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp
                             )
                         }
                         Text(
                             text = "Temp max",
-                            color = AppColors.Primary400,
+                            color = kilnColors.muted,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(start = 32.dp) // Alineado con la temperatura (24dp ícono + 8dp spacer)
                         )
@@ -239,20 +248,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.icon_time),
                                 contentDescription = "Remaining",
-                                tint = AppColors.Primary700,
+                                tint = kilnColors.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = kilnStatus.remainingTime,
-                                color = AppColors.Primary700,
+                                color = kilnColors.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                         }
                         Text(
                             text = "Pendiente",
-                            color = AppColors.Primary400,
+                            color = kilnColors.muted,
                             fontSize = 13.sp
                         )
                     }
@@ -297,7 +306,7 @@ fun KilnStatusScreen(
                             .padding(horizontal = 10.dp)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700
+                            containerColor = kilnColors.accent
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -312,7 +321,7 @@ fun KilnStatusScreen(
                 espStatus == "INTERRUMPIDO" -> {
                     Text(
                         text = "Programa interrumpido. Usá el aviso para reanudar o cancelar.",
-                        color = AppColors.Primary600,
+                        color = kilnColors.muted,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -329,7 +338,7 @@ fun KilnStatusScreen(
                             .padding(horizontal = 10.dp)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700
+                            containerColor = kilnColors.accent
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -364,19 +373,19 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
+                                        containerColor = kilnColors.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.icon_play),
-                                        contentDescription = "Reanudar",
+                                        contentDescription = "Iniciar",
                                         tint = Color.White,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Reanudar",
+                                        text = "Iniciar",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -391,7 +400,7 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
+                                        containerColor = kilnColors.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
@@ -418,7 +427,7 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
+                                        containerColor = kilnColors.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
@@ -446,7 +455,7 @@ fun KilnStatusScreen(
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = AppColors.Primary700
+                                containerColor = kilnColors.accent
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -482,39 +491,38 @@ fun ProgramProgressBar(
     modifier: Modifier = Modifier
 ) {
     if (stages.isEmpty()) return
-    
-    // Calculate total duration
-    val totalMinutes = stages.sumOf { it.durationMinutes }
-    
+    val kilnColors = LocalKilnColors.current
+
+    val totalMinutes = stages.sumOf { it.durationMinutes.coerceAtLeast(0) }
+    if (totalMinutes <= 0) return
+
     // Calculate how much time has elapsed in each stage
     var remainingElapsed = elapsedMinutes
-    
+
     Row(
         modifier = modifier.height(8.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         stages.forEach { stage ->
-            // Calculate the width proportion for this stage
-            val stageWeight = stage.durationMinutes.toFloat() / totalMinutes.toFloat()
-            
-            // Calculate how much of this stage is completed
+            val duration = stage.durationMinutes.coerceAtLeast(0)
+            val stageWeight = duration.toFloat() / totalMinutes.toFloat()
+
             val stageProgress = when {
-                remainingElapsed <= 0 -> 0f // Not started yet
-                remainingElapsed >= stage.durationMinutes -> {
-                    remainingElapsed -= stage.durationMinutes
-                    1f // Fully completed
+                duration <= 0 || remainingElapsed <= 0 -> 0f
+                remainingElapsed >= duration -> {
+                    remainingElapsed -= duration
+                    1f
                 }
                 else -> {
-                    val progress = remainingElapsed.toFloat() / stage.durationMinutes.toFloat()
+                    val progress = remainingElapsed.toFloat() / duration.toFloat()
                     remainingElapsed = 0
-                    progress // Partially completed
+                    progress
                 }
             }
-            
-            // Draw the stage segment
+
             Box(
                 modifier = Modifier
-                    .weight(stageWeight)
+                    .weight(stageWeight.coerceAtLeast(0.0001f))
                     .fillMaxHeight()
             ) {
                 // Background (gray)
@@ -534,7 +542,7 @@ fun ProgramProgressBar(
                             .fillMaxHeight()
                             .fillMaxWidth(stageProgress)
                             .background(
-                                color = AppColors.Primary700,
+                                color = kilnColors.body,
                                 shape = RoundedCornerShape(4.dp)
                             )
                     )
@@ -551,6 +559,7 @@ fun TemperatureGauge(
     programStages: List<com.example.mysmartkiln.ui.viewmodels.ProgramStage> = emptyList(),
     elapsedMinutes: Int = 0
 ) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = Modifier.size(210.dp),
         contentAlignment = Alignment.Center
@@ -579,7 +588,7 @@ fun TemperatureGauge(
                         style = SpanStyle(
                             fontSize = 42.sp,
                             fontWeight = FontWeight.Normal,
-                            color = AppColors.Primary700
+                            color = kilnColors.body
                         )
                     ) {
                         append("${currentTemperature.toInt()}")
@@ -589,7 +598,7 @@ fun TemperatureGauge(
                         style = SpanStyle(
                             fontSize = 21.sp,
                             fontWeight = FontWeight.Normal,
-                            color = AppColors.Primary700
+                            color = kilnColors.body
                         )
                     ) {
                         append("°C")
@@ -603,73 +612,88 @@ fun TemperatureGauge(
 @Composable
 fun ProgressArcs(
     stages: List<ProgramStage> = emptyList(),
-    elapsedMinutes: Int = 15  // Minutos transcurridos desde el inicio del programa
+    elapsedMinutes: Int = 0
 ) {
     if (stages.isEmpty()) return
-    
-    // Calcular duraciones y tiempo total
-    val stageDurations = stages.map { it.durationMinutes }
+
+    val kilnColors = LocalKilnColors.current
+    val stageDurations = stages.map { it.durationMinutes.coerceAtLeast(0) }
     val totalMinutes = stageDurations.sum()
-    
-    val totalArcDegrees = 270f  // 270° de arco total
-    val separatorDegrees = 3f  // 3° de separación entre etapas
-    
-    // Calcular grados disponibles para las etapas (descontando separadores)
-    val numSeparators = stages.size - 1
+    if (totalMinutes <= 0) return
+
+    val totalArcDegrees = 270f
+    val separatorDegrees = 3f
+    val numSeparators = (stages.size - 1).coerceAtLeast(0)
     val availableDegrees = totalArcDegrees - (separatorDegrees * numSeparators)
-    
+
     Canvas(modifier = Modifier.size(235.dp)) {
-        var currentAngle = 135f  // Comenzar en 135° (para centrar 270° desde 135° hasta 405°)
+        val strokeWidth = 8.dp.toPx()
+        val strokeStyle = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+        // Inset para que el stroke no se recorte en el borde del Canvas.
+        val arcInset = strokeWidth / 2f
+        val arcSize = Size(
+            width = size.minDimension - strokeWidth,
+            height = size.minDimension - strokeWidth
+        )
+        val arcTopLeft = Offset(arcInset, arcInset)
+        val arcRadius = arcSize.minDimension / 2f
+
+        var currentAngle = 135f
         var accumulatedMinutes = 0
-        
+
         stages.forEachIndexed { index, stage ->
-            // Calcular el sweep angle proporcional a la duración de esta etapa
-            val stageProportion = stage.durationMinutes.toFloat() / totalMinutes.toFloat()
+            val duration = stageDurations[index]
+            val stageProportion = duration.toFloat() / totalMinutes.toFloat()
             val stageSweepAngle = availableDegrees * stageProportion
-            
-            // Determinar cuánto de esta etapa está completado
+
             val stageStartMinute = accumulatedMinutes
-            val stageEndMinute = accumulatedMinutes + stage.durationMinutes
-            
+            val stageEndMinute = accumulatedMinutes + duration
+
             val completedInThisStage = when {
-                elapsedMinutes >= stageEndMinute -> stage.durationMinutes // Completada totalmente
-                elapsedMinutes > stageStartMinute -> elapsedMinutes - stageStartMinute // Parcialmente completada
-                else -> 0 // No iniciada
+                duration <= 0 -> 0
+                elapsedMinutes >= stageEndMinute -> duration
+                elapsedMinutes > stageStartMinute -> elapsedMinutes - stageStartMinute
+                else -> 0
             }
-            
-            val completedProportion = completedInThisStage.toFloat() / stage.durationMinutes.toFloat()
-            val completedSweepAngle = stageSweepAngle * completedProportion
-            
-            // Dibujar la parte GRIS (pendiente) de esta etapa
-            drawArc(
-                color = Color.DarkGray.copy(alpha = 0.4f),
-                startAngle = currentAngle,
-                sweepAngle = stageSweepAngle,
-                useCenter = false,
-                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Butt)
-            )
-            
-            // Dibujar la parte AZUL (completada) de esta etapa
-            if (completedSweepAngle > 0) {
+
+            val completedSweepAngle = if (duration > 0) {
+                stageSweepAngle * (completedInThisStage.toFloat() / duration.toFloat())
+            } else {
+                0f
+            }
+
+            if (stageSweepAngle > 0f) {
                 drawArc(
-                    color = AppColors.Primary700,
+                    color = kilnColors.track,
+                    startAngle = currentAngle,
+                    sweepAngle = stageSweepAngle,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = strokeStyle
+                )
+            }
+
+            if (completedSweepAngle > 0f) {
+                drawArc(
+                    color = kilnColors.progress,
                     startAngle = currentAngle,
                     sweepAngle = completedSweepAngle,
                     useCenter = false,
-                    style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = strokeStyle
                 )
             }
-            
-            // Dibujar separador entre etapas (línea blanca)
+
             if (index < stages.size - 1) {
                 val separatorAngle = currentAngle + stageSweepAngle + (separatorDegrees / 2f)
                 val separatorRadians = Math.toRadians(separatorAngle.toDouble())
-                val radius = size.minDimension / 2f
-                val startRadius = radius - 12.dp.toPx()
-                val endRadius = radius + 4.dp.toPx()
-                
+                val startRadius = arcRadius - 8.dp.toPx()
+                val endRadius = arcRadius + 8.dp.toPx()
+
                 drawLine(
-                    color = Color.White,
+                    color = kilnColors.cardBackground,
                     start = Offset(
                         x = center.x + (startRadius * Math.cos(separatorRadians)).toFloat(),
                         y = center.y + (startRadius * Math.sin(separatorRadians)).toFloat()
@@ -681,10 +705,9 @@ fun ProgressArcs(
                     strokeWidth = 2.dp.toPx()
                 )
             }
-            
-            // Avanzar para la siguiente etapa
+
             currentAngle += stageSweepAngle + separatorDegrees
-            accumulatedMinutes += stage.durationMinutes
+            accumulatedMinutes += duration
         }
     }
 }

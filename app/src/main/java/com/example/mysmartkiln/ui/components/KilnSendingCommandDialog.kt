@@ -29,7 +29,7 @@ import com.example.mysmartkiln.ui.theme.AppColors
 
 /**
  * Diálogo modal con un círculo girando que se muestra mientras la app se
- * conecta al AP del horno y envía un comando (START / PAUSE / STOP / programa).
+ * conecta al AP del horno y envía un comando (START / PAUSE / STOP / programa / configuración).
  *
  * Bloquea la interacción de la pantalla detrás (no se puede cerrar con back
  * ni con tap fuera) hasta que el ViewModel apague el flag.

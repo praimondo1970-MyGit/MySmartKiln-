@@ -9,6 +9,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 /**
  * Gestor centralizado para operaciones con Firebase Realtime Database
@@ -19,13 +20,17 @@ class FirebaseRealtimeManager {
     private val reference: DatabaseReference = database.reference
     
     companion object {
+        private const val TAG = "FirebaseRealtimeManager"
         private const val USERS_PATH = "users"
         private const val PROGRAMS_PATH = "programs"
         private const val KILNS_PATH = "kilns"
         private const val ACTIVITY_PATH = "activity"
         private const val KILNS_REALTIME_PATH = "kilns_realtime"
         private const val REALTIME_DATA_PATH = "realtimeData"
+        private const val PROFILE_STATE_PATH = "profileState"
         private const val DEVICE_INFO_PATH = "deviceInfo"
+        /** Evita que get() cuelgue minutos si el socket RTDB quedó zombie. */
+        const val REALTIME_GET_TIMEOUT_MS = 3_000L
     }
     
     /**
@@ -230,6 +235,40 @@ class FirebaseRealtimeManager {
     }
     
     // ==================== DATOS EN TIEMPO REAL ====================
+
+    /**
+     * Emite true/false según el estado del WebSocket de RTDB (.info/connected).
+     * Útil para detectar conexiones zombie sin esperar al poll de datos.
+     */
+    fun observeConnectionState(): Flow<Boolean> = callbackFlow {
+        val connectedRef = database.getReference(".info/connected")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val connected = snapshot.getValue(Boolean::class.java) == true
+                android.util.Log.d(TAG, "RTDB .info/connected = $connected")
+                trySend(connected)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                android.util.Log.e(TAG, "RTDB connection listener cancelled: ${error.message}")
+                close(error.toException())
+            }
+        }
+        connectedRef.addValueEventListener(listener)
+        awaitClose {
+            connectedRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Fuerza al SDK a cerrar y reabrir el socket RTDB.
+     * Llamar tras detectar .info/connected=false o datos obsoletos prolongados.
+     */
+    fun reconnectFirebase() {
+        android.util.Log.w(TAG, "RTDB reconnect: goOffline → goOnline")
+        database.goOffline()
+        database.goOnline()
+    }
     
     /**
      * Observa los datos en tiempo real de un horno (temperatura, estado, timestamp)
@@ -282,6 +321,52 @@ class FirebaseRealtimeManager {
             ref.removeEventListener(listener)
         }
     }
+
+    /**
+     * Perfil cargado en el ESP (persiste en IDLE; distinto de realtimeData/programName).
+     * Path: /users/{userId}/kilns/{macAddress}/profileState
+     */
+    fun observeProfileState(userId: String, macAddress: String): Flow<Map<String, Any?>?> = callbackFlow {
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                @Suppress("UNCHECKED_CAST")
+                val data = snapshot.value as? Map<String, Any?>
+                trySend(data)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+
+        val ref = getUserReference(userId)
+            .child(KILNS_PATH)
+            .child(macAddress)
+            .child(PROFILE_STATE_PATH)
+
+        ref.addValueEventListener(listener)
+        awaitClose {
+            ref.removeEventListener(listener)
+        }
+    }
+
+    suspend fun getProfileState(userId: String, macAddress: String): Result<Map<String, Any?>?> {
+        return try {
+            val snapshot = withTimeout(REALTIME_GET_TIMEOUT_MS) {
+                getUserReference(userId)
+                    .child(KILNS_PATH)
+                    .child(macAddress)
+                    .child(PROFILE_STATE_PATH)
+                    .get()
+                    .await()
+            }
+            @Suppress("UNCHECKED_CAST")
+            val data = snapshot.value as? Map<String, Any?>
+            Result.success(data)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     /**
      * Obtiene los datos en tiempo real de un horno (una sola vez)
@@ -293,17 +378,20 @@ class FirebaseRealtimeManager {
      */
     suspend fun getRealtimeData(userId: String, macAddress: String): Result<Map<String, Any?>?> {
         return try {
-            val snapshot = getUserReference(userId)
-                .child(KILNS_PATH)
-                .child(macAddress)
-                .child(REALTIME_DATA_PATH)
-                .get()
-                .await()
+            val snapshot = withTimeout(REALTIME_GET_TIMEOUT_MS) {
+                getUserReference(userId)
+                    .child(KILNS_PATH)
+                    .child(macAddress)
+                    .child(REALTIME_DATA_PATH)
+                    .get()
+                    .await()
+            }
             
             @Suppress("UNCHECKED_CAST")
             val data = snapshot.value as? Map<String, Any?>
             Result.success(data)
         } catch (e: Exception) {
+            android.util.Log.w(TAG, "getRealtimeData timeout/error: ${e.message}")
             Result.failure(e)
         }
     }

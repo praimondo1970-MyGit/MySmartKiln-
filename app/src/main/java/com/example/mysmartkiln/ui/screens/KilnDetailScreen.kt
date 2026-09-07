@@ -29,8 +29,10 @@ import com.example.mysmartkiln.ui.components.KilnProgramScreen
 import com.example.mysmartkiln.ui.components.KilnCurveScreen
 import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
 import com.example.mysmartkiln.ui.components.KilnInterruptedDialog
+import com.example.mysmartkiln.ui.components.KilnApReconfigWaitDialog
 import com.example.mysmartkiln.ui.components.KilnEspStatusBadge
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import kotlinx.coroutines.launch
@@ -52,16 +54,32 @@ fun KilnDetailScreen(
     val sendingPhase by viewModel.sendingCommandPhase.collectAsState()
     val sendingDetail by viewModel.sendingCommandDetail.collectAsState()
     val showInterruptedDialog by viewModel.showInterruptedDialog.collectAsState()
+    val apReconfigWaitDialog by viewModel.apReconfigWaitDialog.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
+    val kilnColors = LocalKilnColors.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(kilnMacAddress) {
         viewModel.loadKilnData(kilnMacAddress)
     }
 
+    // Etapas para el círculo de duración: Firebase/HTTP suelen traer solo el
+    // nombre; las etapas viven en Room. Sin esto, Status no dibuja arcos hasta
+    // visitar la pestaña Programa (que sí llama ensureProgramStagesLoaded).
+    LaunchedEffect(kilnMacAddress, kilnProgram.name) {
+        if (kilnProgram.name.isNotBlank()) {
+            viewModel.ensureProgramStagesLoaded()
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                val handle = navController.currentBackStackEntry?.savedStateHandle
+                if (handle?.get<Boolean>("await_program_reload") == true) {
+                    handle["await_program_reload"] = false
+                    viewModel.reloadCurrentProgramAfterEdit()
+                }
                 viewModel.refreshConnection()
             }
         }
@@ -72,7 +90,7 @@ fun KilnDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Primary100)
+            .background(kilnColors.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -91,7 +109,7 @@ fun KilnDetailScreen(
                     text = kilnName,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -129,7 +147,7 @@ fun KilnDetailScreen(
                         Text(
                             text = statusLabel,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 13.sp
                             )
@@ -152,8 +170,8 @@ fun KilnDetailScreen(
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
                         .height(27.dp), // Solo para los textos
-                    containerColor = AppColors.Primary100,
-                    contentColor = AppColors.Primary700,
+                    containerColor = kilnColors.screenBackground,
+                    contentColor = kilnColors.accent,
                     divider = {}, // Sin divisor
                     indicator = {} // Sin indicador automático
                 ) {
@@ -168,7 +186,7 @@ fun KilnDetailScreen(
                             text = {
                                 Text(
                                     text = title,
-                                    color = if (pagerState.currentPage == index) AppColors.Primary700 else AppColors.Primary400,
+                                    color = if (pagerState.currentPage == index) kilnColors.accent else kilnColors.muted,
                                     fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 14.sp
                                 )
@@ -199,7 +217,7 @@ fun KilnDetailScreen(
                                         .fillMaxWidth(0.5f) // 50% del ancho del tab
                                         .height(3.dp)
                                         .background(
-                                            color = AppColors.Primary700,
+                                            color = kilnColors.accent,
                                             shape = RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)
                                         )
                                 )
@@ -234,6 +252,15 @@ fun KilnDetailScreen(
                         viewModel = viewModel,
                         onChangeProgram = {
                             navController.navigate("select_program/$kilnMacAddress/$kilnName")
+                        },
+                        onEditCurrentProgram = { programId ->
+                            navController.currentBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("await_program_reload", true)
+                            navController.navigate(
+                                com.example.mysmartkiln.navigation.Screen.CreateProgram
+                                    .createRoute(programId, "edit")
+                            )
                         }
                     )
                     2 -> KilnCurveScreen(
@@ -385,6 +412,14 @@ fun KilnDetailScreen(
             KilnSendingCommandDialog(
                 phase = sendingPhase.ifBlank { "Enviando comando…" },
                 detail = sendingDetail.ifBlank { null }
+            )
+        }
+
+        apReconfigWaitDialog?.let { waitState ->
+            KilnApReconfigWaitDialog(
+                remainingSeconds = waitState.remainingSeconds,
+                actionDescription = waitState.actionDescription,
+                onDismiss = { viewModel.clearApReconfigWaitDialog() }
             )
         }
 

@@ -21,6 +21,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,7 +50,11 @@ import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
+import com.example.mysmartkiln.ui.theme.LocalThemeController
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
+import com.example.mysmartkiln.ui.theme.ThemeController
+import com.example.mysmartkiln.ui.theme.ThemeMode
 
 @Composable
 fun SettingsScreen(
@@ -63,11 +69,14 @@ fun SettingsScreen(
 ) {
     // Estados para controlar el menú "+"
     var isMenuOpen by remember { mutableStateOf(false) }
+    val kilnColors = LocalKilnColors.current
+    val themeController = LocalThemeController.current
+    val themeMode by themeController.mode.collectAsState()
     
     // Estados para los dropdowns
     var selectedLanguage by remember { mutableStateOf("Español") }
     var selectedUnits by remember { mutableStateOf("Métricas") }
-    var selectedTheme by remember { mutableStateOf("Claro") }
+    val selectedTheme = if (themeMode == ThemeMode.ESP) "Oscuro" else "Claro"
     
     // Estados para mostrar/ocultar dropdowns
     var showLanguageDropdown by remember { mutableStateOf(false) }
@@ -77,7 +86,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = kilnColors.screenBackground)
     ) {
         // Contenido principal con gradiente
         Box(
@@ -94,7 +103,7 @@ fun SettingsScreen(
             Text(
                 text = "Detalles de la cuenta",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = kilnColors.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -130,7 +139,11 @@ fun SettingsScreen(
             // Campo de tema
             ThemeSelector(
                 selectedTheme = selectedTheme,
-                onThemeSelected = { selectedTheme = it },
+                onThemeSelected = { label ->
+                    themeController.setMode(
+                        if (label == "Oscuro") ThemeMode.ESP else ThemeMode.CLASSIC
+                    )
+                },
                 showDropdown = showThemeDropdown,
                 onDropdownToggle = { showThemeDropdown = !showThemeDropdown }
             )
@@ -153,7 +166,7 @@ fun SettingsScreen(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = kilnColors.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -191,7 +204,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = kilnColors.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -555,12 +568,13 @@ private fun ThemeSelector(
     onDropdownToggle: () -> Unit
 ) {
     val themes = listOf("Claro", "Oscuro")
-    
+    val kilnColors = LocalKilnColors.current
+
     Column {
         Text(
             text = "Tema",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary800,
+                color = kilnColors.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -572,8 +586,8 @@ private fun ThemeSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                    .background(kilnColors.cardBackground)
+                    .border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -585,7 +599,7 @@ private fun ThemeSelector(
                     Text(
                         text = selectedTheme,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = AppColors.Primary600
+                            color = kilnColors.body
                         )
                     )
                     
@@ -595,7 +609,7 @@ private fun ThemeSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = AppColors.Primary600
+                        tint = kilnColors.body
                     )
                 }
             }
@@ -607,8 +621,8 @@ private fun ThemeSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                        .background(kilnColors.cardBackground)
+                        .border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -627,7 +641,7 @@ private fun ThemeSelector(
                                 Text(
                                     text = theme,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = AppColors.Primary600
+                                        color = kilnColors.body
                                     )
                                 )
                                 
@@ -636,7 +650,7 @@ private fun ThemeSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = AppColors.Primary600,
+                                        tint = kilnColors.accent,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -646,7 +660,7 @@ private fun ThemeSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(AppColors.Primary100)
+                                        .background(kilnColors.cardBorder)
                                 )
                             }
                         }
@@ -660,18 +674,19 @@ private fun ThemeSelector(
 // Componente botón de cerrar sesión
 @Composable
 private fun LogoutButton(onLogout: () -> Unit) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Primary700)
+            .background(kilnColors.accent)
             .clickable { onLogout() }
             .padding(vertical = 16.dp)
     ) {
         Text(
             text = "Cerrar sesión",
             style = MaterialTheme.typography.titleMedium.copy(
-                color = Color.White,
+                color = kilnColors.onAccent,
                 fontWeight = FontWeight.Medium
             ),
             textAlign = TextAlign.Center,
@@ -683,7 +698,11 @@ private fun LogoutButton(onLogout: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 fun SettingsScreenPreview() {
-    MySmartKilnTheme {
-        SettingsScreen()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val controller = remember { ThemeController(context) }
+    CompositionLocalProvider(LocalThemeController provides controller) {
+        MySmartKilnTheme(themeMode = ThemeMode.CLASSIC) {
+            SettingsScreen()
+        }
     }
 }

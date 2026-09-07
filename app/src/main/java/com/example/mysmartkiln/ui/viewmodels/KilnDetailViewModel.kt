@@ -1,6 +1,10 @@
 package com.example.mysmartkiln.ui.viewmodels
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -25,6 +29,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class KilnStatus(
     val isConnected: Boolean = false,
@@ -67,6 +74,36 @@ data class ProgramStage(
     val isCompleted: Boolean = false
 )
 
+/** Muestra de temperatura real para la curva (tiempo transcurrido desde el inicio). */
+data class TemperatureSample(
+    val elapsedMin: Float,
+    val temperatureC: Float
+)
+
+/** Diálogo «espere X segundos» tras soltar el AP del horno. */
+data class ApReconfigWaitState(
+    val remainingSeconds: Int,
+    val actionDescription: String
+)
+
+enum class LocalKilnAction(val description: String) {
+    START("iniciar la horneada"),
+    PAUSE("pausar el programa"),
+    STOP("detener el programa"),
+    RESUME("reanudar la horneada"),
+    UPDATE_PROGRAM("actualizar el programa");
+
+    companion object {
+        fun fromCommand(cmd: String): LocalKilnAction = when (cmd) {
+            "START" -> START
+            "PAUSE" -> PAUSE
+            "STOP" -> STOP
+            "RESUME" -> RESUME
+            else -> START
+        }
+    }
+}
+
 class KilnDetailViewModel(
     private val programRepository: ProgramRepository,
     private val kilnRepository: KilnRepository,
@@ -78,6 +115,9 @@ class KilnDetailViewModel(
 
     private val _kilnProgram = MutableStateFlow(KilnProgram())
     val kilnProgram: StateFlow<KilnProgram> = _kilnProgram.asStateFlow()
+
+    private val _temperatureHistory = MutableStateFlow<List<TemperatureSample>>(emptyList())
+    val temperatureHistory: StateFlow<List<TemperatureSample>> = _temperatureHistory.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -130,6 +170,9 @@ class KilnDetailViewModel(
     private val _shouldShowManualWifiDialog = MutableStateFlow(false)
     val shouldShowManualWifiDialog: StateFlow<Boolean> = _shouldShowManualWifiDialog.asStateFlow()
 
+    private val _apReconfigWaitDialog = MutableStateFlow<ApReconfigWaitState?>(null)
+    val apReconfigWaitDialog: StateFlow<ApReconfigWaitState?> = _apReconfigWaitDialog.asStateFlow()
+
     /**
      * Verdadero cuando detectamos que el horno reporta status="INTERRUMPIDO".
      * El firmware lo deja así si el ESP se reseteó mientras estaba CALENTANDO
@@ -146,7 +189,11 @@ class KilnDetailViewModel(
     private var currentMacAddress: String = ""
     private var firebaseJob: Job? = null
     private var firebaseSyncJob: Job? = null
+    private var firebaseConnectionJob: Job? = null
+    private var firebaseProfileJob: Job? = null
+    private var firebaseWatchdogJob: Job? = null
     private var localPollJob: Job? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
   /** userId de la ruta Firebase donde el ESP publica (el guardado en el horno). */
     private var kilnFirebaseUserId: String? = null
     private var firebaseListenerUserId: String? = null
@@ -154,6 +201,29 @@ class KilnDetailViewModel(
     /** Tras corte de luz / pérdida de RTDB mientras había cocción activa. */
     private var awaitingKilnReconnect = false
     private var reconnectDeadlineMs = 0L
+
+    /** Inicio real de la cocción (reloj del teléfono) para fecha/hora en la pestaña Programa. */
+    private var programStartedAtWallMs: Long? = null
+    private var pausedElapsedMin: Int? = null
+
+    /** ID Room del programa actualmente cargado en la vista de detalle. */
+    private val _loadedProgramId = MutableStateFlow<String?>(null)
+    val loadedProgramId: StateFlow<String?> = _loadedProgramId.asStateFlow()
+
+    /**
+     * Tras elegir un programa en la app, el ESP/Firebase pueden seguir reportando
+     * el perfil anterior unos segundos. Mientras tanto, no pisar nombre ni tiempos locales.
+     */
+    private var localProgramSelectedAtMs = 0L
+
+    /** updatedAt del programa la última vez que se subió / sincronizó con el ESP. */
+    private var lastSyncedProgramUpdatedAt = 0L
+
+    private var lastFirebaseHealMs = 0L
+    private var firebaseHealInProgress = false
+    private var firebaseRtdbWasConnected = true
+    /** Último snapshot con timestamp ESP fresco (< CONNECTION_TIMEOUT_MS). */
+    private var lastFirebaseLiveDataMs = 0L
 
     private fun authFirebaseUserId(): String {
         val email = FirebaseAuth.getInstance().currentUser?.email
@@ -167,13 +237,30 @@ class KilnDetailViewModel(
 
     companion object {
         private const val TAG = "KilnDetailViewModel"
-        private const val CONNECTION_TIMEOUT_MS = 10_000L
+        private const val CONNECTION_TIMEOUT_MS = 15_000L
         private const val LOCAL_POLL_INTERVAL_MS = 1_500L
-        private const val LOCAL_PROBE_ATTEMPTS = 6
+        // Perfil B (equilibrado). Revertir perfil A: PROBE=6, HANDOFF_FAILURES=2, COOLDOWN=0
+        private const val LOCAL_PROBE_ATTEMPTS = 3
         private const val LOCAL_PROBE_DELAY_MS = 350L
+        /** Handoff a Firebase tras N pings fallidos (perfil A: 2). */
+        private const val LOCAL_HANDOFF_PING_FAILURES = 1
+        /**
+         * Tras soltar el AP del horno: ventana en la que el ESP apaga/restaura
+         * SoftAP (~12–14 s perfil B). Bloquea connect() y muestra aviso al usuario.
+         */
+        private const val KILN_AP_RECONFIG_WAIT_MS = 15_000L
         /** Poll RTDB en modo remoto por si el listener no dispara (p. ej. tras reinicio del ESP). */
         private const val FIREBASE_STATUS_POLL_MS = 5_000L
         private const val FIREBASE_FAST_POLL_MS = 2_000L
+        /** Poll agresivo mientras Remoto está gris (paso 3). */
+        private const val FIREBASE_DISCONNECTED_POLL_MS = 1_000L
+        /** Sin datos frescos del ESP → forzar heal (paso 5). */
+        private const val FIREBASE_STALE_DATA_MS = 15_000L
+        private const val FIREBASE_WATCHDOG_INTERVAL_MS = 5_000L
+        /** Mínimo entre heals forzados (evita tormenta si .info/connected parpadea). */
+        private const val FIREBASE_HEAL_DEBOUNCE_MS = 5_000L
+        /** Breve pausa tras goOffline/goOnline antes de reenganchar el listener. */
+        private const val FIREBASE_RECONNECT_SETTLE_MS = 400L
         /** Tiempo para que el ESP vuelva a WiFi + Firebase tras un corte. */
         private const val RECONNECT_GRACE_MS = 120_000L
         private val ACTIVE_KILN_STATUSES = setOf(
@@ -211,6 +298,9 @@ class KilnDetailViewModel(
                 }
                 checkRunningProgram()
                 syncFirebaseStatusOnce()
+                syncProfileStateOnce()
+                // Tras sync, ya puede haber programName sin stages → arcos del Status.
+                ensureProgramStagesLoaded()
                 detectAndStartMonitoring()
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading kiln data: ${e.message}", e)
@@ -223,12 +313,12 @@ class KilnDetailViewModel(
     /** Re-evalúa WiFi del horno al volver a la pantalla (p. ej. tras conectar en Ajustes). */
     fun refreshConnection() {
         viewModelScope.launch {
-            firebaseJob?.cancel()
-            firebaseJob = null
-            firebaseListenerUserId = null
             syncFirebaseStatusOnce()
+            syncProfileStateOnce()
             detectAndStartMonitoring()
-            retryPendingProgramUpload()
+            if (_dataSource.value == KilnDataSource.FIREBASE && !_kilnStatus.value.isConnected) {
+                healFirebaseConnection("resume-refresh")
+            }
         }
     }
 
@@ -283,9 +373,6 @@ class KilnDetailViewModel(
      * Intenta HTTP local antes que Firebase para evitar parpadeo "Sin señal" al entrar en el AP.
      */
     private suspend fun tryEstablishLocalFirst(): Boolean {
-        if (WifiUtils.isOnSmartKilnNetwork(appContext)) {
-            _dataSource.value = KilnDataSource.LOCAL_AP
-        }
         repeat(LOCAL_PROBE_ATTEMPTS) {
             if (kilnHttpClient.ping()) {
                 startLocalMonitoring()
@@ -295,13 +382,6 @@ class KilnDetailViewModel(
             }
             delay(LOCAL_PROBE_DELAY_MS)
         }
-        if (WifiUtils.isOnSmartKilnNetwork(appContext)) {
-            startLocalMonitoring()
-            return true
-        }
-        if (_dataSource.value == KilnDataSource.LOCAL_AP) {
-            _dataSource.value = KilnDataSource.DISCONNECTED
-        }
         return false
     }
 
@@ -309,12 +389,299 @@ class KilnDetailViewModel(
         firebaseJob?.cancel()
         firebaseJob = null
         firebaseListenerUserId = null
+        firebaseConnectionJob?.cancel()
+        firebaseConnectionJob = null
+        firebaseProfileJob?.cancel()
+        firebaseProfileJob = null
+        firebaseWatchdogJob?.cancel()
+        firebaseWatchdogJob = null
+        stopNetworkMonitoring()
         firebaseSyncJob?.cancel()
         firebaseSyncJob = null
         localPollJob?.cancel()
         localPollJob = null
         awaitingKilnReconnect = false
         reconnectDeadlineMs = 0L
+        programStartedAtWallMs = null
+        pausedElapsedMin = null
+        _loadedProgramId.value = null
+        lastSyncedProgramUpdatedAt = 0L
+        lastFirebaseLiveDataMs = 0L
+        clearTemperatureHistory()
+    }
+
+    private fun clearTemperatureHistory() {
+        _temperatureHistory.value = emptyList()
+    }
+
+    private fun recordTemperatureSample(temperatureC: Float) {
+        if (temperatureC <= 0f) return
+        val status = _kilnStatus.value
+        val active = status.isRunning || status.isPaused ||
+            status.espStatus in ACTIVE_KILN_STATUSES
+        if (!active) return
+
+        val elapsedMin = when {
+            status.espStatus == "PAUSADO" || status.espStatus == "INTERRUMPIDO" ->
+                (pausedElapsedMin ?: status.elapsedMinutes).toFloat()
+            programStartedAtWallMs != null ->
+                ((System.currentTimeMillis() - programStartedAtWallMs!!) / 60_000f)
+                    .coerceAtLeast(0f)
+            status.elapsedMinutes > 0 -> status.elapsedMinutes.toFloat()
+            else -> return
+        }
+
+        val history = _temperatureHistory.value
+        val last = history.lastOrNull()
+        val shouldAdd = last == null ||
+            kotlin.math.abs(last.elapsedMin - elapsedMin) >= 0.2f ||
+            kotlin.math.abs(last.temperatureC - temperatureC) >= 1.5f
+
+        if (shouldAdd) {
+            _temperatureHistory.value = (history + TemperatureSample(elapsedMin, temperatureC))
+                .takeLast(400)
+        }
+    }
+
+    private fun ensureProgramStartWallClock() {
+        if (programStartedAtWallMs == null) {
+            programStartedAtWallMs = System.currentTimeMillis()
+        }
+    }
+
+    private fun clearProgramStartWallClock() {
+        programStartedAtWallMs = null
+        pausedElapsedMin = null
+        clearTemperatureHistory()
+    }
+
+    private fun formatStartDate(wallMs: Long): String =
+        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(wallMs))
+
+    private fun formatStartTime(wallMs: Long): String =
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(wallMs))
+
+    private fun computeTotalDurationMin(
+        dto: KilnStatusDto? = null,
+        firebaseData: Map<String, Any?>? = null
+    ): Int {
+        dto?.programDurationMin?.takeIf { it > 0 }?.let { return it }
+        (firebaseData?.get("programTotalDuration") as? Number)?.toInt()
+            ?.takeIf { it > 0 }?.let { return it }
+        val fromStages = _kilnProgram.value.stages.sumOf { it.durationMinutes }
+        if (fromStages > 0) return fromStages
+        return _kilnStatus.value.totalTime
+            .let { parseFormattedDurationMinutes(it) }
+    }
+
+    private fun parseFormattedDurationMinutes(formatted: String): Int {
+        val match = Regex("""(\d+)h\s*(\d+)min""").find(formatted.trim()) ?: return 0
+        val hours = match.groupValues[1].toIntOrNull() ?: 0
+        val mins = match.groupValues[2].toIntOrNull() ?: 0
+        return hours * 60 + mins
+    }
+
+    /**
+     * El horno o Firebase aún no reflejan el programa recién elegido en Room.
+     */
+    private fun shouldPreferLocalProgramMetadata(
+        remoteProgramName: String,
+        statusForUi: String
+    ): Boolean {
+        val localName = _kilnProgram.value.name.trim()
+        if (localName.isEmpty() || _kilnProgram.value.stages.isEmpty()) {
+            return false
+        }
+        if (statusForUi in ACTIVE_KILN_STATUSES) {
+            return false
+        }
+        val remote = remoteProgramName.trim()
+        if (remote.isNotEmpty() && !remote.equals(localName, ignoreCase = true)) {
+            return true
+        }
+        return localProgramSelectedAtMs > 0L &&
+            System.currentTimeMillis() - localProgramSelectedAtMs < 45_000L
+    }
+
+    private fun noteRemoteProgramNameSeen(remoteProgramName: String) {
+        val remote = remoteProgramName.trim()
+        val local = _kilnProgram.value.name.trim()
+        if (remote.isNotEmpty() && remote.equals(local, ignoreCase = true)) {
+            localProgramSelectedAtMs = 0L
+        }
+    }
+
+    /** Refresca nombre y tiempos desde las etapas cargadas en Room (sin ESP). */
+    private fun refreshProgramDisplayFromLocalStages() {
+        val stages = _kilnProgram.value.stages
+        if (stages.isEmpty()) return
+        val totalMinutes = stages.sumOf { it.durationMinutes }
+        val maxTemp = stages.maxOfOrNull { it.targetTemp }
+            ?: _kilnStatus.value.targetTemperature
+        syncKilnProgramFields(
+            programName = _kilnProgram.value.name,
+            durationMin = totalMinutes,
+            elapsedMin = 0,
+            remainingMin = totalMinutes,
+            currentStage = 0,
+            totalStages = stages.size
+        )
+        _kilnStatus.value = _kilnStatus.value.copy(
+            targetTemperature = maxTemp,
+            isRunning = false,
+            isPaused = false
+        )
+    }
+
+    private fun syncKilnProgramFields(
+        programName: String? = null,
+        durationMin: Int,
+        elapsedMin: Int,
+        remainingMin: Int,
+        currentStage: Int,
+        totalStages: Int
+    ) {
+        val durationStr = formatMinutes(durationMin.coerceAtLeast(0))
+        val elapsedStr = formatMinutes(elapsedMin.coerceAtLeast(0))
+        val remainingStr = formatMinutes(remainingMin.coerceAtLeast(0))
+        val stageLabel = when {
+            totalStages > 0 -> "${currentStage.coerceAtLeast(0)}/$totalStages"
+            else -> _kilnProgram.value.stage
+        }
+        val startMs = programStartedAtWallMs
+        val startDate = startMs?.let { formatStartDate(it) }.orEmpty()
+        val startTime = startMs?.let { formatStartTime(it) }.orEmpty()
+
+        _kilnProgram.value = _kilnProgram.value.copy(
+            name = programName?.takeIf { it.isNotEmpty() } ?: _kilnProgram.value.name,
+            startDate = startDate,
+            startTime = startTime,
+            duration = durationStr,
+            elapsed = elapsedStr,
+            remaining = remainingStr,
+            stage = stageLabel
+        )
+        _kilnStatus.value = _kilnStatus.value.copy(
+            totalTime = durationStr,
+            elapsedTime = elapsedStr,
+            remainingTime = remainingStr,
+            elapsedMinutes = elapsedMin.coerceAtLeast(0),
+            currentStage = currentStage.coerceAtLeast(0),
+            totalStages = totalStages.coerceAtLeast(_kilnStatus.value.totalStages)
+        )
+    }
+
+    private fun computeElapsedFromFirebaseEsp(
+        data: Map<String, Any?>,
+        statusForUi: String
+    ): Int? {
+        val startSec = (data["programStartTime"] as? Number)?.toLong()?.takeIf { it > 0 }
+            ?: return null
+        return when (statusForUi) {
+            "PAUSADO", "INTERRUMPIDO" -> {
+                val pauseSec = (data["programPauseTime"] as? Number)?.toLong()?.takeIf { it > 0 }
+                if (pauseSec != null && pauseSec >= startSec) {
+                    ((pauseSec - startSec) / 60).toInt()
+                } else {
+                    null
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun applyProgramTimingFromFirebase(
+        data: Map<String, Any?>,
+        statusForUi: String,
+        programName: String,
+        isConnected: Boolean
+    ) {
+        if (!isConnected) return
+        if (shouldPreferLocalProgramMetadata(programName, statusForUi)) {
+            return
+        }
+        val name = programName.ifEmpty { _kilnProgram.value.name }
+        if (name.isEmpty()) return
+        noteRemoteProgramNameSeen(programName)
+
+        when (statusForUi) {
+            "IDLE", "DETENIDO", "FINALIZADO" -> clearProgramStartWallClock()
+            "CALENTANDO" -> {
+                if (programStartedAtWallMs == null) {
+                    if (pausedElapsedMin != null) {
+                        programStartedAtWallMs =
+                            System.currentTimeMillis() - pausedElapsedMin!! * 60_000L
+                        pausedElapsedMin = null
+                    } else {
+                        ensureProgramStartWallClock()
+                    }
+                }
+            }
+            "PAUSADO", "INTERRUMPIDO" -> {
+                if (pausedElapsedMin == null && programStartedAtWallMs != null) {
+                    pausedElapsedMin = ((System.currentTimeMillis() - programStartedAtWallMs!!) /
+                        60_000L).toInt().coerceAtLeast(0)
+                }
+            }
+        }
+
+        val totalDur = computeTotalDurationMin(firebaseData = data)
+        if (totalDur <= 0 && _kilnProgram.value.stages.isEmpty()) return
+
+        val active = statusForUi in setOf("CALENTANDO", "PAUSADO", "INTERRUMPIDO")
+        val elapsedFromEsp = computeElapsedFromFirebaseEsp(data, statusForUi)
+        val elapsedMin = when {
+            elapsedFromEsp != null -> elapsedFromEsp
+            statusForUi == "PAUSADO" || statusForUi == "INTERRUMPIDO" ->
+                pausedElapsedMin ?: _kilnStatus.value.elapsedMinutes
+            active && programStartedAtWallMs != null ->
+                ((System.currentTimeMillis() - programStartedAtWallMs!!) / 60_000L)
+                    .toInt().coerceAtLeast(0)
+            else -> 0
+        }
+        val remainingMin = if (totalDur > 0) {
+            (totalDur - elapsedMin).coerceAtLeast(0)
+        } else {
+            0
+        }
+        val totalStages = _kilnStatus.value.totalStages
+            .coerceAtLeast(_kilnProgram.value.stages.size)
+            .coerceAtLeast(if (data["programName"] != null) 1 else 0)
+        val currentStage = _kilnStatus.value.currentStage.coerceAtLeast(
+            if (active && totalStages > 0) 1 else 0
+        )
+
+        syncKilnProgramFields(
+            programName = name,
+            durationMin = totalDur,
+            elapsedMin = elapsedMin,
+            remainingMin = remainingMin,
+            currentStage = currentStage,
+            totalStages = totalStages
+        )
+    }
+
+    private fun updateProgramWallClockForStatus(status: String, elapsedFromDeviceMin: Int) {
+        when (status) {
+            "CALENTANDO" -> {
+                if (programStartedAtWallMs == null) {
+                    if (pausedElapsedMin != null) {
+                        programStartedAtWallMs =
+                            System.currentTimeMillis() - pausedElapsedMin!! * 60_000L
+                        pausedElapsedMin = null
+                    } else if (elapsedFromDeviceMin > 0) {
+                        programStartedAtWallMs =
+                            System.currentTimeMillis() - elapsedFromDeviceMin * 60_000L
+                    } else {
+                        ensureProgramStartWallClock()
+                    }
+                }
+            }
+            "PAUSADO", "INTERRUMPIDO" -> {
+                pausedElapsedMin = elapsedFromDeviceMin.coerceAtLeast(0)
+            }
+            "IDLE", "DETENIDO", "FINALIZADO" -> clearProgramStartWallClock()
+        }
     }
 
     private fun updateReconnectGrace(latestStatus: String, isFirebaseLive: Boolean) {
@@ -367,7 +734,18 @@ class KilnDetailViewModel(
         val uid = resolveFirebaseUserId() ?: return
         firebaseManager.getRealtimeData(uid, mac)
             .onSuccess { applyFirebaseSnapshot(it) }
-            .onFailure { Log.w(TAG, "syncFirebaseStatusOnce: ${it.message}") }
+            .onFailure {
+                Log.w(TAG, "syncFirebaseStatusOnce: ${it.message}")
+                healFirebaseConnection("poll-failed")
+            }
+    }
+
+    private suspend fun syncProfileStateOnce() {
+        val mac = currentMacAddress.ifEmpty { return }
+        val uid = resolveFirebaseUserId() ?: return
+        firebaseManager.getProfileState(uid, mac)
+            .onSuccess { applyProfileStateSnapshot(it) }
+            .onFailure { Log.w(TAG, "syncProfileStateOnce: ${it.message}") }
     }
 
     private fun startFirebaseStatusPolling() {
@@ -377,10 +755,10 @@ class KilnDetailViewModel(
                 if (_dataSource.value != KilnDataSource.LOCAL_AP) {
                     syncFirebaseStatusOnce()
                 }
-                val pollMs = if (awaitingKilnReconnect) {
-                    FIREBASE_FAST_POLL_MS
-                } else {
-                    FIREBASE_STATUS_POLL_MS
+                val pollMs = when {
+                    awaitingKilnReconnect -> FIREBASE_FAST_POLL_MS
+                    !_kilnStatus.value.isConnected -> FIREBASE_DISCONNECTED_POLL_MS
+                    else -> FIREBASE_STATUS_POLL_MS
                 }
                 delay(pollMs)
             }
@@ -401,16 +779,15 @@ class KilnDetailViewModel(
             var consecutivePingFailures = 0
             while (isActive) {
                 val kilnReachable = kilnHttpClient.ping()
-                val onKilnSsid = WifiUtils.isOnSmartKilnNetwork(appContext)
 
                 if (!kilnReachable) {
                     consecutivePingFailures++
                     _canControlLocally.value = false
 
-                    // Si el horno tiró su AP (tras START/PAUSE/STOP), bastan
-                    // unos pocos pings fallidos para soltar la UI a Firebase
-                    // aunque Android todavía reporte el SSID antiguo.
-                    val shouldHandOff = !onKilnSsid || consecutivePingFailures >= 2
+                    // Perfil B: handoff al primer ping fallido aunque el SSID
+                    // siga reportando SmartKiln-* (perfil A: >= 2 fallos).
+                    val shouldHandOff =
+                        consecutivePingFailures >= LOCAL_HANDOFF_PING_FAILURES
                     if (shouldHandOff) {
                         if (_dataSource.value == KilnDataSource.LOCAL_AP) {
                             _dataSource.value = KilnDataSource.FIREBASE
@@ -451,6 +828,10 @@ class KilnDetailViewModel(
         // Idempotente solo si el listener ya escucha la misma ruta Firebase.
         if (firebaseJob?.isActive == true && firebaseListenerUserId == uid) {
             if (firebaseSyncJob?.isActive != true) startFirebaseStatusPolling()
+            if (firebaseConnectionJob?.isActive != true) startFirebaseConnectionMonitoring()
+            if (firebaseProfileJob?.isActive != true) startFirebaseProfileMonitoring(macAddress)
+            if (firebaseWatchdogJob?.isActive != true) startFirebaseWatchdog()
+            if (networkCallback == null) startNetworkMonitoring()
             return
         }
 
@@ -463,7 +844,11 @@ class KilnDetailViewModel(
 
         Log.d(TAG, "Firebase listen: users/$uid/kilns/$macAddress/realtimeData")
 
+        startFirebaseConnectionMonitoring()
+        startFirebaseProfileMonitoring(macAddress)
         startFirebaseStatusPolling()
+        startFirebaseWatchdog()
+        startNetworkMonitoring()
 
         firebaseJob = viewModelScope.launch {
             try {
@@ -473,6 +858,175 @@ class KilnDetailViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "Error observing realtime data: ${e.message}", e)
             }
+        }
+    }
+
+    /** Paso 2: detecta .info/connected=false y fuerza heal + reenganche del listener. */
+    private fun startFirebaseConnectionMonitoring() {
+        if (firebaseConnectionJob?.isActive == true) return
+        firebaseConnectionJob = viewModelScope.launch {
+            try {
+                firebaseManager.observeConnectionState().collect { connected ->
+                    Log.d(TAG, "Firebase RTDB socket connected=$connected")
+                    if (!connected) {
+                        if (firebaseRtdbWasConnected) {
+                            Log.w(TAG, "RTDB socket lost — scheduling heal")
+                        }
+                        firebaseRtdbWasConnected = false
+                        healFirebaseConnection("rtdb-disconnected")
+                    } else {
+                        if (!firebaseRtdbWasConnected) {
+                            Log.i(TAG, "RTDB socket restored")
+                            syncFirebaseStatusOnce()
+                        }
+                        firebaseRtdbWasConnected = true
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase connection monitor ended: ${e.message}")
+            }
+        }
+    }
+
+    private fun startFirebaseProfileMonitoring(macAddress: String) {
+        val uid = resolveFirebaseUserId() ?: return
+        if (firebaseProfileJob?.isActive == true) return
+        firebaseProfileJob = viewModelScope.launch {
+            try {
+                firebaseManager.observeProfileState(uid, macAddress).collect { data ->
+                    applyProfileStateSnapshot(data)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "profileState listener ended: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Confirma por RTDB que el ESP ya tiene el perfil (profileState), sin HTTP local.
+     */
+    private fun applyProfileStateSnapshot(data: Map<String, Any?>?) {
+        if (data == null) return
+        val remoteName = (data["programName"] as? String)?.trim().orEmpty()
+        val remoteUpdatedAt = UserIdUtils.parseFirebaseTimestamp(data["programUpdatedAt"])
+        if (remoteName.isEmpty() || remoteUpdatedAt <= 0L) return
+
+        viewModelScope.launch {
+            val program = resolveProgramForProfileSync(remoteName) ?: return@launch
+            if (!remoteName.equals(program.name, ignoreCase = true)) return@launch
+            if (remoteUpdatedAt >= program.updatedAt) {
+                markProgramSyncedWithKiln(program.id, program.updatedAt)
+            }
+        }
+    }
+
+    private suspend fun resolveProgramForProfileSync(programName: String) =
+        _loadedProgramId.value?.let { programRepository.getProgramById(it) }
+            ?: _kilnProgram.value.name.trim().takeIf { it.isNotEmpty() }
+                ?.let { localName ->
+                    programRepository.allPrograms.first()
+                        .find { it.name.equals(localName, ignoreCase = true) }
+                }
+            ?: programRepository.allPrograms.first()
+                .find { it.name.equals(programName, ignoreCase = true) }
+
+    private fun markProgramSyncedWithKiln(programId: String, updatedAt: Long) {
+        if (lastSyncedProgramUpdatedAt >= updatedAt && pendingProgramUploadId == null) {
+            return
+        }
+        lastSyncedProgramUpdatedAt = updatedAt
+        _loadedProgramId.value = programId
+        pendingProgramUploadId = null
+        Log.d(TAG, "profileState: horno sincronizado con programa $programId (updatedAt=$updatedAt)")
+    }
+
+    /** Paso 4: reacciona cuando Android recupera internet validada. */
+    private fun startNetworkMonitoring() {
+        if (networkCallback != null) return
+        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                Log.i(TAG, "Network available — healing Firebase")
+                viewModelScope.launch {
+                    healFirebaseConnection("network-available")
+                }
+            }
+
+            override fun onLost(network: Network) {
+                Log.w(TAG, "Network lost")
+            }
+        }
+        cm.registerNetworkCallback(request, callback)
+        networkCallback = callback
+    }
+
+    private fun stopNetworkMonitoring() {
+        networkCallback?.let { callback ->
+            val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            runCatching { cm.unregisterNetworkCallback(callback) }
+        }
+        networkCallback = null
+    }
+
+    /** Paso 5: si el socket parece vivo pero los datos del ESP llevan >15s, forzar heal. */
+    private fun startFirebaseWatchdog() {
+        if (firebaseWatchdogJob?.isActive == true) return
+        firebaseWatchdogJob = viewModelScope.launch {
+            while (isActive && currentMacAddress.isNotEmpty()) {
+                delay(FIREBASE_WATCHDOG_INTERVAL_MS)
+                if (_dataSource.value == KilnDataSource.LOCAL_AP) continue
+
+                val lastLive = lastFirebaseLiveDataMs
+                if (lastLive == 0L) continue
+
+                val staleMs = System.currentTimeMillis() - lastLive
+                if (staleMs >= FIREBASE_STALE_DATA_MS) {
+                    Log.w(TAG, "Stale Firebase data (${staleMs}ms) — scheduling heal")
+                    healFirebaseConnection("stale-data")
+                }
+            }
+        }
+    }
+
+    /**
+     * Cierra y reabre el socket RTDB, reengancha el listener y pide un snapshot fresco.
+     */
+    private suspend fun healFirebaseConnection(reason: String) {
+        val mac = currentMacAddress
+        if (mac.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        if (firebaseHealInProgress) {
+            Log.d(TAG, "Heal skipped ($reason): already in progress")
+            return
+        }
+        if (now - lastFirebaseHealMs < FIREBASE_HEAL_DEBOUNCE_MS) {
+            Log.d(TAG, "Heal skipped ($reason): debounce")
+            return
+        }
+
+        firebaseHealInProgress = true
+        lastFirebaseHealMs = now
+        try {
+            Log.w(TAG, "Healing Firebase RTDB ($reason)")
+
+            firebaseJob?.cancel()
+            firebaseJob = null
+            firebaseListenerUserId = null
+
+            firebaseManager.reconnectFirebase()
+            delay(FIREBASE_RECONNECT_SETTLE_MS)
+
+            startFirebaseMonitoring(mac)
+            syncFirebaseStatusOnce()
+        } catch (e: Exception) {
+            Log.e(TAG, "Heal failed ($reason): ${e.message}", e)
+        } finally {
+            firebaseHealInProgress = false
         }
     }
 
@@ -508,6 +1062,9 @@ class KilnDetailViewModel(
         val currentTimeMs = System.currentTimeMillis()
         val isConnected = timestamp > 0 &&
             (currentTimeMs - timestamp) < CONNECTION_TIMEOUT_MS
+        if (isConnected) {
+            lastFirebaseLiveDataMs = currentTimeMs
+        }
 
         updateReconnectGrace(statusRaw, isConnected)
         val statusForUi = resolveStatusForUi(statusRaw, isConnected)
@@ -547,11 +1104,22 @@ class KilnDetailViewModel(
                 currentTemperature = temperature,
                 espStatus = statusForUi.ifEmpty { _kilnStatus.value.espStatus }
             )
+            recordTemperatureSample(temperature)
             return
         }
 
-        if (isConnected && programName.isNotEmpty() && programName != _kilnProgram.value.name) {
-            _kilnProgram.value = _kilnProgram.value.copy(name = programName)
+        if (!shouldPreferLocalProgramMetadata(programName, statusForUi)) {
+            if (isConnected && programName.isNotEmpty() &&
+                programName != _kilnProgram.value.name
+            ) {
+                _kilnProgram.value = _kilnProgram.value.copy(name = programName)
+            }
+            noteRemoteProgramNameSeen(programName)
+            if (_kilnProgram.value.name.isNotEmpty() &&
+                _kilnProgram.value.stages.isEmpty()
+            ) {
+                ensureProgramStagesLoaded()
+            }
         }
 
         _kilnStatus.value = _kilnStatus.value.copy(
@@ -562,6 +1130,14 @@ class KilnDetailViewModel(
             isPaused = isPaused,
             espStatus = statusForUi
         )
+
+        applyProgramTimingFromFirebase(
+            data = data,
+            statusForUi = statusForUi,
+            programName = programName,
+            isConnected = isConnected
+        )
+        recordTemperatureSample(temperature)
     }
 
     private fun applyLocalStatus(dto: KilnStatusDto) {
@@ -577,8 +1153,18 @@ class KilnDetailViewModel(
 
         _showInterruptedDialog.value = (status == "INTERRUMPIDO")
 
-        if (programName.isNotEmpty() && programName != _kilnProgram.value.name) {
-            _kilnProgram.value = _kilnProgram.value.copy(name = programName)
+        val preferLocalProgram = shouldPreferLocalProgramMetadata(programName, status)
+
+        if (!preferLocalProgram) {
+            if (programName.isNotEmpty() && programName != _kilnProgram.value.name) {
+                _kilnProgram.value = _kilnProgram.value.copy(name = programName)
+            }
+            noteRemoteProgramNameSeen(programName)
+            if (_kilnProgram.value.name.isNotEmpty() &&
+                _kilnProgram.value.stages.isEmpty()
+            ) {
+                ensureProgramStagesLoaded()
+            }
         }
 
         awaitingKilnReconnect = false
@@ -590,44 +1176,55 @@ class KilnDetailViewModel(
             espStatus = status,
             isPaused = isPaused,
             isRunning = isActive,
-            totalStages = dto.numStages
+            totalStages = if (preferLocalProgram) {
+                _kilnProgram.value.stages.size.coerceAtLeast(dto.numStages)
+            } else {
+                dto.numStages
+            }
         )
 
-        val durationMin = when {
-            dto.programDurationMin > 0 -> dto.programDurationMin
-            _kilnProgram.value.stages.isNotEmpty() ->
-                _kilnProgram.value.stages.sumOf { it.durationMinutes }
-            else -> 0
+        if (preferLocalProgram) {
+            refreshProgramDisplayFromLocalStages()
+            recordTemperatureSample(dto.temperature)
+            return
         }
-        if (durationMin > 0) {
-            val durationStr = formatMinutes(durationMin)
-            val elapsedStr = formatMinutes(dto.elapsedMinutes.coerceAtLeast(0))
-            val remainingStr = formatMinutes(
-                if (dto.remainingMinutes > 0) dto.remainingMinutes
-                else (durationMin - dto.elapsedMinutes).coerceAtLeast(0)
-            )
-            val stageLabel = if (dto.currentStage > 0 && dto.numStages > 0) {
-                "${dto.currentStage}/${dto.numStages}"
-            } else if (dto.numStages > 0) {
-                "0/${dto.numStages}"
-            } else {
-                _kilnProgram.value.stage
+
+        val durationMin = computeTotalDurationMin(dto = dto)
+        updateProgramWallClockForStatus(status, dto.elapsedMinutes.coerceAtLeast(0))
+
+        if (durationMin > 0 || programName.isNotEmpty() || dto.profileLoaded) {
+            val elapsedMin = when {
+                status in setOf("PAUSADO", "INTERRUMPIDO") ->
+                    dto.elapsedMinutes.coerceAtLeast(0)
+                status == "CALENTANDO" && dto.elapsedMinutes > 0 ->
+                    dto.elapsedMinutes
+                status == "CALENTANDO" && programStartedAtWallMs != null ->
+                    ((System.currentTimeMillis() - programStartedAtWallMs!!) / 60_000L)
+                        .toInt().coerceAtLeast(0)
+                else -> 0
             }
-            _kilnStatus.value = _kilnStatus.value.copy(
-                totalTime = durationStr,
-                elapsedTime = elapsedStr,
-                remainingTime = remainingStr,
-                elapsedMinutes = dto.elapsedMinutes.coerceAtLeast(0),
-                currentStage = dto.currentStage.coerceAtLeast(0),
-                totalStages = dto.numStages.coerceAtLeast(_kilnStatus.value.totalStages)
-            )
-            _kilnProgram.value = _kilnProgram.value.copy(
-                duration = durationStr,
-                elapsed = elapsedStr,
-                remaining = remainingStr,
-                stage = stageLabel
+            val remainingMin = when {
+                dto.remainingMinutes > 0 -> dto.remainingMinutes
+                durationMin > 0 -> (durationMin - elapsedMin).coerceAtLeast(0)
+                else -> 0
+            }
+            val totalStages = dto.numStages
+                .coerceAtLeast(_kilnProgram.value.stages.size)
+            val currentStage = when {
+                dto.currentStage > 0 -> dto.currentStage
+                status in ACTIVE_KILN_STATUSES && totalStages > 0 -> 1
+                else -> 0
+            }
+            syncKilnProgramFields(
+                programName = programName.takeIf { it.isNotEmpty() },
+                durationMin = durationMin,
+                elapsedMin = elapsedMin,
+                remainingMin = remainingMin,
+                currentStage = currentStage,
+                totalStages = totalStages
             )
         }
+        recordTemperatureSample(dto.temperature)
     }
 
     private fun formatMinutes(totalMinutes: Int): String {
@@ -656,7 +1253,10 @@ class KilnDetailViewModel(
         // la aprobación). NO sobrescribimos _sendingCommandPhase para que el
         // título del diálogo modal del comando (Iniciando/Pausando/...) se
         // mantenga estable durante toda la operación.
-        if (KilnNetworkConnector.isSupported && currentMacAddress.isNotEmpty()) {
+        if (KilnNetworkConnector.isSupported &&
+            currentMacAddress.isNotEmpty() &&
+            !KilnNetworkConnector.isInPostHandoffCooldown(KILN_AP_RECONFIG_WAIT_MS)
+        ) {
             val ssid = KilnNetworkConnector.ssidFromMac(currentMacAddress)
             val pass = KilnNetworkConnector.passphraseFromMac(currentMacAddress)
             if (ssid != null && pass != null) {
@@ -686,6 +1286,10 @@ class KilnDetailViewModel(
         }
 
         _canControlLocally.value = false
+        // Durante la ventana de reconfiguración del AP, no confundir con WiFi manual.
+        if (remainingApReconfigSeconds() != null) {
+            return false
+        }
         // Solo pedimos abrir Settings si el atajo automático no es viable
         // (API <29 o el usuario no aprobó el diálogo del sistema).
         _shouldShowManualWifiDialog.value = !KilnNetworkConnector.isSupported ||
@@ -697,7 +1301,53 @@ class KilnDetailViewModel(
         _shouldShowManualWifiDialog.value = false
     }
 
+    fun clearApReconfigWaitDialog() {
+        _apReconfigWaitDialog.value = null
+    }
+
+    private fun remainingApReconfigSeconds(): Int? {
+        if (KilnNetworkConnector.lastReleaseAtMs <= 0L) return null
+        val elapsed = System.currentTimeMillis() - KilnNetworkConnector.lastReleaseAtMs
+        if (elapsed >= KILN_AP_RECONFIG_WAIT_MS) return null
+        val remainingMs = KILN_AP_RECONFIG_WAIT_MS - elapsed
+        return kotlin.math.ceil(remainingMs / 1000.0).toInt().coerceAtLeast(1)
+    }
+
+    /** True si hay que esperar (y ya se publicó el diálogo). */
+    private suspend fun blockIfApReconfiguring(action: LocalKilnAction): Boolean {
+        // Fuera de la ventana de 15 s no hace falta ping: evita ~1,5 s de espera
+        // antes del modal cuando el AP ya está disponible pero el teléfono
+        // sigue en la WiFi de casa.
+        val remaining = remainingApReconfigSeconds() ?: return false
+        if (kilnHttpClient.ping()) return false
+        _apReconfigWaitDialog.value = ApReconfigWaitState(remaining, action.description)
+        return true
+    }
+
+    /**
+     * Tras transferir datos al ESP por HTTP local: suelta WifiNetworkSpecifier
+     * para que Android vuelva a la WiFi de casa, y pasa la UI a Firebase.
+     * El ESP apaga SoftAP en paralelo (~15 s perfil B) por si el usuario entró a mano.
+     */
+    private fun handOffToHomeWifiAfterLocalSession(reason: String) {
+        localPollJob?.cancel()
+        localPollJob = null
+        _canControlLocally.value = false
+        if (_dataSource.value == KilnDataSource.LOCAL_AP) {
+            _dataSource.value = KilnDataSource.FIREBASE
+        }
+        KilnNetworkConnector.release(appContext)
+        if (currentMacAddress.isNotEmpty()) {
+            startFirebaseMonitoring(currentMacAddress)
+        }
+        Log.d(TAG, "Hand-off tras sesión local ($reason) → Firebase / WiFi casa")
+    }
+
     private suspend fun sendLocalCommand(cmd: String): Boolean {
+        if (blockIfApReconfiguring(LocalKilnAction.fromCommand(cmd))) {
+            return false
+        }
+
         // El diálogo modal con el círculo girando se muestra durante TODO el
         // proceso (conexión al AP + envío HTTP + lectura de status). El título
         // (phase) se queda fijo durante toda la operación; solo el subtítulo
@@ -726,6 +1376,7 @@ class KilnDetailViewModel(
                     applyOptimisticCommandState(cmd)
                     delay(400)
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
+                    handOffToHomeWifiAfterLocalSession(cmd)
                 }
                 .onFailure { Log.e(TAG, "Command $cmd failed: ${it.message}") }
                 .isSuccess
@@ -744,6 +1395,27 @@ class KilnDetailViewModel(
      * sobrescriben en la próxima actualización.
      */
     private fun applyOptimisticCommandState(cmd: String) {
+        var resumeElapsedMin = 0
+        when (cmd) {
+            "START" -> {
+                clearTemperatureHistory()
+                ensureProgramStartWallClock()
+                pausedElapsedMin = null
+            }
+            "RESUME" -> {
+                resumeElapsedMin = pausedElapsedMin ?: _kilnStatus.value.elapsedMinutes
+                programStartedAtWallMs =
+                    System.currentTimeMillis() - resumeElapsedMin * 60_000L
+                pausedElapsedMin = null
+            }
+            "PAUSE" -> {
+                pausedElapsedMin = programStartedAtWallMs?.let {
+                    ((System.currentTimeMillis() - it) / 60_000L).toInt().coerceAtLeast(0)
+                } ?: _kilnStatus.value.elapsedMinutes
+            }
+            "STOP" -> clearProgramStartWallClock()
+        }
+
         _kilnStatus.value = when (cmd) {
             "START", "RESUME" -> _kilnStatus.value.copy(
                 isRunning = true,
@@ -761,6 +1433,23 @@ class KilnDetailViewModel(
                 espStatus = "IDLE"
             )
             else -> _kilnStatus.value
+        }
+
+        val totalDur = computeTotalDurationMin()
+        if (totalDur > 0 && cmd != "STOP") {
+            val elapsed = when (cmd) {
+                "PAUSE" -> pausedElapsedMin ?: 0
+                "RESUME" -> resumeElapsedMin
+                else -> 0
+            }
+            syncKilnProgramFields(
+                durationMin = totalDur,
+                elapsedMin = elapsed,
+                remainingMin = (totalDur - elapsed).coerceAtLeast(0),
+                currentStage = _kilnStatus.value.currentStage.coerceAtLeast(1),
+                totalStages = _kilnStatus.value.totalStages
+                    .coerceAtLeast(_kilnProgram.value.stages.size)
+            )
         }
     }
 
@@ -808,64 +1497,166 @@ class KilnDetailViewModel(
         Log.d(TAG, "Modify program — seleccionar otro programa")
     }
 
-    fun loadSelectedProgram(programId: String) {
-        Log.d(TAG, "loadSelectedProgram: $programId")
+    /** Recarga etapas desde Room si solo tenemos el nombre (p. ej. al volver a la pantalla). */
+    fun ensureProgramStagesLoaded() {
+        viewModelScope.launch {
+            if (_kilnProgram.value.stages.isNotEmpty()) return@launch
+            try {
+                val byId = _loadedProgramId.value
+                if (byId != null && loadProgramStagesIntoState(byId, resetSchedule = false)) {
+                    return@launch
+                }
+                val name = _kilnProgram.value.name.trim()
+                if (name.isEmpty()) return@launch
+                val match = programRepository.allPrograms.first()
+                    .find { it.name.equals(name, ignoreCase = true) }
+                if (match != null) {
+                    loadProgramStagesIntoState(match.id, resetSchedule = false)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "ensureProgramStagesLoaded: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * ID del programa actual para editarlo. Resuelve por ID cargado o por nombre en Room.
+     */
+    suspend fun resolveCurrentProgramIdForEdit(): String? {
+        _loadedProgramId.value?.let { return it }
+        val name = _kilnProgram.value.name.trim()
+        if (name.isEmpty()) return null
+        return programRepository.allPrograms.first()
+            .find { it.name.equals(name, ignoreCase = true) }
+            ?.id
+            ?.also { _loadedProgramId.value = it }
+    }
+
+    /**
+     * Tras editar el programa en CreateProgramScreen, refresca etapas locales
+     * y vuelve a subir el perfil al horno (también si está corriendo).
+     * Solo actúa si Room tiene un updatedAt más reciente que la última sync.
+     */
+    fun reloadCurrentProgramAfterEdit() {
+        val programId = _loadedProgramId.value ?: return
         viewModelScope.launch {
             try {
-                val programEntity = programRepository.getProgramById(programId) ?: run {
-                    Log.e(TAG, "Programa no encontrado: $programId")
-                    return@launch
-                }
-                val stageEntities = programRepository.getStagesByProgram(programId).first()
-                if (stageEntities.isEmpty()) {
-                    Log.e(TAG, "Programa sin etapas: $programId")
+                val program = programRepository.getProgramById(programId) ?: return@launch
+                if (program.updatedAt <= lastSyncedProgramUpdatedAt &&
+                    _kilnProgram.value.stages.isNotEmpty()
+                ) {
                     return@launch
                 }
 
-                var previousTemp = 0f
-                val programStages = stageEntities.map { stageEntity ->
-                    val temperature = stageEntity.temperature.toFloatOrNull() ?: 0f
-                    val speed = stageEntity.speed.toFloatOrNull() ?: 0f
-                    val maintenance = stageEntity.maintenance.toIntOrNull() ?: 0
-                    val tempIncrement = temperature - previousTemp
-                    val rampMinutes = if (speed > 0) (tempIncrement / speed).toInt() else 0
-                    val totalDuration = rampMinutes + maintenance
-                    previousTemp = temperature
-                    ProgramStage(
-                        stageNumber = stageEntity.stageNumber,
-                        targetTemp = temperature,
-                        rampRate = speed,
-                        maintenanceMinutes = maintenance,
-                        durationMinutes = totalDuration,
-                        isCompleted = false
-                    )
+                val wasRunning = _kilnStatus.value.isRunning ||
+                    _kilnStatus.value.isPaused ||
+                    _kilnStatus.value.espStatus in ACTIVE_KILN_STATUSES
+
+                loadProgramStagesIntoState(programId, resetSchedule = !wasRunning)
+                lastSyncedProgramUpdatedAt = program.updatedAt
+                uploadProfileIfLocal(programId, program.name)
+                Log.d(
+                    TAG,
+                    "Programa refresado tras edición: ${program.name} (running=$wasRunning)"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "reloadCurrentProgramAfterEdit: ${e.message}", e)
+            }
+        }
+    }
+
+    private suspend fun buildProgramStagesFromRoom(programId: String): List<ProgramStage>? {
+        val stageEntities = programRepository.getStagesByProgram(programId).first()
+        if (stageEntities.isEmpty()) return null
+
+        var previousTemp = 0f
+        return stageEntities.map { stageEntity ->
+            val temperature = stageEntity.temperature.toFloatOrNull() ?: 0f
+            val speed = stageEntity.speed.toFloatOrNull() ?: 0f
+            val maintenance = stageEntity.maintenance.toIntOrNull() ?: 0
+            val tempIncrement = (temperature - previousTemp).coerceAtLeast(0f)
+            val rampMinutes = if (speed > 0) (tempIncrement / speed).toInt().coerceAtLeast(0) else 0
+            val totalDuration = (rampMinutes + maintenance).coerceAtLeast(0)
+            previousTemp = temperature
+            ProgramStage(
+                stageNumber = stageEntity.stageNumber,
+                targetTemp = temperature,
+                rampRate = speed,
+                maintenanceMinutes = maintenance.coerceAtLeast(0),
+                durationMinutes = totalDuration,
+                isCompleted = false
+            )
+        }
+    }
+
+    private suspend fun loadProgramStagesIntoState(
+        programId: String,
+        resetSchedule: Boolean
+    ): Boolean {
+        val programEntity = programRepository.getProgramById(programId) ?: return false
+        val programStages = buildProgramStagesFromRoom(programId) ?: return false
+        _loadedProgramId.value = programId
+
+        val totalMinutes = programStages.sumOf { it.durationMinutes }
+        val maxTemp = programStages.maxOfOrNull { it.targetTemp } ?: 0f
+
+        if (resetSchedule) {
+            clearTemperatureHistory()
+            clearProgramStartWallClock()
+            localProgramSelectedAtMs = System.currentTimeMillis()
+            _kilnProgram.value = KilnProgram(
+                name = programEntity.name,
+                duration = formatMinutes(totalMinutes),
+                remaining = formatMinutes(totalMinutes),
+                elapsed = "0h 00min",
+                stage = "0/${programStages.size}",
+                stages = programStages
+            )
+            syncKilnProgramFields(
+                programName = programEntity.name,
+                durationMin = totalMinutes,
+                elapsedMin = 0,
+                remainingMin = totalMinutes,
+                currentStage = 0,
+                totalStages = programStages.size
+            )
+            _kilnStatus.value = _kilnStatus.value.copy(
+                isRunning = false,
+                isPaused = false,
+                targetTemperature = maxTemp
+            )
+        } else {
+            val elapsed = _kilnStatus.value.elapsedMinutes.coerceAtLeast(0)
+            _kilnProgram.value = _kilnProgram.value.copy(
+                name = programEntity.name,
+                stages = programStages
+            )
+            syncKilnProgramFields(
+                programName = programEntity.name,
+                durationMin = totalMinutes,
+                elapsedMin = elapsed,
+                remainingMin = (totalMinutes - elapsed).coerceAtLeast(0),
+                currentStage = _kilnStatus.value.currentStage,
+                totalStages = programStages.size
+            )
+            _kilnStatus.value = _kilnStatus.value.copy(
+                targetTemperature = maxTemp
+            )
+        }
+        return true
+    }
+
+    fun loadSelectedProgram(programId: String) {
+        Log.d(TAG, "loadSelectedProgram: $programId")
+        localProgramSelectedAtMs = System.currentTimeMillis()
+        viewModelScope.launch {
+            try {
+                if (!loadProgramStagesIntoState(programId, resetSchedule = true)) {
+                    Log.e(TAG, "Programa no encontrado o sin etapas: $programId")
+                    return@launch
                 }
-
-                val totalMinutes = programStages.sumOf { it.durationMinutes }
-                val totalHours = totalMinutes / 60
-                val totalMins = totalMinutes % 60
-                val totalDuration = "${totalHours}h ${String.format("%02d", totalMins)}min"
-                val maxTemp = programStages.maxOfOrNull { it.targetTemp } ?: 0f
-
-                _kilnProgram.value = KilnProgram(
-                    name = programEntity.name,
-                    duration = totalDuration,
-                    remaining = totalDuration,
-                    elapsed = "0h 00min",
-                    stage = "0/${programStages.size}",
-                    stages = programStages
-                )
-
-                _kilnStatus.value = _kilnStatus.value.copy(
-                    isRunning = false,
-                    targetTemperature = maxTemp,
-                    totalStages = programStages.size,
-                    currentStage = 0,
-                    totalTime = totalDuration,
-                    remainingTime = totalDuration,
-                    elapsedTime = "0h 00min"
-                )
-
+                refreshProgramDisplayFromLocalStages()
+                val programEntity = programRepository.getProgramById(programId)!!
                 uploadProfileIfLocal(programId, programEntity.name)
                 Log.d(TAG, "Program loaded: ${programEntity.name}")
             } catch (e: Exception) {
@@ -889,6 +1680,11 @@ class KilnDetailViewModel(
      * para que refreshConnection() lo reintente más tarde.
      */
     private suspend fun uploadProgramWithProgress(programId: String, programName: String) {
+        if (blockIfApReconfiguring(LocalKilnAction.UPDATE_PROGRAM)) {
+            Log.w(TAG, "Upload pospuesto: horno reconfigurando red")
+            return
+        }
+
         _sendingCommandPhase.value = "Cargando «$programName»…"
         _sendingCommandDetail.value = "Conectando al horno…"
         _isSendingCommand.value = true
@@ -911,7 +1707,13 @@ class KilnDetailViewModel(
                 .onSuccess {
                     pendingProgramUploadId = null
                     _canControlLocally.value = true
+                    noteRemoteProgramNameSeen(programName)
+                    programRepository.getProgramById(programId)?.let {
+                        lastSyncedProgramUpdatedAt = it.updatedAt
+                        markProgramSyncedWithKiln(programId, it.updatedAt)
+                    }
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
+                    handOffToHomeWifiAfterLocalSession("profile")
                     Log.d(TAG, "Profile uploaded for $programId ($programName)")
                 }
                 .onFailure {

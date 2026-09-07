@@ -14,6 +14,7 @@ import com.example.mysmartkiln.data.auth.FirebaseAuthManager
 import com.example.mysmartkiln.ui.screens.LoginScreen
 import com.example.mysmartkiln.ui.screens.SplashScreen
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
+import com.example.mysmartkiln.ui.theme.ThemePreferences
 
 class SplashActivity : ComponentActivity() {
     
@@ -29,7 +30,7 @@ class SplashActivity : ComponentActivity() {
     
     private fun checkAuthenticationStatus() {
         setContent {
-            MySmartKilnTheme {
+            MySmartKilnTheme(themeMode = ThemePreferences.read(this)) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

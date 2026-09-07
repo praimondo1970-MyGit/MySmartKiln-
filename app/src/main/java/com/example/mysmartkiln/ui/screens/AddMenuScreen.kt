@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ui.components.NewKilnCard
 import com.example.mysmartkiln.ui.components.NewProgramCard
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 /**
@@ -28,7 +29,8 @@ import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
  */
 @Composable
 fun AddMenuScreen(
-    onNewKilnClick: () -> Unit = {},
+    onNewKilnClick: () -> Unit = {
+},
     onNewProgramClick: () -> Unit = {},
     onDismiss: () -> Unit = {}, // Callback para cerrar el menú al hacer click en el fondo
     modifier: Modifier = Modifier
@@ -38,7 +40,7 @@ fun AddMenuScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100.copy(alpha = 0.40f)) // Fondo semi-transparente al 40% para ver el contenido debajo
+            .background(color = LocalKilnColors.current.screenBackground.copy(alpha = 0.40f)) // Fondo semi-transparente al 40% para ver el contenido debajo
             .clickable(
                 interactionSource = backgroundInteractionSource,
                 indication = null // Sin efecto visual

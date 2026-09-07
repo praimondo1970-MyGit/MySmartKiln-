@@ -47,8 +47,6 @@ fun KilnStatusScreen(
     val isUploadingProgram by viewModel.isUploadingProgram.collectAsState()
     val isConnectingToAp by viewModel.isConnectingToAp.collectAsState()
     val shouldShowManualWifiDialog by viewModel.shouldShowManualWifiDialog.collectAsState()
-    val kilnColors = LocalKilnColors.current
-
     // Pedimos el permiso runtime que necesita WifiNetworkSpecifier
     // (NEARBY_WIFI_DEVICES en Android 13+, ACCESS_FINE_LOCATION antes). Sin
     // este permiso, requestNetwork() lanza SecurityException y no podemos
@@ -80,10 +78,10 @@ fun KilnStatusScreen(
             .fillMaxWidth()
             .height(450.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (kilnColors.isEsp) 0.dp else 4.dp),
-        border = if (kilnColors.isEsp) {
-            androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder)
+        colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (LocalKilnColors.current.isEsp) 0.dp else 4.dp),
+        border = if (LocalKilnColors.current.isEsp) {
+            androidx.compose.foundation.BorderStroke(1.dp, LocalKilnColors.current.cardBorder)
         } else {
             null
         }
@@ -109,7 +107,7 @@ fun KilnStatusScreen(
                     ) {
                         Text(
                             text = kilnProgram.name,
-                            color = kilnColors.title,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -120,7 +118,7 @@ fun KilnStatusScreen(
                         modifier = Modifier
                             .width(1.dp)
                             .height(40.dp)
-                            .background(kilnColors.cardBorder)
+                            .background(LocalKilnColors.current.cardBorder)
                     )
 
                     // Right side - Total Duration
@@ -133,20 +131,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.icon_time),
                                 contentDescription = "Time",
-                                tint = kilnColors.body,
+                                tint = LocalKilnColors.current.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = kilnStatus.totalTime,
-                                color = kilnColors.body,
+                                color = LocalKilnColors.current.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                         }
                         Text(
                             text = "Duración",
-                            color = kilnColors.muted,
+                            color = LocalKilnColors.current.muted,
                             fontSize = 13.sp
                         )
                     }
@@ -175,7 +173,7 @@ fun KilnStatusScreen(
                             style = SpanStyle(
                                 fontSize = 80.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = kilnColors.body
+                                color = LocalKilnColors.current.body
                             )
                         ) {
                             append("${kilnStatus.currentTemperature.toInt()}")
@@ -184,7 +182,7 @@ fun KilnStatusScreen(
                             style = SpanStyle(
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = kilnColors.body,
+                                color = LocalKilnColors.current.body,
                                 baselineShift = BaselineShift(0.6f)
                             )
                         ) {
@@ -219,20 +217,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.etapa_temp),
                                 contentDescription = "Max Temperature",
-                                tint = kilnColors.body,
+                                tint = LocalKilnColors.current.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "${kilnStatus.targetTemperature.toInt()}°C",
-                                color = kilnColors.body,
+                                color = LocalKilnColors.current.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp
                             )
                         }
                         Text(
                             text = "Temp max",
-                            color = kilnColors.muted,
+                            color = LocalKilnColors.current.muted,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(start = 32.dp) // Alineado con la temperatura (24dp ícono + 8dp spacer)
                         )
@@ -248,20 +246,20 @@ fun KilnStatusScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.icon_time),
                                 contentDescription = "Remaining",
-                                tint = kilnColors.body,
+                                tint = LocalKilnColors.current.body,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = kilnStatus.remainingTime,
-                                color = kilnColors.body,
+                                color = LocalKilnColors.current.body,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                         }
                         Text(
                             text = "Pendiente",
-                            color = kilnColors.muted,
+                            color = LocalKilnColors.current.muted,
                             fontSize = 13.sp
                         )
                     }
@@ -306,13 +304,13 @@ fun KilnStatusScreen(
                             .padding(horizontal = 10.dp)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = kilnColors.accent
+                            containerColor = LocalKilnColors.current.accent
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = "Cargar Programa",
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -321,7 +319,7 @@ fun KilnStatusScreen(
                 espStatus == "INTERRUMPIDO" -> {
                     Text(
                         text = "Programa interrumpido. Usá el aviso para reanudar o cancelar.",
-                        color = kilnColors.muted,
+                        color = LocalKilnColors.current.muted,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -338,20 +336,20 @@ fun KilnStatusScreen(
                             .padding(horizontal = 10.dp)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = kilnColors.accent
+                            containerColor = LocalKilnColors.current.accent
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.icon_stop),
                             contentDescription = "Stop",
-                            tint = Color.White,
+                            tint = LocalKilnColors.current.onAccent,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Stop",
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -373,20 +371,20 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = kilnColors.fab
+                                        containerColor = LocalKilnColors.current.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.icon_play),
                                         contentDescription = "Iniciar",
-                                        tint = Color.White,
+                                        tint = LocalKilnColors.current.onAccent,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Iniciar",
-                                        color = Color.White,
+                                        color = LocalKilnColors.current.onAccent,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
                                     )
@@ -400,20 +398,20 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = kilnColors.fab
+                                        containerColor = LocalKilnColors.current.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.icon_pause),
                                         contentDescription = "Pausa",
-                                        tint = Color.White,
+                                        tint = LocalKilnColors.current.onAccent,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Pausa",
-                                        color = Color.White,
+                                        color = LocalKilnColors.current.onAccent,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
                                     )
@@ -427,20 +425,20 @@ fun KilnStatusScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = kilnColors.fab
+                                        containerColor = LocalKilnColors.current.fab
                                     ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.icon_play),
                                         contentDescription = "Iniciar",
-                                        tint = Color.White,
+                                        tint = LocalKilnColors.current.onAccent,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Iniciar",
-                                        color = Color.White,
+                                        color = LocalKilnColors.current.onAccent,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
                                     )
@@ -455,20 +453,20 @@ fun KilnStatusScreen(
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = kilnColors.accent
+                                containerColor = LocalKilnColors.current.accent
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.icon_stop),
                                 contentDescription = "Stop",
-                                tint = Color.White,
+                                tint = LocalKilnColors.current.onAccent,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Stop",
-                                color = Color.White,
+                                color = LocalKilnColors.current.onAccent,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
@@ -491,8 +489,6 @@ fun ProgramProgressBar(
     modifier: Modifier = Modifier
 ) {
     if (stages.isEmpty()) return
-    val kilnColors = LocalKilnColors.current
-
     val totalMinutes = stages.sumOf { it.durationMinutes.coerceAtLeast(0) }
     if (totalMinutes <= 0) return
 
@@ -542,7 +538,7 @@ fun ProgramProgressBar(
                             .fillMaxHeight()
                             .fillMaxWidth(stageProgress)
                             .background(
-                                color = kilnColors.body,
+                                color = LocalKilnColors.current.body,
                                 shape = RoundedCornerShape(4.dp)
                             )
                     )
@@ -559,7 +555,6 @@ fun TemperatureGauge(
     programStages: List<com.example.mysmartkiln.ui.viewmodels.ProgramStage> = emptyList(),
     elapsedMinutes: Int = 0
 ) {
-    val kilnColors = LocalKilnColors.current
     Box(
         modifier = Modifier.size(210.dp),
         contentAlignment = Alignment.Center
@@ -588,7 +583,7 @@ fun TemperatureGauge(
                         style = SpanStyle(
                             fontSize = 42.sp,
                             fontWeight = FontWeight.Normal,
-                            color = kilnColors.body
+                            color = LocalKilnColors.current.body
                         )
                     ) {
                         append("${currentTemperature.toInt()}")
@@ -598,7 +593,7 @@ fun TemperatureGauge(
                         style = SpanStyle(
                             fontSize = 21.sp,
                             fontWeight = FontWeight.Normal,
-                            color = kilnColors.body
+                            color = LocalKilnColors.current.body
                         )
                     ) {
                         append("°C")
@@ -615,8 +610,6 @@ fun ProgressArcs(
     elapsedMinutes: Int = 0
 ) {
     if (stages.isEmpty()) return
-
-    val kilnColors = LocalKilnColors.current
     val stageDurations = stages.map { it.durationMinutes.coerceAtLeast(0) }
     val totalMinutes = stageDurations.sum()
     if (totalMinutes <= 0) return
@@ -625,6 +618,9 @@ fun ProgressArcs(
     val separatorDegrees = 3f
     val numSeparators = (stages.size - 1).coerceAtLeast(0)
     val availableDegrees = totalArcDegrees - (separatorDegrees * numSeparators)
+    val trackColor = LocalKilnColors.current.track
+    val progressColor = LocalKilnColors.current.progress
+    val separatorColor = LocalKilnColors.current.cardBackground
 
     Canvas(modifier = Modifier.size(235.dp)) {
         val strokeWidth = 8.dp.toPx()
@@ -664,7 +660,7 @@ fun ProgressArcs(
 
             if (stageSweepAngle > 0f) {
                 drawArc(
-                    color = kilnColors.track,
+                    color = trackColor,
                     startAngle = currentAngle,
                     sweepAngle = stageSweepAngle,
                     useCenter = false,
@@ -676,7 +672,7 @@ fun ProgressArcs(
 
             if (completedSweepAngle > 0f) {
                 drawArc(
-                    color = kilnColors.progress,
+                    color = progressColor,
                     startAngle = currentAngle,
                     sweepAngle = completedSweepAngle,
                     useCenter = false,
@@ -693,7 +689,7 @@ fun ProgressArcs(
                 val endRadius = arcRadius + 8.dp.toPx()
 
                 drawLine(
-                    color = kilnColors.cardBackground,
+                    color = separatorColor,
                     start = Offset(
                         x = center.x + (startRadius * Math.cos(separatorRadians)).toFloat(),
                         y = center.y + (startRadius * Math.sin(separatorRadians)).toFloat()

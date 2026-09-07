@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Componente de navegación inferior responsive que se adapta automáticamente
@@ -226,14 +227,14 @@ private fun NavigationTab(
         Icon(
             painter = painterResource(id = icon),
             contentDescription = "$text-icon",
-            tint = Color.White,
+            tint = LocalKilnColors.current.onAccent,
             modifier = Modifier.size(24.dp)
         )
         
         // Text
         Text(
             text = text,
-            color = Color.White,
+            color = LocalKilnColors.current.onAccent,
             style = TextStyle(
                 fontSize = 12.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
@@ -247,7 +248,7 @@ private fun NavigationTab(
                     .width(20.dp)
                     .height(3.dp)
                     .background(
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
                     )
             )

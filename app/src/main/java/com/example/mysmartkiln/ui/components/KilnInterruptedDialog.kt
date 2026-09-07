@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Diálogo modal que aparece cuando el horno reporta status="INTERRUMPIDO".
@@ -53,7 +54,7 @@ fun KilnInterruptedDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            color = LocalKilnColors.current.onAccent,
             tonalElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,7 +99,7 @@ fun KilnInterruptedDialog(
                     onClick = onResume,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AppColors.Primary700,
+                        containerColor = LocalKilnColors.current.accent,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp)

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 
 @Composable
@@ -40,11 +41,11 @@ fun ForgotPasswordDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = AppColors.Primary800,
+        containerColor = LocalKilnColors.current.brandSurface,
         title = {
             Text(
                 text = "Restablecer Contraseña",
-                color = Color.White,
+                color = LocalKilnColors.current.onAccent,
                 style = TextStyle(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -56,7 +57,7 @@ fun ForgotPasswordDialog(
             Column {
                 Text(
                     text = "Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.",
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontFamily = RalewayFontFamily
@@ -71,7 +72,7 @@ fun ForgotPasswordDialog(
                     label = {
                         Text(
                             text = "Correo electrónico",
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             style = TextStyle(
                                 fontSize = 14.sp,
                                 fontFamily = RalewayFontFamily
@@ -80,15 +81,15 @@ fun ForgotPasswordDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedLabelColor = Color.White,
-                        unfocusedLabelColor = Color.White,
-                        focusedIndicatorColor = Color.White,
-                        unfocusedIndicatorColor = Color.White,
-                        cursorColor = Color.White,
-                        focusedContainerColor = AppColors.Primary800,
-                        unfocusedContainerColor = AppColors.Primary800
+                        focusedTextColor = LocalKilnColors.current.onAccent,
+                        unfocusedTextColor = LocalKilnColors.current.onAccent,
+                        focusedLabelColor = LocalKilnColors.current.onAccent,
+                        unfocusedLabelColor = LocalKilnColors.current.onAccent,
+                        focusedIndicatorColor = LocalKilnColors.current.onAccent,
+                        unfocusedIndicatorColor = LocalKilnColors.current.onAccent,
+                        cursorColor = LocalKilnColors.current.onAccent,
+                        focusedContainerColor = LocalKilnColors.current.brandSurface,
+                        unfocusedContainerColor = LocalKilnColors.current.brandSurface
                     ),
                     shape = RoundedCornerShape(8.dp)
                 )
@@ -103,19 +104,19 @@ fun ForgotPasswordDialog(
                 },
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3385FF)
+                    containerColor = LocalKilnColors.current.accent
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
                     Text(
                         text = "Enviar",
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         style = TextStyle(
                             fontFamily = RalewayFontFamily,
                             fontWeight = FontWeight.Medium
@@ -131,7 +132,7 @@ fun ForgotPasswordDialog(
             ) {
                 Text(
                     text = "Cancelar",
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     style = TextStyle(
                         fontFamily = RalewayFontFamily,
                         fontWeight = FontWeight.Medium

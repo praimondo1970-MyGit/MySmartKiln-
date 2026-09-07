@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Diálogo modal con un círculo girando que se muestra mientras la app se
@@ -48,7 +49,7 @@ fun KilnSendingCommandDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            color = LocalKilnColors.current.onAccent,
             tonalElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -67,7 +68,7 @@ fun KilnSendingCommandDialog(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(64.dp),
-                        color = AppColors.Primary700,
+                        color = LocalKilnColors.current.body,
                         strokeWidth = 5.dp
                     )
                 }
@@ -77,7 +78,7 @@ fun KilnSendingCommandDialog(
                 Text(
                     text = phase,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     ),

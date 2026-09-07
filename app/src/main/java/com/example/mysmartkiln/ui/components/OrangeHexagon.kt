@@ -12,6 +12,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 /**
@@ -21,14 +22,15 @@ import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 fun OrangeHexagon(
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 44.dp,
-    color: Color = AppColors.Primary300 // Color del hexágono
+    color: Color? = null
 ) {
+    val resolved = color ?: LocalKilnColors.current.accent
     Image(
         painter = painterResource(id = R.drawable.poligono_iconos),
         contentDescription = null,
         modifier = modifier.size(size),
         contentScale = ContentScale.Fit,
-        colorFilter = ColorFilter.tint(color) // Aplica el color al hexágono
+        colorFilter = ColorFilter.tint(resolved)
     )
 }
 

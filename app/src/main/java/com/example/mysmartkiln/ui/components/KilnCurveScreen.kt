@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.utils.KilnCurveBuilder
 
@@ -49,7 +50,7 @@ fun KilnCurveScreen(
             .fillMaxWidth()
             .height(450.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -59,7 +60,7 @@ fun KilnCurveScreen(
         ) {
             Text(
                 text = "Temperatura y programa",
-                color = AppColors.Primary700,
+                color = LocalKilnColors.current.body,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
             )
@@ -67,7 +68,7 @@ fun KilnCurveScreen(
             if (kilnProgram.name.isNotBlank()) {
                 Text(
                     text = kilnProgram.name,
-                    color = AppColors.Primary400,
+                    color = LocalKilnColors.current.muted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
@@ -79,8 +80,8 @@ fun KilnCurveScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                LegendItem(color = AppColors.Primary700, label = "Programa")
-                LegendItem(color = Color(0xFFFF6F00), label = "Real")
+                LegendItem(color = LocalKilnColors.current.body, label = "Programa")
+                LegendItem(color = LocalKilnColors.current.accent, label = "Real")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -95,14 +96,14 @@ fun KilnCurveScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "Sin programa cargado",
-                            color = AppColors.Primary600,
+                            color = LocalKilnColors.current.body,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "Carga un programa para ver la curva teórica",
-                            color = AppColors.Primary400,
+                            color = LocalKilnColors.current.muted,
                             fontSize = 12.sp
                         )
                     }
@@ -127,20 +128,20 @@ fun KilnCurveScreen(
                 ) {
                     Text(
                         text = "Actual: ${kilnStatus.currentTemperature.toInt()}°C",
-                        color = Color(0xFFFF6F00),
+                        color = LocalKilnColors.current.accent,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
                     if (isActiveRun) {
                         Text(
                             text = "Transcurrido: ${KilnCurveBuilder.formatAxisMinutes(currentElapsedMin)}",
-                            color = AppColors.Primary600,
+                            color = LocalKilnColors.current.body,
                             fontSize = 12.sp
                         )
                     }
                     Text(
                         text = "Duración: ${KilnCurveBuilder.formatAxisMinutes(chartModel.totalMinutes)}",
-                        color = AppColors.Primary400,
+                        color = LocalKilnColors.current.muted,
                         fontSize = 12.sp
                     )
                 }
@@ -161,7 +162,7 @@ private fun LegendItem(color: Color, label: String) {
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
-            color = AppColors.Primary700,
+            color = LocalKilnColors.current.body,
             fontSize = 13.sp
         )
     }

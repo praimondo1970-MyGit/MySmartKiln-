@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Logo component for MySmartKiln app
@@ -77,7 +78,7 @@ fun LogoIcon(
     Surface(
         modifier = modifier.size(iconSize),
         shape = CircleShape,
-        color = AppColors.Primary500,
+        color = LocalKilnColors.current.accent,
         shadowElevation = 4.dp
     ) {
         Box(
@@ -95,7 +96,7 @@ fun LogoIcon(
                         LogoSize.XL -> 40.sp
                     }
                 ),
-                color = AppColors.White
+                color = LocalKilnColors.current.onAccent
             )
         }
     }
@@ -124,7 +125,7 @@ fun LogoText(
                     LogoSize.XL -> 28.sp
                 }
             ),
-            color = AppColors.Primary500
+            color = LocalKilnColors.current.accent
         )
         
         Text(
@@ -137,7 +138,7 @@ fun LogoText(
                     LogoSize.XL -> 16.sp
                 }
             ),
-            color = AppColors.Neutral600
+            color = LocalKilnColors.current.muted
         )
     }
 }
@@ -158,7 +159,7 @@ fun CompactLogo(
         Surface(
             modifier = Modifier.size(24.dp),
             shape = CircleShape,
-            color = AppColors.Primary500
+            color = LocalKilnColors.current.accent
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -169,7 +170,7 @@ fun CompactLogo(
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold
                     ),
-                    color = AppColors.White
+                    color = LocalKilnColors.current.onAccent
                 )
             }
         }
@@ -180,7 +181,7 @@ fun CompactLogo(
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold
                 ),
-                color = AppColors.Primary500
+                color = LocalKilnColors.current.accent
             )
         }
     }

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Pantalla de búsqueda en curso (misma estética que el escaneo BLE histórico).
@@ -43,7 +44,7 @@ fun KilnSearchInProgressOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         Image(
             painter = painterResource(id = R.drawable.img_sin_hornos),
@@ -57,7 +58,7 @@ fun KilnSearchInProgressOverlay(
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge.copy(
-                color = Color(0xFF1E3A8A),
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Bold
             ),
             textAlign = TextAlign.Center,
@@ -78,17 +79,17 @@ fun KilnSearchInProgressOverlay(
         ) {
             Text(
                 text = subtitleLine1,
-                style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF1E3A8A)),
+                style = MaterialTheme.typography.bodyLarge.copy(color = LocalKilnColors.current.title),
                 textAlign = TextAlign.Center
             )
             Text(
                 text = subtitleLine2,
-                style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF1E3A8A)),
+                style = MaterialTheme.typography.bodyLarge.copy(color = LocalKilnColors.current.title),
                 textAlign = TextAlign.Center
             )
             Text(
                 text = subtitleLine3,
-                style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF1E3A8A)),
+                style = MaterialTheme.typography.bodyLarge.copy(color = LocalKilnColors.current.title),
                 textAlign = TextAlign.Center
             )
         }
@@ -107,14 +108,14 @@ fun KilnSearchInProgressOverlay(
                     .fillMaxWidth()
                     .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
+                    containerColor = LocalKilnColors.current.accent,
                     contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     strokeWidth = 2.dp
                 )
             }

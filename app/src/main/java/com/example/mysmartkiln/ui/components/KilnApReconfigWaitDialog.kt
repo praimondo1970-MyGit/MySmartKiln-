@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * El ESP apaga su SoftAP ~12–14 s tras una sesión HTTP local (perfil B).
@@ -35,7 +36,7 @@ fun KilnApReconfigWaitDialog(
                 text = "Horno reconfigurando la red",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A8A)
+                    color = LocalKilnColors.current.title
                 )
             )
         },
@@ -44,7 +45,7 @@ fun KilnApReconfigWaitDialog(
                 Text(
                     text = "El horno está reconfigurando la red. Esperá $secondsLabel para $actionDescription.",
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.SemiBold,
                         lineHeight = 24.sp
                     )
@@ -63,7 +64,7 @@ fun KilnApReconfigWaitDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     text = "Entendido",
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Bold
                 )
             }

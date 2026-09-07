@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.ui.viewmodels.ProgramStage
 import java.util.Locale
@@ -45,7 +46,8 @@ private fun ProgramStage.toStageData(): StageData {
 fun KilnProgramScreen(
     kilnMacAddress: String,
     viewModel: KilnDetailViewModel,
-    onChangeProgram: () -> Unit = {},
+    onChangeProgram: () -> Unit = {
+},
     onEditCurrentProgram: (programId: String) -> Unit = {}
 ) {
     val kilnProgram by viewModel.kilnProgram.collectAsState()
@@ -91,7 +93,7 @@ fun KilnProgramScreen(
             .fillMaxWidth()
             .height(450.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -107,20 +109,20 @@ fun KilnProgramScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = displayOrDash(kilnProgram.name),
-                        color = AppColors.Primary700,
+                        color = LocalKilnColors.current.body,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
                     Text(
                         text = subtitle,
-                        color = AppColors.Primary400,
+                        color = LocalKilnColors.current.muted,
                         fontSize = 12.sp
                     )
                     if (kilnProgram.duration.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Duración total: ${kilnProgram.duration}",
-                            color = AppColors.Primary600,
+                            color = LocalKilnColors.current.body,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -136,8 +138,8 @@ fun KilnProgramScreen(
                         }
                     },
                     modifier = Modifier.size(40.dp),
-                    containerColor = Color(0xFFFF6F00),
-                    contentColor = Color.White
+                    containerColor = LocalKilnColors.current.fab,
+                    contentColor = LocalKilnColors.current.onFab
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.icon_edit),
@@ -164,21 +166,21 @@ fun KilnProgramScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = "No hay programa seleccionado",
-                                color = AppColors.Primary600,
+                                color = LocalKilnColors.current.body,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Pulsa el lápiz o «Seleccionar programa»",
-                                color = AppColors.Primary400,
+                                color = LocalKilnColors.current.muted,
                                 fontSize = 12.sp
                             )
                         }
                     } else {
                         CircularProgressIndicator(
                             modifier = Modifier.size(32.dp),
-                            color = AppColors.Primary700,
+                            color = LocalKilnColors.current.body,
                             strokeWidth = 3.dp
                         )
                     }
@@ -213,13 +215,13 @@ fun KilnProgramScreen(
                     .fillMaxWidth()
                     .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700
+                    containerColor = LocalKilnColors.current.accent
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     text = if (kilnProgram.name.isBlank()) "Seleccionar programa" else "Cambiar programa",
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     fontWeight = FontWeight.Bold
                 )
             }

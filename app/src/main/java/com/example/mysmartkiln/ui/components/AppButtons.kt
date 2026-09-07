@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.AppTypes
 
 /**
@@ -196,8 +197,8 @@ fun AppFloatingActionButton(
     androidx.compose.material3.FloatingActionButton(
         onClick = onClick,
         modifier = modifier,
-        containerColor = AppColors.Primary500,
-        contentColor = AppColors.White,
+        containerColor = LocalKilnColors.current.fab,
+        contentColor = LocalKilnColors.current.onFab,
         elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
             defaultElevation = 6.dp,
             pressedElevation = 8.dp
@@ -265,7 +266,7 @@ fun TypePrimarySizeDefaultStateActiveIconNewValue(
         modifier = modifier
             .requiredWidth(width = 332.dp)
             .clip(shape = RoundedCornerShape(12.dp))
-            .background(color = AppColors.color_Primary_400)
+            .background(color = LocalKilnColors.current.accent)
             .padding(all = 16.dp)
             .clickable { onClick() }
     ) {
@@ -273,7 +274,7 @@ fun TypePrimarySizeDefaultStateActiveIconNewValue(
         if (haslabel50434) {
             Text(
                 text = label50447,
-                color = AppColors.color_Primary_800,
+                color = LocalKilnColors.current.onAccent,
                 lineHeight = 1.21.em,
                 style = AppTypes.type_Button_Large
             )
@@ -312,7 +313,7 @@ fun TypeTerciarySizeDefaultStateActiveIconNewValue(
         modifier = modifier
             .requiredWidth(width = 332.dp)
             .clip(shape = RoundedCornerShape(12.dp))
-            .background(color = AppColors.color_Terciary_800)
+            .background(color = LocalKilnColors.current.fab)
             .padding(all = 16.dp)
             .clickable { onClick() }
     ) {
@@ -320,7 +321,7 @@ fun TypeTerciarySizeDefaultStateActiveIconNewValue(
         if (haslabel50434) {
             Text(
                 text = label50447,
-                color = AppColors.color_Primary_800,
+                color = LocalKilnColors.current.onAccent,
                 lineHeight = 1.21.em,
                 style = AppTypes.type_Button_Large
             )
@@ -343,7 +344,7 @@ fun HomeIndicatorWhite(modifier: Modifier = Modifier) {
                 .requiredWidth(width = 134.dp)
                 .requiredHeight(height = 5.dp)
                 .clip(shape = RoundedCornerShape(100.dp))
-                .background(color = AppColors.color_Primary_700)
+                .background(color = LocalKilnColors.current.muted)
         )
     }
 }

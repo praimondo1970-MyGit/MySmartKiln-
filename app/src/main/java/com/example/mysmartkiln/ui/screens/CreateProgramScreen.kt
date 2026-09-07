@@ -80,13 +80,15 @@ import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.StageCard
 import com.example.mysmartkiln.ui.components.StageData
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
 fun CreateProgramScreen(
     programIdToEdit: String? = null,
     isEditMode: Boolean = false,
-    onNavigateBack: () -> Unit = {},
+    onNavigateBack: () -> Unit = {
+},
     onNavigateToAddStage: () -> Unit = {},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
@@ -240,7 +242,7 @@ fun CreateProgramScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Scrollable content con gradiente
         Box(
@@ -317,10 +319,10 @@ fun CreateProgramScreen(
                                    .height(48.dp) // Same height as "Comenzar" button
                                    .padding(top = 5.dp), // Padding superior reducido a 5dp
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700, // Color Primary700 (#003D99)
-                            contentColor = Color.White,
-                            disabledContainerColor = AppColors.Neutral400, // Gris para estado inactivo
-                            disabledContentColor = AppColors.Neutral600 // Texto gris para estado inactivo
+                            containerColor = LocalKilnColors.current.accent, // Color Primary700 (#003D99)
+                            contentColor = LocalKilnColors.current.onAccent,
+                            disabledContainerColor = LocalKilnColors.current.cardBorder,
+                            disabledContentColor = LocalKilnColors.current.muted
                         ),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                     ) {
@@ -342,7 +344,7 @@ fun CreateProgramScreen(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -381,7 +383,7 @@ fun CreateProgramScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -498,7 +500,7 @@ fun CreateProgramScreen(
                     .fillMaxSize()
                     .imePadding()
                     .background(
-                        color = AppColors.Primary800.copy(alpha = 0.9f) // 90% opacity
+                        color = LocalKilnColors.current.title.copy(alpha = 0.9f) // 90% opacity
                     )
             ) {
                 // Rectangle134 component positioned at bottom with additional offset when keyboard is visible

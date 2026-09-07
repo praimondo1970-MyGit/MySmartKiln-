@@ -45,12 +45,14 @@ import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.ProgramsListViewModel
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
 
 @Composable
 fun SelectProgramScreen(
-    onProgramSelected: (String) -> Unit = {},
+    onProgramSelected: (String) -> Unit = {
+},
     onNavigateBack: () -> Unit = {},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
@@ -73,7 +75,7 @@ fun SelectProgramScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal - SIEMPRE VISIBLE
         if (hasPrograms) {
@@ -127,7 +129,7 @@ fun SelectProgramScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -255,7 +257,7 @@ private fun SelectProgramListContent(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
-                    tint = AppColors.Primary700
+                    tint = LocalKilnColors.current.body
                 )
             }
             
@@ -263,7 +265,7 @@ private fun SelectProgramListContent(
             Text(
                 text = "Seleccionar Programa",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.align(Alignment.Center)
@@ -309,7 +311,7 @@ private fun SelectProgramListContent(
             // Gradient at the bottom
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -344,7 +346,7 @@ private fun EmptySelectProgramContent(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
-                    tint = AppColors.Primary700
+                    tint = LocalKilnColors.current.body
                 )
             }
         }
@@ -368,7 +370,7 @@ private fun EmptySelectProgramContent(
             Text(
                 text = "No hay programas guardados",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 textAlign = TextAlign.Center,
@@ -379,7 +381,7 @@ private fun EmptySelectProgramContent(
             Text(
                 text = "Primero debes crear un programa\ndesde la pantalla de Programas",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = Color(0xFF1E3A8A)
+                    color = LocalKilnColors.current.title
                 ),
                 textAlign = TextAlign.Center
             )

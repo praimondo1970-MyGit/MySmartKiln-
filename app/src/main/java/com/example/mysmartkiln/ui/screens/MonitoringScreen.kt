@@ -16,6 +16,7 @@ import com.example.mysmartkiln.data.viewmodel.RealtimeDataViewModel
 import com.example.mysmartkiln.ui.components.RealtimeDataCard
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Pantalla de monitoreo en tiempo real del horno
@@ -24,7 +25,8 @@ import com.example.mysmartkiln.ui.theme.AppColors
 @Composable
 fun MonitoringScreen(
     macAddress: String,
-    onNavigateToKilns: () -> Unit = {},
+    onNavigateToKilns: () -> Unit = {
+},
     onNavigateToPrograms: () -> Unit = {},
     onNavigateToActivity: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
@@ -45,7 +47,7 @@ fun MonitoringScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -56,14 +58,14 @@ fun MonitoringScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AppColors.Primary700)
+                    .background(LocalKilnColors.current.accent)
                     .padding(horizontal = 24.dp, vertical = 16.dp)
             ) {
                 Text(
                     text = "Monitoreo del Horno",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = LocalKilnColors.current.onAccent
                 )
             }
             
@@ -114,7 +116,7 @@ fun MonitoringScreen(
                             text = "Información de Conexión",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         
@@ -172,13 +174,13 @@ private fun InfoRow(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = AppColors.Primary600
+            color = LocalKilnColors.current.body
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = AppColors.Primary800
+            color = LocalKilnColors.current.title
         )
     }
 }

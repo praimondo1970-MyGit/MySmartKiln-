@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Custom input components for MySmartKiln app
@@ -67,6 +68,8 @@ fun AppTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true
 ) {
+    val kilnColors = LocalKilnColors.current
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -77,7 +80,7 @@ fun AppTextField(
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Medium
                 ),
-                color = if (enabled) AppColors.Neutral900 else AppColors.Neutral500
+                color = if (enabled) kilnColors.title else kilnColors.muted
             )
         }
         
@@ -90,7 +93,7 @@ fun AppTextField(
                 { 
                     Text(
                         text = it,
-                        color = AppColors.Neutral500
+                        color = kilnColors.muted
                     ) 
                 } 
             },
@@ -100,18 +103,18 @@ fun AppTextField(
             singleLine = singleLine,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AppColors.Primary500,
-                unfocusedBorderColor = AppColors.Neutral300,
-                errorBorderColor = AppColors.Error500,
-                disabledBorderColor = AppColors.Neutral200,
-                focusedTextColor = AppColors.Neutral900,
-                unfocusedTextColor = AppColors.Neutral900,
-                errorTextColor = AppColors.Neutral900,
-                disabledTextColor = AppColors.Neutral500,
-                focusedLabelColor = AppColors.Primary500,
-                unfocusedLabelColor = AppColors.Neutral600,
-                errorLabelColor = AppColors.Error500,
-                disabledLabelColor = AppColors.Neutral400
+                focusedBorderColor = kilnColors.accent,
+                unfocusedBorderColor = kilnColors.cardBorder,
+                errorBorderColor = kilnColors.danger,
+                disabledBorderColor = kilnColors.cardBorder.copy(alpha = 0.5f),
+                focusedTextColor = kilnColors.title,
+                unfocusedTextColor = kilnColors.title,
+                errorTextColor = kilnColors.title,
+                disabledTextColor = kilnColors.muted,
+                focusedLabelColor = kilnColors.accent,
+                unfocusedLabelColor = kilnColors.muted,
+                errorLabelColor = kilnColors.danger,
+                disabledLabelColor = kilnColors.muted
             ),
             shape = RoundedCornerShape(8.dp)
         )
@@ -120,13 +123,13 @@ fun AppTextField(
             Text(
                 text = error,
                 style = MaterialTheme.typography.bodySmall,
-                color = AppColors.Error500
+                color = kilnColors.danger
             )
         } else if (supportingText != null) {
             Text(
                 text = supportingText,
                 style = MaterialTheme.typography.bodySmall,
-                color = AppColors.Neutral600
+                color = kilnColors.muted
             )
         }
     }
@@ -215,6 +218,8 @@ fun AppFilledTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true
 ) {
+    val kilnColors = LocalKilnColors.current
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -225,7 +230,7 @@ fun AppFilledTextField(
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Medium
                 ),
-                color = if (enabled) AppColors.Neutral900 else AppColors.Neutral500
+                color = if (enabled) kilnColors.title else kilnColors.muted
             )
         }
         
@@ -238,7 +243,7 @@ fun AppFilledTextField(
                 { 
                     Text(
                         text = it,
-                        color = AppColors.Neutral500
+                        color = kilnColors.muted
                     ) 
                 } 
             },
@@ -248,22 +253,22 @@ fun AppFilledTextField(
             singleLine = singleLine,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = AppColors.Neutral50,
-                unfocusedContainerColor = AppColors.Neutral100,
-                errorContainerColor = AppColors.Error50,
-                disabledContainerColor = AppColors.Neutral200,
-                focusedIndicatorColor = AppColors.Primary500,
-                unfocusedIndicatorColor = AppColors.Neutral300,
-                errorIndicatorColor = AppColors.Error500,
-                disabledIndicatorColor = AppColors.Neutral200,
-                focusedTextColor = AppColors.Neutral900,
-                unfocusedTextColor = AppColors.Neutral900,
-                errorTextColor = AppColors.Neutral900,
-                disabledTextColor = AppColors.Neutral500,
-                focusedLabelColor = AppColors.Primary500,
-                unfocusedLabelColor = AppColors.Neutral600,
-                errorLabelColor = AppColors.Error500,
-                disabledLabelColor = AppColors.Neutral400
+                focusedContainerColor = kilnColors.cardBackground,
+                unfocusedContainerColor = kilnColors.cardBackground,
+                errorContainerColor = kilnColors.danger.copy(alpha = 0.15f),
+                disabledContainerColor = kilnColors.cardBackground.copy(alpha = 0.6f),
+                focusedIndicatorColor = kilnColors.accent,
+                unfocusedIndicatorColor = kilnColors.cardBorder,
+                errorIndicatorColor = kilnColors.danger,
+                disabledIndicatorColor = kilnColors.cardBorder.copy(alpha = 0.5f),
+                focusedTextColor = kilnColors.title,
+                unfocusedTextColor = kilnColors.title,
+                errorTextColor = kilnColors.title,
+                disabledTextColor = kilnColors.muted,
+                focusedLabelColor = kilnColors.accent,
+                unfocusedLabelColor = kilnColors.muted,
+                errorLabelColor = kilnColors.danger,
+                disabledLabelColor = kilnColors.muted
             ),
             shape = RoundedCornerShape(8.dp)
         )
@@ -272,13 +277,13 @@ fun AppFilledTextField(
             Text(
                 text = error,
                 style = MaterialTheme.typography.bodySmall,
-                color = AppColors.Error500
+                color = kilnColors.danger
             )
         } else if (supportingText != null) {
             Text(
                 text = supportingText,
                 style = MaterialTheme.typography.bodySmall,
-                color = AppColors.Neutral600
+                color = kilnColors.muted
             )
         }
     }

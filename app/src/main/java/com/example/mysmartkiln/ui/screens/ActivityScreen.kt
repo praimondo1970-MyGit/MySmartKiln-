@@ -56,6 +56,7 @@ import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 // Estructura de datos para las actividades de horneado
@@ -73,7 +74,8 @@ data class ActivityItem(
 
 @Composable
 fun ActivityScreen(
-    onNavigateToKilns: () -> Unit = {},
+    onNavigateToKilns: () -> Unit = {
+},
     onNavigateToPrograms: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onCreateProgram: () -> Unit = {},
@@ -121,7 +123,7 @@ fun ActivityScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal
         Column(
@@ -133,7 +135,7 @@ fun ActivityScreen(
             Text(
                 text = "Actividad",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -151,7 +153,7 @@ fun ActivityScreen(
             Text(
                 text = "Septiembre 2025",
                 style = MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary800,
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Medium
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
@@ -183,7 +185,7 @@ fun ActivityScreen(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -225,7 +227,7 @@ fun ActivityScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -303,7 +305,8 @@ fun ActivityScreen(
 @Composable
 private fun ActivityCard(
     activity: ActivityItem,
-    onDelete: () -> Unit = {},
+    onDelete: () -> Unit = {
+},
     modifier: Modifier = Modifier
 ) {
     var offsetX by remember { mutableStateOf(0f) }
@@ -339,7 +342,7 @@ private fun ActivityCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .pointerInput(Unit) {
@@ -388,7 +391,7 @@ private fun ActivityCard(
                     Text(
                         text = activity.kilnName,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -397,7 +400,7 @@ private fun ActivityCard(
                     Text(
                         text = activity.executionDate,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -408,7 +411,7 @@ private fun ActivityCard(
                 Text(
                     text = activity.programName,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = AppColors.Primary600,
+                        color = LocalKilnColors.current.body,
                         fontSize = 14.sp
                     ),
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -456,14 +459,14 @@ private fun ActivityDetailItem(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = LocalKilnColors.current.body,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -473,7 +476,7 @@ private fun ActivityDetailItem(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -481,7 +484,7 @@ private fun ActivityDetailItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.body,
                     fontSize = 12.sp
                 )
             )
@@ -506,7 +509,7 @@ private fun ActivitySwipeActions(
                 .align(alignment = Alignment.CenterEnd)
                 .requiredSize(size = 64.dp)
                 .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = AppColors.Primary400) // Mismo color que ProgramSwipeActions
+                .background(color = LocalKilnColors.current.muted) // Mismo color que ProgramSwipeActions
                 .clickable { onDelete() }
         ) {
             Box(
@@ -526,7 +529,7 @@ private fun ActivitySwipeActions(
                 )
                 Text(
                     text = "borrar",
-                    color = AppColors.White,
+                    color = LocalKilnColors.current.onAccent,
                     lineHeight = 1.em,
                     style = TextStyle(fontSize = 10.sp),
                     modifier = Modifier

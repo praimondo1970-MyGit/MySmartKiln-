@@ -53,9 +53,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -183,11 +180,10 @@ fun KilnsScreen(
             }
         }
     }
-    val kilnColors = LocalKilnColors.current
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = kilnColors.screenBackground)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal - Mostrar hornos registrados o estado vacío
         // Si hay hornos registrados, mostrar lista siempre (mismo formato que ProgramsScreen)
@@ -199,7 +195,7 @@ fun KilnsScreen(
                 Text(
                     text = "Mis Hornos",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = kilnColors.title,
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -256,7 +252,7 @@ fun KilnsScreen(
                     // Gradiente en la parte inferior
                     ScrollGradient(
                         height = 40.dp,
-                        backgroundColor = AppColors.Primary100,
+                        backgroundColor = LocalKilnColors.current.screenBackground,
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 }
@@ -311,7 +307,7 @@ fun KilnsScreen(
                         else -> "¿Listo para comenzar?"
                     },
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = kilnColors.title,
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold
                     ),
                     textAlign = TextAlign.Center,
@@ -339,21 +335,21 @@ fun KilnsScreen(
                             Text(
                                 text = "Por favor ten paciencia ya que este",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "proceso puede durar hasta 10 segundos",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "en completarse.",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -362,7 +358,7 @@ fun KilnsScreen(
                             Text(
                                 text = "Asegúrate que el horno al que intentas conectarte esté encendido y dentro del alcance del bluetooth",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -371,14 +367,14 @@ fun KilnsScreen(
                             Text(
                                 text = "Cuando estés listo presiona comenzar",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "para detectar los hornos disponibles",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = kilnColors.title
+                                    color = LocalKilnColors.current.title
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -421,9 +417,9 @@ fun KilnsScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700,
+                            containerColor = LocalKilnColors.current.accent,
                             contentColor = Color.White,
-                            disabledContainerColor = AppColors.Primary700,
+                            disabledContainerColor = LocalKilnColors.current.accent,
                             disabledContentColor = Color.White
                         ),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
@@ -431,7 +427,7 @@ fun KilnsScreen(
                         if (isScanning || isStillProcessing) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = Color.White,
+                                color = LocalKilnColors.current.onAccent,
                                 strokeWidth = 2.dp
                             )
                         } else {
@@ -519,7 +515,7 @@ fun KilnsScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                    .background(
-                       color = Color(0xFF003D99),
+                       color = LocalKilnColors.current.navBar,
                        shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,

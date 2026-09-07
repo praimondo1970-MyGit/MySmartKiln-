@@ -1,5 +1,6 @@
 package com.example.mysmartkiln.ui.components
 
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -102,7 +103,7 @@ private fun NumericKey(
             .width(100.dp)
             .height(40.dp)
             .background(
-                color = Color.White,
+                color = LocalKilnColors.current.onAccent,
                 shape = RoundedCornerShape(5.dp)
             )
             .clip(RoundedCornerShape(5.dp))

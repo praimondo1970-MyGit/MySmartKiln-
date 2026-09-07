@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Tarjeta para mostrar un dispositivo BLE encontrado
@@ -28,7 +29,8 @@ import com.example.mysmartkiln.ui.theme.AppColors
 @Composable
 fun DeviceCard(
     device: BluetoothDevice,
-    onClick: () -> Unit = {},
+    onClick: () -> Unit = {
+},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -42,7 +44,7 @@ fun DeviceCard(
             ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = LocalKilnColors.current.cardBackground
         )
     ) {
         Row(
@@ -56,7 +58,7 @@ fun DeviceCard(
             androidx.compose.material3.Icon(
                 painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.stat_sys_data_bluetooth),
                 contentDescription = "Bluetooth",
-                tint = AppColors.Primary700,
+                tint = LocalKilnColors.current.body,
                 modifier = Modifier.size(20.dp)
             )
             
@@ -73,7 +75,7 @@ fun DeviceCard(
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = AppColors.Primary800
+                        color = LocalKilnColors.current.title
                     )
                 )
                 
@@ -83,7 +85,7 @@ fun DeviceCard(
                 Text(
                     text = "MAC: ${device.address}",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = AppColors.Primary600,
+                        color = LocalKilnColors.current.body,
                         fontSize = 12.sp
                     )
                 )

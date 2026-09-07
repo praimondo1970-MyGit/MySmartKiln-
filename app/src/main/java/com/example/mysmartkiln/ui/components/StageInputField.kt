@@ -26,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -42,9 +43,9 @@ fun StageInputField(
         modifier = modifier
             .requiredWidth(100.dp) // Reducir ancho de 105dp a 100dp
             .clip(shape = RoundedCornerShape(12.dp))
-            .background(color = Color.White)
+            .background(color = LocalKilnColors.current.cardBackground)
             .border(
-                border = BorderStroke(1.dp, AppColors.Primary100),
+                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 12.dp, vertical = 12.dp)
@@ -53,11 +54,11 @@ fun StageInputField(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = TextStyle(
-                    color = Color(0xFF1E3A8A), // Dark blue text
+                    color = LocalKilnColors.current.title, // Dark blue text
                     fontSize = 18.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End // Alineación a la derecha
                 ),
-                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                cursorBrush = SolidColor(LocalKilnColors.current.title),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -94,7 +95,7 @@ fun StageInputField(
                             Text(
                                 text = unit,
                                 style = TextStyle(
-                                    color = AppColors.Primary600,
+                                    color = LocalKilnColors.current.body,
                                     fontSize = 13.sp
                                 ),
                                 modifier = Modifier.padding(start = 1.dp)
@@ -113,7 +114,7 @@ fun StageInputFieldPreview() {
         Box(
             modifier = Modifier
                 .padding(24.dp)
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
         ) {
             StageInputField(
                 label = "Temperatura",

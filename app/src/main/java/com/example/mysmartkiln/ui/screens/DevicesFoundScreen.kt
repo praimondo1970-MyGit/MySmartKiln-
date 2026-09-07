@@ -22,6 +22,7 @@ import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Pantalla que muestra los dispositivos BLE encontrados
@@ -30,7 +31,8 @@ import com.example.mysmartkiln.ui.theme.AppColors
 @Composable
 fun DevicesFoundScreen(
     bleViewModel: BleViewModel,
-    onDeviceSelected: (String) -> Unit = {},
+    onDeviceSelected: (String) -> Unit = {
+},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
     onNavigateToActivity: () -> Unit = {},
@@ -46,7 +48,7 @@ fun DevicesFoundScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -57,7 +59,7 @@ fun DevicesFoundScreen(
             Text(
                 text = "Dispositivos encontrados",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -131,7 +133,7 @@ fun DevicesFoundScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,

@@ -63,12 +63,14 @@ import com.example.mysmartkiln.data.auth.AuthState
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.components.ForgotPasswordDialog
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit = {},
+    onLoginSuccess: () -> Unit = {
+},
     onRegisterClick: () -> Unit = {},
     onForgotPasswordClick: () -> Unit = {},
     viewModel: AuthViewModel = viewModel(),
@@ -122,7 +124,7 @@ fun LoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary800)
+            .background(color = LocalKilnColors.current.brandSurface)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = {
                     focusManager.clearFocus()
@@ -161,7 +163,7 @@ fun LoginScreen(
                 // SmartKiln text
                 Text(
                     text = "SmartKiln",
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     style = TextStyle(
                         fontSize = 48.sp,
                         fontWeight = FontWeight.Bold,
@@ -179,7 +181,7 @@ fun LoginScreen(
                 label = {
                     Text(
                         text = "Correo electrónico",
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -195,15 +197,15 @@ fun LoginScreen(
                     onDone = { /* Handle done action */ }
                 ),
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
-                    focusedIndicatorColor = Color.White,
-                    unfocusedIndicatorColor = Color.White,
-                    cursorColor = Color.White,
-                    focusedContainerColor = AppColors.Primary800,
-                    unfocusedContainerColor = AppColors.Primary800
+                    focusedTextColor = LocalKilnColors.current.onAccent,
+                    unfocusedTextColor = LocalKilnColors.current.onAccent,
+                    focusedLabelColor = LocalKilnColors.current.onAccent,
+                    unfocusedLabelColor = LocalKilnColors.current.onAccent,
+                    focusedIndicatorColor = LocalKilnColors.current.onAccent,
+                    unfocusedIndicatorColor = LocalKilnColors.current.onAccent,
+                    cursorColor = LocalKilnColors.current.onAccent,
+                    focusedContainerColor = LocalKilnColors.current.brandSurface,
+                    unfocusedContainerColor = LocalKilnColors.current.brandSurface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(
@@ -215,7 +217,7 @@ fun LoginScreen(
                     Icon(
                         painter = painterResource(id = R.drawable.mail),
                         contentDescription = "Email Icon",
-                        tint = Color.White,
+                        tint = LocalKilnColors.current.onAccent,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -230,7 +232,7 @@ fun LoginScreen(
                 label = {
                     Text(
                         text = "Contraseña",
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -244,15 +246,15 @@ fun LoginScreen(
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
-                    focusedIndicatorColor = Color.White,
-                    unfocusedIndicatorColor = Color.White,
-                    cursorColor = Color.White,
-                    focusedContainerColor = AppColors.Primary800,
-                    unfocusedContainerColor = AppColors.Primary800
+                    focusedTextColor = LocalKilnColors.current.onAccent,
+                    unfocusedTextColor = LocalKilnColors.current.onAccent,
+                    focusedLabelColor = LocalKilnColors.current.onAccent,
+                    unfocusedLabelColor = LocalKilnColors.current.onAccent,
+                    focusedIndicatorColor = LocalKilnColors.current.onAccent,
+                    unfocusedIndicatorColor = LocalKilnColors.current.onAccent,
+                    cursorColor = LocalKilnColors.current.onAccent,
+                    focusedContainerColor = LocalKilnColors.current.brandSurface,
+                    unfocusedContainerColor = LocalKilnColors.current.brandSurface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(
@@ -264,7 +266,7 @@ fun LoginScreen(
                     Icon(
                         painter = painterResource(id = R.drawable.lock),
                         contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                        tint = Color.White,
+                        tint = LocalKilnColors.current.onAccent,
                         modifier = Modifier
                             .size(20.dp)
                             .clickable { passwordVisible = !passwordVisible }
@@ -285,15 +287,15 @@ fun LoginScreen(
                         checked = rememberMe,
                         onCheckedChange = { rememberMe = it },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = Color.White,
-                            uncheckedColor = Color.White,
-                            checkmarkColor = AppColors.Primary800
+                            checkedColor = LocalKilnColors.current.onAccent,
+                            uncheckedColor = LocalKilnColors.current.onAccent,
+                            checkmarkColor = LocalKilnColors.current.brandSurface
                         )
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Recordarme",
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         style = TextStyle(
                             fontSize = 14.sp,
                             fontFamily = RalewayFontFamily
@@ -303,7 +305,7 @@ fun LoginScreen(
 
                 Text(
                     text = "Olvidaste tu contraseña",
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontFamily = RalewayFontFamily,
@@ -327,19 +329,19 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(49.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3385FF)
+                    containerColor = LocalKilnColors.current.accent
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         modifier = Modifier.size(24.dp)
                     )
                 } else {
                     Text(
                         text = "Iniciar Sesión",
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -355,13 +357,13 @@ fun LoginScreen(
             Text(
                 text = buildAnnotatedString {
                     withStyle(style = SpanStyle(
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = RalewayFontFamily
                     )) { append("No tenes una cuenta? ") }
                     withStyle(style = SpanStyle(
-                        color = Color.White,
+                        color = LocalKilnColors.current.onAccent,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = RalewayFontFamily,
@@ -386,7 +388,7 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .height(4.dp)
                         .background(
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             shape = RoundedCornerShape(2.dp)
                         )
                         .align(Alignment.Center)

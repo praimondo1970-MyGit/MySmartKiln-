@@ -16,6 +16,7 @@ import com.example.mysmartkiln.ble.BleViewModel
 import com.example.mysmartkiln.ble.ConnectionMode
 import com.example.mysmartkiln.ble.ConnectionState
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Pantalla de monitoreo con BLE continuo durante programa activo
@@ -25,7 +26,8 @@ import com.example.mysmartkiln.ui.theme.AppColors
 fun BleMonitoringScreen(
     macAddress: String,
     bleViewModel: BleViewModel,
-    onProgramFinished: () -> Unit = {},
+    onProgramFinished: () -> Unit = {
+},
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -58,7 +60,7 @@ fun BleMonitoringScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.Primary100)
+            .background(LocalKilnColors.current.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -114,9 +116,9 @@ private fun ConnectionStatusHeader(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = when (connectionState) {
-                is ConnectionState.Connected -> Color(0xFFE8F5E9)
-                is ConnectionState.Connecting, is ConnectionState.Reconnecting -> Color(0xFFFFF9C4)
-                else -> Color(0xFFFFEBEE)
+                is ConnectionState.Connected -> LocalKilnColors.current.success.copy(alpha = 0.18f)
+                is ConnectionState.Connecting, is ConnectionState.Reconnecting -> LocalKilnColors.current.warning.copy(alpha = 0.18f)
+                else -> LocalKilnColors.current.danger.copy(alpha = 0.18f)
             }
         ),
         shape = RoundedCornerShape(12.dp)
@@ -138,9 +140,9 @@ private fun ConnectionStatusHeader(
                         .size(12.dp)
                         .background(
                             color = when (connectionState) {
-                                is ConnectionState.Connected -> Color(0xFF4CAF50)
-                                is ConnectionState.Connecting, is ConnectionState.Reconnecting -> Color(0xFFFFC107)
-                                else -> Color(0xFFFF5252)
+                                is ConnectionState.Connected -> LocalKilnColors.current.success
+                                is ConnectionState.Connecting, is ConnectionState.Reconnecting -> LocalKilnColors.current.warning
+                                else -> LocalKilnColors.current.danger
                             },
                             shape = CircleShape
                         )
@@ -155,14 +157,14 @@ private fun ConnectionStatusHeader(
                             else -> "Desconectado"
                         },
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.Primary800
+                        color = LocalKilnColors.current.title
                     )
                     
                     if (connectionMode is ConnectionMode.Continuous) {
                         Text(
                             text = "Modo continuo activo",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AppColors.Primary600,
+                            color = LocalKilnColors.current.body,
                             fontSize = 11.sp
                         )
                     }
@@ -174,7 +176,7 @@ private fun ConnectionStatusHeader(
                 Text(
                     text = "⚡ 1s",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF4CAF50),
+                    color = LocalKilnColors.current.success,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -191,7 +193,7 @@ private fun RealtimeDataSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = LocalKilnColors.current.cardBackground
         ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -207,7 +209,7 @@ private fun RealtimeDataSection(
                 text = if (isConnected) "${temperature.toInt()}°C" else "--°C",
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = if (isConnected) AppColors.Primary800 else AppColors.Primary400,
+                color = if (isConnected) LocalKilnColors.current.title else LocalKilnColors.current.muted,
                 fontSize = 64.sp
             )
             
@@ -217,7 +219,7 @@ private fun RealtimeDataSection(
             Text(
                 text = if (isConnected) status else "Desconocido",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (isConnected) AppColors.Primary600 else AppColors.Primary400
+                color = if (isConnected) LocalKilnColors.current.accent else LocalKilnColors.current.muted
             )
         }
     }
@@ -238,7 +240,7 @@ private fun ControlButtons(
             enabled = enabled,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFFC107),
+                containerColor = LocalKilnColors.current.warning,
                 contentColor = Color.Black
             )
         ) {
@@ -250,7 +252,7 @@ private fun ControlButtons(
             enabled = enabled,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFF5252)
+                containerColor = LocalKilnColors.current.danger
             )
         ) {
             Text("Detener")
@@ -262,7 +264,7 @@ private fun ControlButtons(
         Text(
             text = "⚠️ Acércate al horno para usar los controles",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFFF5252),
+            color = LocalKilnColors.current.danger,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -277,7 +279,7 @@ private fun ConnectionInfoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = LocalKilnColors.current.cardBackground
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
@@ -290,7 +292,7 @@ private fun ConnectionInfoCard(
                 text = "Información de Conexión",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Primary800
+                color = LocalKilnColors.current.title
             )
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -319,13 +321,13 @@ private fun InfoRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = AppColors.Primary600
+            color = LocalKilnColors.current.body
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
-            color = AppColors.Primary800
+            color = LocalKilnColors.current.title
         )
     }
 }

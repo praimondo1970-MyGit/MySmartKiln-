@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -35,7 +36,8 @@ fun SearchBar(
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Buscar",
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {
+}
 ) {
     Box(
         modifier = modifier
@@ -45,12 +47,12 @@ fun SearchBar(
                 shape = RoundedCornerShape(12.dp)
             )
             .background(
-                color = Color.White,
+                color = LocalKilnColors.current.onAccent,
                 shape = RoundedCornerShape(12.dp)
             )
             .border(
                 width = 1.dp,
-                color = AppColors.Primary100,
+                color = LocalKilnColors.current.screenBackground,
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -69,10 +71,10 @@ fun SearchBar(
                     value = query,
                     onValueChange = onQueryChange,
                     textStyle = TextStyle(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontSize = 16.sp
                     ),
-                    cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                    cursorBrush = SolidColor(LocalKilnColors.current.title),
                     singleLine = true,
                     decorationBox = { innerTextField ->
                         if (query.isEmpty()) {

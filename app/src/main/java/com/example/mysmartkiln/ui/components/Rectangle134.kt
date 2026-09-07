@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -34,7 +35,7 @@ fun Rectangle134(
                 )
             )
             .background(
-                color = AppColors.Primary100, // Changed to Primary100
+                color = LocalKilnColors.current.screenBackground, // Changed to Primary100
                 shape = RoundedCornerShape(
                     topStart = 60.dp,
                     topEnd = 60.dp,

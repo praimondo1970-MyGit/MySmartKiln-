@@ -27,13 +27,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
 fun ProgramNameInput(
     modifier: Modifier = Modifier,
     value: String = "",
-    onValueChange: (String) -> Unit = {}
+    onValueChange: (String) -> Unit = {
+}
 ) {
     Column(
         modifier = modifier.fillMaxWidth()
@@ -42,7 +44,7 @@ fun ProgramNameInput(
         Text(
             text = "Nombre",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = Color(0xFF1E3A8A), // Dark blue - same as titles
+                color = LocalKilnColors.current.title, // Dark blue - same as titles
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -53,9 +55,9 @@ fun ProgramNameInput(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = Color.White)
+                .background(color = LocalKilnColors.current.cardBackground)
                 .border(
-                    border = BorderStroke(1.dp, AppColors.Primary100),
+                    border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                     shape = RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -64,10 +66,10 @@ fun ProgramNameInput(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = TextStyle(
-                    color = Color(0xFF1E3A8A), // Dark blue text
+                    color = LocalKilnColors.current.title, // Dark blue text
                     fontSize = 18.sp
                 ),
-                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                cursorBrush = SolidColor(LocalKilnColors.current.title),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -82,7 +84,7 @@ fun ProgramNameInputPreview() {
         Box(
             modifier = Modifier
                 .padding(24.dp)
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
         ) {
             ProgramNameInput()
         }

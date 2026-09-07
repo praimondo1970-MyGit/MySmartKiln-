@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -50,7 +51,7 @@ fun TextFieldWithLabel(
         // Label
         Text(
             text = label,
-            color = AppColors.color_Primary_700,
+            color = LocalKilnColors.current.accent,
             style = TextStyle(fontSize = 16.sp),
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -65,10 +66,10 @@ fun TextFieldWithLabel(
                 .height(52.dp)
                 .clip(shape = RoundedCornerShape(12.dp))
                 .background(
-                    color = if (enabled) AppColors.color_Shades_White else AppColors.Neutral100
+                    color = if (enabled) LocalKilnColors.current.cardBackground else LocalKilnColors.current.cardBackground.copy(alpha = 0.6f)
                 )
                 .border(
-                    border = BorderStroke(1.dp, AppColors.Primary100),
+                    border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                     shape = RoundedCornerShape(12.dp)
                 )
         ) {
@@ -82,7 +83,7 @@ fun TextFieldWithLabel(
                     .align(Alignment.CenterStart),
                 textStyle = TextStyle(
                     fontSize = 18.sp,
-                    color = if (enabled) AppColors.color_Primary_700 else AppColors.Neutral600
+                    color = if (enabled) LocalKilnColors.current.title else LocalKilnColors.current.muted
                 ),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = keyboardType,
@@ -96,7 +97,7 @@ fun TextFieldWithLabel(
             if (value.isEmpty() && placeholder.isNotEmpty()) {
                 Text(
                     text = placeholder,
-                    color = AppColors.Neutral500, // Tono más bajo de gris
+                    color = LocalKilnColors.current.muted,
                     style = TextStyle(fontSize = 16.sp),
                     modifier = Modifier
                         .align(Alignment.CenterStart)

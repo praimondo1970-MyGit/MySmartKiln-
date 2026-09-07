@@ -52,11 +52,13 @@ import com.example.mysmartkiln.ui.viewmodels.ProgramsListViewModel
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
 fun ProgramsScreen(
-    onNavigateToKilns: () -> Unit = {},
+    onNavigateToKilns: () -> Unit = {
+},
     onNavigateToActivity: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onCreateProgram: () -> Unit = {},
@@ -83,7 +85,7 @@ fun ProgramsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal - SIEMPRE VISIBLE
         if (hasPrograms) {
@@ -139,7 +141,7 @@ fun ProgramsScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                    .background(
-                       color = Color(0xFF003D99),
+                       color = LocalKilnColors.current.navBar,
                        shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -262,7 +264,7 @@ private fun ProgramsListContent(
         Text(
             text = "Programas",
             style = MaterialTheme.typography.titleLarge.copy(
-                color = Color(0xFF1E3A8A),
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Bold
             ),
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
@@ -308,7 +310,7 @@ private fun ProgramsListContent(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = AppColors.Primary100,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -355,7 +357,7 @@ private fun EmptyProgramsContent(
                     Text(
                         text = "No hay programas guardados",
                         style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold
                         ),
                         textAlign = TextAlign.Center
@@ -376,21 +378,21 @@ private fun EmptyProgramsContent(
                         Text(
                             text = "Cuando estés listo para comenzar",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "presiona comenzar para crear",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "tu primer programa de cocción",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -410,7 +412,7 @@ private fun EmptyProgramsContent(
                         .fillMaxWidth()
                     .height(48.dp),
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
+                    containerColor = LocalKilnColors.current.accent,
                         contentColor = Color.White
                     ),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)

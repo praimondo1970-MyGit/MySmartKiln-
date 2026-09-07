@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 /**
@@ -39,14 +40,15 @@ import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 @Composable
 fun NewKilnCard(
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {
+}
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(83.dp) // Incrementada 10% (75dp * 1.1 = 82.5dp ≈ 83dp)
             .clip(shape = RoundedCornerShape(16.dp)) // Reducido para coincidir con las imágenes
-            .background(color = AppColors.White) // Fondo blanco
+            .background(color = LocalKilnColors.current.onAccent) // Fondo blanco
             .clickable { onClick() }
     ) {
         // Imagen superpuesta sobre el fondo blanco - responsive al ancho de la tarjeta
@@ -76,7 +78,7 @@ fun NewKilnCard(
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.nav_hornos),
                 contentDescription = "Icono horno",
-                tint = Color.White, // Blanco para contrastar con el hexágono azul
+                tint = LocalKilnColors.current.onAccent, // Blanco para contrastar con el hexágono azul
                 modifier = Modifier
                     .align(Alignment.Center) // Centrado automático dentro del Box
                     .size(24.dp) // Reducido proporcionalmente (28dp * 40/48 = ~23dp, redondeado a 24dp)
@@ -89,7 +91,7 @@ fun NewKilnCard(
             style = TextStyle(
                 fontSize = 17.sp, // Reducido mínimamente a 17sp
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Primary400 // Azul
+                color = LocalKilnColors.current.muted // Azul
             ),
             modifier = Modifier
                 .align(Alignment.CenterStart)

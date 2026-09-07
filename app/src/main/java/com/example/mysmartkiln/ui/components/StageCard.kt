@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 data class StageData(
@@ -54,7 +55,8 @@ data class StageData(
 @Composable
 fun StageCard(
     stageData: StageData,
-    onStageClick: () -> Unit = {},
+    onStageClick: () -> Unit = {
+},
     onDeleteClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -97,7 +99,7 @@ fun StageCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     shape = RoundedCornerShape(12.dp)
                 )
                        .pointerInput(Unit) {
@@ -153,7 +155,7 @@ fun StageCard(
                 Text(
                     text = "Etapa ${stageData.stageNumber}",
                     style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
-                        color = AppColors.Primary600,
+                        color = LocalKilnColors.current.body,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.sp
                     )
@@ -164,14 +166,14 @@ fun StageCard(
                     modifier = Modifier
                         .requiredSize(24.dp)
                         .clip(CircleShape)
-                        .background(color = AppColors.Primary600)
+                        .background(color = LocalKilnColors.current.body)
                         .clickable { onStageClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = ">",
                         style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
@@ -230,14 +232,14 @@ private fun ParameterColumn(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = LocalKilnColors.current.body,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -246,7 +248,7 @@ private fun ParameterColumn(
         Text(
             text = value,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary700,
+                color = LocalKilnColors.current.body,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             ),
@@ -257,7 +259,7 @@ private fun ParameterColumn(
         Text(
             text = label,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall.copy(
-                color = AppColors.Primary700,
+                color = LocalKilnColors.current.body,
                 fontSize = 12.sp
             ),
             modifier = Modifier.padding(top = 6.dp)
@@ -273,11 +275,7 @@ fun ReadOnlyStageCard(
     isCompleted: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val backgroundColor = when {
-        isCurrentStage -> AppColors.Primary50
-        isCompleted -> Color(0xFFE8F5E9)
-        else -> Color.White
-    }
+    val backgroundColor = LocalKilnColors.current.cardBackground
 
     Box(
         modifier = modifier
@@ -286,7 +284,7 @@ fun ReadOnlyStageCard(
             .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp))
             .then(
                 if (isCurrentStage) {
-                    Modifier.border(2.dp, AppColors.Primary600, RoundedCornerShape(12.dp))
+                    Modifier.border(2.dp, LocalKilnColors.current.accent, RoundedCornerShape(12.dp))
                 } else {
                     Modifier
                 }
@@ -304,7 +302,7 @@ fun ReadOnlyStageCard(
             Text(
                 text = "Etapa ${stageData.stageNumber}",
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary600,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Medium,
                     fontSize = 16.sp
                 )
@@ -313,7 +311,7 @@ fun ReadOnlyStageCard(
                 Text(
                     text = "En curso",
                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
-                        color = AppColors.Primary600,
+                        color = LocalKilnColors.current.body,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
@@ -322,7 +320,7 @@ fun ReadOnlyStageCard(
                 Text(
                     text = "Completada",
                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
-                        color = Color(0xFF2E7D32),
+                        color = LocalKilnColors.current.success,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp
                     )

@@ -45,6 +45,7 @@ import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoDto
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.utils.KilnAccessPoint
 import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.WifiUtils
@@ -129,7 +130,7 @@ fun KilnDiscoveryDialog(
                 text = "Buscar horno",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.Primary700
+                    color = LocalKilnColors.current.body
                 )
             )
         },
@@ -139,7 +140,7 @@ fun KilnDiscoveryDialog(
                     Text(
                         text = "Para descubrir hornos cercanos necesitamos permiso para ver redes WiFi.",
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF334155)
+                            color = LocalKilnColors.current.body
                         )
                     )
                     Spacer(Modifier.height(12.dp))
@@ -150,8 +151,8 @@ fun KilnDiscoveryDialog(
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700,
-                            contentColor = Color.White
+                            containerColor = LocalKilnColors.current.accent,
+                            contentColor = LocalKilnColors.current.onAccent
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
@@ -168,7 +169,7 @@ fun KilnDiscoveryDialog(
                 Text(
                     text = "Encendé el horno y verificá que esté en modo de configuración. Vamos a buscar las redes SmartKiln cercanas.",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF334155)
+                        color = LocalKilnColors.current.body
                     )
                 )
                 Spacer(Modifier.height(12.dp))
@@ -179,13 +180,13 @@ fun KilnDiscoveryDialog(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = AppColors.Primary700
+                                color = LocalKilnColors.current.body
                             )
                             Spacer(Modifier.width(12.dp))
                             Text(
                                 text = "Buscando hornos…",
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = AppColors.Primary700
+                                    color = LocalKilnColors.current.body
                                 )
                             )
                         }
@@ -231,7 +232,7 @@ fun KilnDiscoveryDialog(
                         Text(
                             text = "No detectamos ningún horno SmartKiln. Asegurate de que esté encendido y a pocos metros del teléfono.",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color(0xFF64748B)
+                                color = LocalKilnColors.current.muted
                             )
                         )
                     }
@@ -241,13 +242,13 @@ fun KilnDiscoveryDialog(
                     Spacer(Modifier.height(10.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = AppColors.Error50,
+                        color = LocalKilnColors.current.danger.copy(alpha = 0.15f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = AppColors.Error700,
+                                color = LocalKilnColors.current.danger,
                                 fontSize = 13.sp
                             ),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
@@ -266,7 +267,7 @@ fun KilnDiscoveryDialog(
                 ) {
                     Text(
                         text = if (isScanning) "Buscando…" else "Buscar de nuevo",
-                        color = AppColors.Primary700,
+                        color = LocalKilnColors.current.body,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -277,7 +278,7 @@ fun KilnDiscoveryDialog(
                 TextButton(onClick = onDismiss) {
                     Text(
                         text = "Cancelar",
-                        color = Color(0xFF64748B)
+                        color = LocalKilnColors.current.muted
                     )
                 }
             }
@@ -293,7 +294,7 @@ private fun AccessPointRow(
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF1F5F9),
+        color = LocalKilnColors.current.cardBackground,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
@@ -310,13 +311,13 @@ private fun AccessPointRow(
                     text = accessPoint.ssid,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = AppColors.Primary700
+                        color = LocalKilnColors.current.body
                     )
                 )
                 Text(
                     text = "Señal: ${accessPoint.signalLevel} dBm",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF64748B)
+                        color = LocalKilnColors.current.muted
                     )
                 )
             }
@@ -324,7 +325,12 @@ private fun AccessPointRow(
                 modifier = Modifier
                     .size(14.dp)
                     .background(
-                        color = signalColor(accessPoint.signalLevel),
+                        color = signalColor(
+                            accessPoint.signalLevel,
+                            LocalKilnColors.current.success,
+                            LocalKilnColors.current.warning,
+                            LocalKilnColors.current.danger
+                        ),
                         shape = androidx.compose.foundation.shape.CircleShape
                     )
             )
@@ -340,7 +346,7 @@ private fun ConnectingBlock(ssid: String, phase: String) {
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(56.dp),
-            color = AppColors.Primary700,
+            color = LocalKilnColors.current.body,
             strokeWidth = 4.dp
         )
         Spacer(Modifier.height(14.dp))
@@ -348,7 +354,7 @@ private fun ConnectingBlock(ssid: String, phase: String) {
             text = "Conectando a $ssid",
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = AppColors.Primary700
+                color = LocalKilnColors.current.body
             )
         )
         if (phase.isNotBlank()) {
@@ -356,17 +362,22 @@ private fun ConnectingBlock(ssid: String, phase: String) {
             Text(
                 text = phase,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFF64748B)
+                    color = LocalKilnColors.current.muted
                 )
             )
         }
     }
 }
 
-private fun signalColor(dbm: Int): Color = when {
-    dbm >= -55 -> Color(0xFF16A34A)
-    dbm >= -70 -> Color(0xFFCA8A04)
-    else -> Color(0xFFDC2626)
+private fun signalColor(
+    dbm: Int,
+    success: Color,
+    warning: Color,
+    danger: Color
+): Color = when {
+    dbm >= -55 -> success
+    dbm >= -70 -> warning
+    else -> danger
 }
 
 /**

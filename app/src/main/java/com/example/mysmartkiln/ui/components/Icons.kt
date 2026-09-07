@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -40,7 +41,7 @@ fun Icons(modifier: Modifier = Modifier) {
                 .requiredWidth(width = 1280.dp)
                 .requiredHeight(height = 2321.dp)
                 .clip(shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(color = Color.White)
+                .background(color = LocalKilnColors.current.cardBackground)
         ) {
         Box(
             modifier = Modifier
@@ -55,7 +56,7 @@ fun Icons(modifier: Modifier = Modifier) {
                                 .background(color = Color(0xff222222)))
             Text(
                 text = "Icons",
-                color = Color.White,
+                color = LocalKilnColors.current.onAccent,
                 style = TextStyle(
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Light),

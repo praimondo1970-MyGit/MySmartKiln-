@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ble.BleViewModel
 import com.example.mysmartkiln.ble.ConnectionState
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
@@ -29,7 +30,8 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 @Composable
 fun ScanKilnScreen(
     viewModel: BleViewModel,
-    onKilnRegistered: (String) -> Unit = {},
+    onKilnRegistered: (String) -> Unit = {
+},
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -67,7 +69,7 @@ fun ScanKilnScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppColors.Primary100)
+            .background(LocalKilnColors.current.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -79,7 +81,7 @@ fun ScanKilnScreen(
                 text = "Buscar Hornos",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = AppColors.Primary800
+                color = LocalKilnColors.current.title
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -96,7 +98,7 @@ fun ScanKilnScreen(
                 enabled = !isScanning,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700
+                    containerColor = LocalKilnColors.current.accent
                 )
             ) {
                 Text(
@@ -131,19 +133,19 @@ fun ScanKilnScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = AppColors.Primary700)
+                    CircularProgressIndicator(color = LocalKilnColors.current.body)
                 }
             } else if (scannedDevices.isEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color.White
+                        containerColor = LocalKilnColors.current.cardBackground
                     )
                 ) {
                     Text(
                         text = "No se encontraron hornos.\nPresiona 'Buscar Hornos' para escanear.",
                         modifier = Modifier.padding(16.dp),
-                        color = AppColors.Primary600
+                        color = LocalKilnColors.current.body
                     )
                 }
             } else {
@@ -193,7 +195,7 @@ private fun KilnDeviceCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = LocalKilnColors.current.cardBackground
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp
@@ -208,7 +210,7 @@ private fun KilnDeviceCard(
                 text = deviceName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = AppColors.Primary800
+                color = LocalKilnColors.current.title
             )
             
             Spacer(modifier = Modifier.height(4.dp))
@@ -216,7 +218,7 @@ private fun KilnDeviceCard(
             Text(
                 text = "MAC: $macAddress",
                 style = MaterialTheme.typography.bodySmall,
-                color = AppColors.Primary600
+                color = LocalKilnColors.current.body
             )
         }
     }
@@ -275,7 +277,7 @@ private fun ConfigureKilnDialog(
                 
                 when (connectionState) {
                     is ConnectionState.Connecting -> {
-                        Text("Conectando...", color = AppColors.Primary600)
+                        Text("Conectando...", color = LocalKilnColors.current.body)
                     }
                     is ConnectionState.Connected -> {
                         Text("✅ Enviando configuración...", color = Color(0xFF4CAF50))

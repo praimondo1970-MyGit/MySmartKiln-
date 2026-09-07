@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.data.local.entity.KilnEntity
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.ble.HybridConnectionState
 import com.example.mysmartkiln.utils.UserIdUtils
@@ -59,7 +60,8 @@ import com.example.mysmartkiln.utils.ProgramStatusUtils
 @Composable
 fun KilnCard(
     kiln: KilnEntity,
-    onClick: () -> Unit = {},
+    onClick: () -> Unit = {
+},
     onEditClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
     onLoadProgramClick: () -> Unit = {}, // Para navegar a selección de programa
@@ -413,12 +415,12 @@ fun KilnCard(
                     shape = RoundedCornerShape(16.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = LocalKilnColors.current.onAccent,
                     shape = RoundedCornerShape(16.dp)
                 )
                 .border(
                     width = 1.dp,
-                    color = AppColors.Primary100,
+                    color = LocalKilnColors.current.screenBackground,
                     shape = RoundedCornerShape(16.dp)
                 )
                 .pointerInput(Unit) {
@@ -470,7 +472,7 @@ fun KilnCard(
                 Text(
                     text = kiln.name,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = AppColors.Primary800,
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     ),
@@ -490,14 +492,14 @@ fun KilnCard(
                         modifier = Modifier
                             .requiredSize(35.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(color = AppColors.Primary100)
+                            .background(color = LocalKilnColors.current.screenBackground)
                             .padding(6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.etapa_temp),
                             contentDescription = "Temperature",
-                            tint = AppColors.Primary600,
+                            tint = LocalKilnColors.current.body,
                             modifier = Modifier.requiredSize(24.dp)
                         )
                     }
@@ -506,7 +508,7 @@ fun KilnCard(
                     Text(
                         text = if (temperature != null) "${temperature?.toInt()}°C" else "--°C",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = LocalKilnColors.current.body,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -523,7 +525,7 @@ fun KilnCard(
                         modifier = Modifier
                             .requiredSize(35.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(color = AppColors.Primary100)
+                            .background(color = LocalKilnColors.current.screenBackground)
                             .padding(6.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -540,7 +542,7 @@ fun KilnCard(
                                 connectionType == "ble" && isConnected -> "Connected via Bluetooth"
                                 else -> "WiFi connection status"
                             },
-                            tint = AppColors.Primary600,
+                            tint = LocalKilnColors.current.body,
                             modifier = Modifier.requiredSize(24.dp)
                         )
                     }
@@ -575,7 +577,7 @@ fun KilnCard(
                     Text(
                         text = displayText,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = LocalKilnColors.current.body,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
                         )
@@ -597,14 +599,14 @@ fun KilnCard(
                         modifier = Modifier
                             .requiredSize(35.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(color = AppColors.Primary100)
+                            .background(color = LocalKilnColors.current.screenBackground)
                             .padding(6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.icon_programs),
                             contentDescription = "Program",
-                            tint = AppColors.Primary600,
+                            tint = LocalKilnColors.current.body,
                             modifier = Modifier.requiredSize(24.dp)
                         )
                     }
@@ -622,7 +624,7 @@ fun KilnCard(
                     Text(
                         text = programDisplayText,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = LocalKilnColors.current.body,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
                         ),
@@ -641,14 +643,14 @@ fun KilnCard(
                         modifier = Modifier
                             .requiredSize(35.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(color = AppColors.Primary100)
+                            .background(color = LocalKilnColors.current.screenBackground)
                             .padding(6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.icon_flame),
                             contentDescription = "Activity Status",
-                            tint = AppColors.Primary600,
+                            tint = LocalKilnColors.current.body,
                             modifier = Modifier.requiredSize(24.dp)
                         )
                     }
@@ -686,7 +688,7 @@ fun KilnCard(
                     Text(
                         text = activityStatusText,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = AppColors.Primary700,
+                            color = LocalKilnColors.current.body,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
                         ),

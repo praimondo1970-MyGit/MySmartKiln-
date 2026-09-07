@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.utils.WifiUtils
 
@@ -44,7 +45,7 @@ fun ConnectKilnScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Primary100)
+            .background(LocalKilnColors.current.screenBackground)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
     ) {
@@ -55,13 +56,13 @@ fun ConnectKilnScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
-                    tint = Color(0xFF1E3A8A)
+                    tint = LocalKilnColors.current.title
                 )
             }
             Text(
                 text = "Conectar a $kilnName",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -71,14 +72,14 @@ fun ConnectKilnScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "1. Abre Ajustes WiFi del teléfono",
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontSize = 16.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -105,14 +106,14 @@ fun ConnectKilnScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "2. Datos de la red (desde el horno)",
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontSize = 16.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -141,14 +142,14 @@ fun ConnectKilnScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = LocalKilnColors.current.cardBackground),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "3. Verificar",
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontSize = 16.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -172,16 +173,16 @@ fun ConnectKilnScreen(
                     },
                     enabled = !isVerifying,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Primary700)
+                    colors = ButtonDefaults.buttonColors(containerColor = LocalKilnColors.current.accent)
                 ) {
                     if (isVerifying) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
-                            color = Color.White,
+                            color = LocalKilnColors.current.onAccent,
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Verificar conexión", color = Color.White)
+                        Text("Verificar conexión", color = LocalKilnColors.current.onAccent)
                     }
                 }
             }
@@ -202,7 +203,7 @@ private fun InfoRow(label: String, value: String) {
         Text(text = label, color = Color(0xFF64748B), fontSize = 14.sp)
         Text(
             text = value,
-            color = Color(0xFF1E3A8A),
+            color = LocalKilnColors.current.title,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f).padding(start = 12.dp)

@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Diálogo que aparece cuando el usuario intenta operar el horno (Iniciar /
@@ -36,7 +37,7 @@ fun KilnOperateOfflineDialog(
                 text = "Conéctate al horno",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E3A8A)
+                    color = LocalKilnColors.current.title
                 )
             )
         },
@@ -45,7 +46,7 @@ fun KilnOperateOfflineDialog(
                 Text(
                     text = "No se pudo conectar al WiFi del horno automáticamente. Hazlo manual:",
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.SemiBold
                     )
                 )
@@ -81,7 +82,7 @@ fun KilnOperateOfflineDialog(
             ) {
                 Text(
                     text = "Abrir WiFi",
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Bold
                 )
             }

@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Componente que agrega un gradiente al final de contenido scrolleable
@@ -20,7 +21,7 @@ import com.example.mysmartkiln.ui.theme.AppColors
 @Composable
 fun ScrollGradient(
     height: androidx.compose.ui.unit.Dp = 40.dp,
-    backgroundColor: Color = AppColors.Primary100,
+    backgroundColor: Color = LocalKilnColors.current.screenBackground,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -48,7 +49,7 @@ fun ScrollGradient(
 fun ScrollableWithGradient(
     content: @Composable () -> Unit,
     gradientHeight: androidx.compose.ui.unit.Dp = 40.dp,
-    backgroundColor: Color = AppColors.Primary100,
+    backgroundColor: Color = LocalKilnColors.current.screenBackground,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {

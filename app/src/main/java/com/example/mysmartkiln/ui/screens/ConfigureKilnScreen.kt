@@ -35,6 +35,7 @@ import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.screens.AddMenuScreen
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.AppTypes
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.data.repository.KilnRepository
@@ -70,7 +71,8 @@ fun ConfigureKilnScreen(
     deviceModel: String = "",
     deviceVolume: String = "",
     existingKiln: KilnEntity? = null, // Opcional: horno existente para modo edición
-    onKilnConfigured: () -> Unit = {},
+    onKilnConfigured: () -> Unit = {
+},
     onBack: () -> Unit = {},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
@@ -232,7 +234,7 @@ fun ConfigureKilnScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
             .pointerInput(Unit) {
                 detectTapGestures {
                     focusManager.clearFocus()
@@ -249,7 +251,7 @@ fun ConfigureKilnScreen(
             Text(
                 text = "Por favor completa la siguiente información",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 32.dp),
@@ -272,7 +274,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Nombre del horno",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -281,9 +283,9 @@ fun ConfigureKilnScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .background(color = LocalKilnColors.current.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
+                                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
@@ -292,10 +294,10 @@ fun ConfigureKilnScreen(
                             value = kilnName,
                             onValueChange = { kilnName = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = LocalKilnColors.current.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(LocalKilnColors.current.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -309,7 +311,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Fabricante/Marca",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -318,9 +320,9 @@ fun ConfigureKilnScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .background(color = LocalKilnColors.current.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
+                                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
@@ -329,10 +331,10 @@ fun ConfigureKilnScreen(
                             value = manufacturer,
                             onValueChange = { manufacturer = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = LocalKilnColors.current.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(LocalKilnColors.current.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -346,7 +348,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Volumen (lts)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -355,9 +357,9 @@ fun ConfigureKilnScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .background(color = LocalKilnColors.current.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
+                                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
@@ -366,10 +368,10 @@ fun ConfigureKilnScreen(
                             value = volume,
                             onValueChange = { volume = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = LocalKilnColors.current.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(LocalKilnColors.current.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -386,7 +388,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Red Wifi (acceso a internet)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -402,9 +404,9 @@ fun ConfigureKilnScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .background(color = LocalKilnColors.current.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
+                                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
@@ -417,10 +419,10 @@ fun ConfigureKilnScreen(
                                 value = wifiSSID,
                                 onValueChange = { wifiSSID = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = LocalKilnColors.current.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(LocalKilnColors.current.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 decorationBox = { innerTextField ->
@@ -445,7 +447,7 @@ fun ConfigureKilnScreen(
                                 Icon(
                                     painter = painterResource(R.drawable.icon_wifi),
                                     contentDescription = "Seleccionar red WiFi",
-                                    tint = Color(0xFF1E3A8A),
+                                    tint = LocalKilnColors.current.title,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -460,7 +462,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Contraseña WiFi (opcional)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -469,9 +471,9 @@ fun ConfigureKilnScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .background(color = LocalKilnColors.current.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
+                                border = BorderStroke(1.dp, LocalKilnColors.current.screenBackground),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
@@ -483,7 +485,7 @@ fun ConfigureKilnScreen(
                             Icon(
                                 painter = painterResource(R.drawable.icon_lock),
                                 contentDescription = "Contraseña",
-                                tint = Color(0xFF1E3A8A),
+                                tint = LocalKilnColors.current.title,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -491,10 +493,10 @@ fun ConfigureKilnScreen(
                                 value = wifiPassword,
                                 onValueChange = { wifiPassword = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = LocalKilnColors.current.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(LocalKilnColors.current.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
@@ -514,7 +516,7 @@ fun ConfigureKilnScreen(
                 // Gradiente en la parte inferior
                 ScrollGradient(
                     height = 40.dp,
-                    backgroundColor = AppColors.Primary100,
+                    backgroundColor = LocalKilnColors.current.screenBackground,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
@@ -550,7 +552,7 @@ fun ConfigureKilnScreen(
                     .height(48.dp)
                     .padding(horizontal = 24.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
+                    containerColor = LocalKilnColors.current.accent,
                     contentColor = Color.White
                     // Removidos los colores de disabled para mantener siempre el mismo aspecto
                 ),
@@ -600,7 +602,7 @@ fun ConfigureKilnScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,

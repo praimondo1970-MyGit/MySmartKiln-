@@ -56,7 +56,6 @@ fun KilnDetailScreen(
     val showInterruptedDialog by viewModel.showInterruptedDialog.collectAsState()
     val apReconfigWaitDialog by viewModel.apReconfigWaitDialog.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
-    val kilnColors = LocalKilnColors.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(kilnMacAddress) {
@@ -90,7 +89,7 @@ fun KilnDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(kilnColors.screenBackground)
+            .background(LocalKilnColors.current.screenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -109,7 +108,7 @@ fun KilnDetailScreen(
                     text = kilnName,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = kilnColors.title,
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -147,7 +146,7 @@ fun KilnDetailScreen(
                         Text(
                             text = statusLabel,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = kilnColors.title,
+                                color = LocalKilnColors.current.title,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 13.sp
                             )
@@ -170,8 +169,8 @@ fun KilnDetailScreen(
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
                         .height(27.dp), // Solo para los textos
-                    containerColor = kilnColors.screenBackground,
-                    contentColor = kilnColors.accent,
+                    containerColor = LocalKilnColors.current.screenBackground,
+                    contentColor = LocalKilnColors.current.accent,
                     divider = {}, // Sin divisor
                     indicator = {} // Sin indicador automático
                 ) {
@@ -186,7 +185,7 @@ fun KilnDetailScreen(
                             text = {
                                 Text(
                                     text = title,
-                                    color = if (pagerState.currentPage == index) kilnColors.accent else kilnColors.muted,
+                                    color = if (pagerState.currentPage == index) LocalKilnColors.current.accent else LocalKilnColors.current.muted,
                                     fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 14.sp
                                 )
@@ -217,7 +216,7 @@ fun KilnDetailScreen(
                                         .fillMaxWidth(0.5f) // 50% del ancho del tab
                                         .height(3.dp)
                                         .background(
-                                            color = kilnColors.accent,
+                                            color = LocalKilnColors.current.accent,
                                             shape = RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)
                                         )
                                 )
@@ -307,7 +306,7 @@ fun KilnDetailScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = Color(0xFF003D99),
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,

@@ -69,7 +69,6 @@ fun SettingsScreen(
 ) {
     // Estados para controlar el menú "+"
     var isMenuOpen by remember { mutableStateOf(false) }
-    val kilnColors = LocalKilnColors.current
     val themeController = LocalThemeController.current
     val themeMode by themeController.mode.collectAsState()
     
@@ -86,7 +85,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = kilnColors.screenBackground)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal con gradiente
         Box(
@@ -103,7 +102,7 @@ fun SettingsScreen(
             Text(
                 text = "Detalles de la cuenta",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = kilnColors.title,
+                    color = LocalKilnColors.current.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -166,7 +165,7 @@ fun SettingsScreen(
             // Gradiente en la parte inferior
             ScrollGradient(
                 height = 40.dp,
-                backgroundColor = kilnColors.screenBackground,
+                backgroundColor = LocalKilnColors.current.screenBackground,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -204,7 +203,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .requiredHeight(height = 141.dp)
                     .background(
-                        color = kilnColors.navBar,
+                        color = LocalKilnColors.current.navBar,
                         shape = object : androidx.compose.ui.graphics.Shape {
                             override fun createOutline(
                                 size: androidx.compose.ui.geometry.Size,
@@ -313,14 +312,14 @@ private fun AccountDetailsCard() {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .background(LocalKilnColors.current.cardBackground)
             .padding(20.dp)
     ) {
         Column {
             Text(
                 text = "Pablo Raimondo",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AppColors.Primary600,
+                    color = LocalKilnColors.current.body,
                     fontWeight = FontWeight.Medium,
                     fontSize = 17.sp // Incrementado en 1sp desde bodyLarge (16sp)
                 ),
@@ -330,7 +329,7 @@ private fun AccountDetailsCard() {
             Text(
                 text = "praimondo1970@hotmail.com",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = AppColors.Primary600
+                    color = LocalKilnColors.current.body
                 )
             )
         }
@@ -351,7 +350,7 @@ private fun LanguageSelector(
         Text(
             text = "Idioma",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary800,
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -363,8 +362,8 @@ private fun LanguageSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                    .background(LocalKilnColors.current.cardBackground)
+                    .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -376,7 +375,7 @@ private fun LanguageSelector(
                     Text(
                         text = selectedLanguage,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = AppColors.Primary600
+                            color = LocalKilnColors.current.body
                         )
                     )
                     
@@ -386,7 +385,7 @@ private fun LanguageSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = AppColors.Primary600
+                        tint = LocalKilnColors.current.body
                     )
                 }
             }
@@ -398,8 +397,8 @@ private fun LanguageSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                        .background(LocalKilnColors.current.cardBackground)
+                        .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -418,7 +417,7 @@ private fun LanguageSelector(
                                 Text(
                                     text = language,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = AppColors.Primary600
+                                        color = LocalKilnColors.current.body
                                     )
                                 )
                                 
@@ -427,7 +426,7 @@ private fun LanguageSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = AppColors.Primary600,
+                                        tint = LocalKilnColors.current.body,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -437,7 +436,7 @@ private fun LanguageSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(AppColors.Primary100)
+                                        .background(LocalKilnColors.current.screenBackground)
                                 )
                             }
                         }
@@ -462,7 +461,7 @@ private fun UnitsSelector(
         Text(
             text = "Unidades",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary800,
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -474,8 +473,8 @@ private fun UnitsSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                    .background(LocalKilnColors.current.cardBackground)
+                    .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -487,7 +486,7 @@ private fun UnitsSelector(
                     Text(
                         text = selectedUnits,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = AppColors.Primary600
+                            color = LocalKilnColors.current.body
                         )
                     )
                     
@@ -497,7 +496,7 @@ private fun UnitsSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = AppColors.Primary600
+                        tint = LocalKilnColors.current.body
                     )
                 }
             }
@@ -509,8 +508,8 @@ private fun UnitsSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, AppColors.Primary100, RoundedCornerShape(12.dp))
+                        .background(LocalKilnColors.current.cardBackground)
+                        .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -529,7 +528,7 @@ private fun UnitsSelector(
                                 Text(
                                     text = unit,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = AppColors.Primary600
+                                        color = LocalKilnColors.current.body
                                     )
                                 )
                                 
@@ -538,7 +537,7 @@ private fun UnitsSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = AppColors.Primary600,
+                                        tint = LocalKilnColors.current.body,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -548,7 +547,7 @@ private fun UnitsSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(AppColors.Primary100)
+                                        .background(LocalKilnColors.current.screenBackground)
                                 )
                             }
                         }
@@ -568,13 +567,11 @@ private fun ThemeSelector(
     onDropdownToggle: () -> Unit
 ) {
     val themes = listOf("Claro", "Oscuro")
-    val kilnColors = LocalKilnColors.current
-
     Column {
         Text(
             text = "Tema",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = kilnColors.title,
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium
             ),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -586,8 +583,8 @@ private fun ThemeSelector(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(kilnColors.cardBackground)
-                    .border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
+                    .background(LocalKilnColors.current.cardBackground)
+                    .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                     .clickable { onDropdownToggle() }
                     .padding(16.dp)
             ) {
@@ -599,7 +596,7 @@ private fun ThemeSelector(
                     Text(
                         text = selectedTheme,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = kilnColors.body
+                            color = LocalKilnColors.current.body
                         )
                     )
                     
@@ -609,7 +606,7 @@ private fun ThemeSelector(
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(if (showDropdown) 180f else 0f),
-                        tint = kilnColors.body
+                        tint = LocalKilnColors.current.body
                     )
                 }
             }
@@ -621,8 +618,8 @@ private fun ThemeSelector(
                         .fillMaxWidth()
                         .offset(y = 56.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(kilnColors.cardBackground)
-                        .border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
+                        .background(LocalKilnColors.current.cardBackground)
+                        .border(1.dp, LocalKilnColors.current.cardBorder, RoundedCornerShape(12.dp))
                         .zIndex(10f) // Aumentar zIndex para que aparezca por encima de todos los elementos
                 ) {
                     Column {
@@ -641,7 +638,7 @@ private fun ThemeSelector(
                                 Text(
                                     text = theme,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = kilnColors.body
+                                        color = LocalKilnColors.current.body
                                     )
                                 )
                                 
@@ -650,7 +647,7 @@ private fun ThemeSelector(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
                                         contentDescription = "Seleccionado",
-                                        tint = kilnColors.accent,
+                                        tint = LocalKilnColors.current.accent,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -660,7 +657,7 @@ private fun ThemeSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(kilnColors.cardBorder)
+                                        .background(LocalKilnColors.current.cardBorder)
                                 )
                             }
                         }
@@ -674,19 +671,18 @@ private fun ThemeSelector(
 // Componente botón de cerrar sesión
 @Composable
 private fun LogoutButton(onLogout: () -> Unit) {
-    val kilnColors = LocalKilnColors.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(kilnColors.accent)
+            .background(LocalKilnColors.current.accent)
             .clickable { onLogout() }
             .padding(vertical = 16.dp)
     ) {
         Text(
             text = "Cerrar sesión",
             style = MaterialTheme.typography.titleMedium.copy(
-                color = kilnColors.onAccent,
+                color = LocalKilnColors.current.onAccent,
                 fontWeight = FontWeight.Medium
             ),
             textAlign = TextAlign.Center,

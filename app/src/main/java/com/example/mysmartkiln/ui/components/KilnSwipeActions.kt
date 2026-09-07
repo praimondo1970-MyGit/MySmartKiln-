@@ -23,11 +23,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
 fun KilnSwipeActions(
-    onEdit: () -> Unit = {},
+    onEdit: () -> Unit = {
+},
     onDelete: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -43,7 +45,7 @@ fun KilnSwipeActions(
                 .offset(x = (-83).dp) // Offset ajustado para mostrar ambos botones claramente (64dp editar + 8dp espacio + 5dp margen + 6dp)
                 .requiredSize(size = 64.dp)
                 .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = AppColors.Primary400) // Mismo color que Group41
+                .background(color = LocalKilnColors.current.muted) // Mismo color que Group41
                 .clickable { onDelete() }
         ) {
             Box(
@@ -63,7 +65,7 @@ fun KilnSwipeActions(
                 )
                 Text(
                     text = "borrar",
-                    color = AppColors.White,
+                    color = LocalKilnColors.current.onAccent,
                     lineHeight = 1.em,
                     style = TextStyle(fontSize = 12.sp),
                     modifier = Modifier
@@ -82,7 +84,7 @@ fun KilnSwipeActions(
                 .offset(x = (-8).dp) // 8dp desde el margen derecho para mejor visibilidad
                 .requiredSize(size = 64.dp)
                 .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = AppColors.color_Terciary_800) // Mismo color que el botón de duplicar
+                .background(color = LocalKilnColors.current.fab)
                 .clickable { onEdit() }
         ) {
             Box(
@@ -103,7 +105,7 @@ fun KilnSwipeActions(
                 )
                 Text(
                     text = "editar",
-                    color = AppColors.White,
+                    color = LocalKilnColors.current.onAccent,
                     lineHeight = 1.em,
                     style = TextStyle(fontSize = 12.sp),
                     modifier = Modifier

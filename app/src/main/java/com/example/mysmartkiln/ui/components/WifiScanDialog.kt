@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.data.local.KilnApiDefaults
 import com.example.mysmartkiln.utils.WifiUtils
 import kotlinx.coroutines.delay
@@ -50,7 +51,7 @@ fun WifiScanDialog(
                 .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color.White
+                containerColor = LocalKilnColors.current.cardBackground
             )
         ) {
             Column(
@@ -62,7 +63,7 @@ fun WifiScanDialog(
                 Text(
                     text = "Red con acceso a internet",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -83,14 +84,14 @@ fun WifiScanDialog(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 CircularProgressIndicator(
-                                    color = AppColors.Primary700,
+                                    color = LocalKilnColors.current.body,
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Escaneando redes WiFi...",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = Color(0xFF1E3A8A)
+                                        color = LocalKilnColors.current.title
                                     )
                                 )
                             }
@@ -106,14 +107,14 @@ fun WifiScanDialog(
                                 Icon(
                                     painter = painterResource(R.drawable.icon_search),
                                     contentDescription = "No hay redes",
-                                    tint = Color(0xFF1E3A8A),
+                                    tint = LocalKilnColors.current.title,
                                     modifier = Modifier.size(64.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "No se encontraron redes WiFi",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = Color(0xFF1E3A8A),
+                                        color = LocalKilnColors.current.title,
                                         textAlign = TextAlign.Center
                                     )
                                 )
@@ -155,7 +156,7 @@ fun WifiScanDialog(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFE5E7EB),
-                        contentColor = Color(0xFF1E3A8A)
+                        contentColor = LocalKilnColors.current.title
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -196,14 +197,14 @@ private fun NetworkItem(
                 Icon(
                     painter = painterResource(R.drawable.icon_wifi),
                     contentDescription = "WiFi",
-                    tint = Color(0xFF1E3A8A),
+                    tint = LocalKilnColors.current.title,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = ssid,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                         fontWeight = FontWeight.Medium
                     )
                 )
@@ -211,7 +212,7 @@ private fun NetworkItem(
             Icon(
                 painter = painterResource(R.drawable.icon_arrow_right),
                 contentDescription = "Seleccionar",
-                tint = Color(0xFF1E3A8A),
+                tint = LocalKilnColors.current.title,
                 modifier = Modifier.size(20.dp)
             )
         }

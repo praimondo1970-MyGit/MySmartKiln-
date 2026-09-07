@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -34,7 +35,7 @@ fun Group41(modifier: Modifier = Modifier) {
             modifier = Modifier
                         .requiredSize(size = 64.dp)
                         .clip(shape = RoundedCornerShape(12.dp))
-                        .background(color = AppColors.Primary400))
+                        .background(color = LocalKilnColors.current.muted))
         Box(
             modifier = Modifier
                         .align(alignment = Alignment.Center) // Centrar horizontalmente el contenedor interno
@@ -51,7 +52,7 @@ fun Group41(modifier: Modifier = Modifier) {
                                 .requiredHeight(height = 24.dp))
             Text(
                 text = "borrar",
-                color = AppColors.White,
+                color = LocalKilnColors.current.onAccent,
                 lineHeight = 1.em,
                 style = TextStyle(
                                 fontSize = 10.sp),

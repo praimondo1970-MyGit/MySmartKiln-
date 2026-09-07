@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 /**
@@ -26,7 +27,8 @@ import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 @Composable
 fun CloseBtnCircle(
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {
+}
 ) {
     IconButton(
         onClick = onClick,
@@ -42,14 +44,14 @@ fun CloseBtnCircle(
                 modifier = Modifier
                     .requiredSize(size = 53.dp)
                     .clip(shape = CircleShape)
-                    .background(color = AppColors.Primary300) // Azul claro
+                    .background(color = LocalKilnColors.current.muted) // Azul claro
             )
             
             // Icono X (cerrar)
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.close_icon),
                 contentDescription = "close-icon",
-                tint = Color.White,
+                tint = LocalKilnColors.current.onAccent,
                 modifier = Modifier
                     .align(alignment = Alignment.Center)
                     .requiredSize(size = 26.dp)

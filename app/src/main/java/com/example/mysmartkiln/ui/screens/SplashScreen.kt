@@ -42,6 +42,7 @@ import com.example.mysmartkiln.ui.components.Logoicon
 import com.example.mysmartkiln.ui.components.TypePrimarySizeDefaultStateActiveIconNewValue
 import com.example.mysmartkiln.ui.components.TypeTerciarySizeDefaultStateActiveIconNewValue
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 import kotlinx.coroutines.delay
@@ -82,7 +83,7 @@ private fun LoadingContent() {
         modifier = Modifier
             .requiredWidth(width = 390.dp)
             .requiredHeight(height = 844.dp)
-            .background(color = AppColors.Primary800)
+            .background(color = LocalKilnColors.current.brandSurface)
     ) {
 
         // Logo
@@ -99,7 +100,7 @@ private fun LoadingContent() {
 
         // Loading indicator
         CircularProgressIndicator(
-            color = AppColors.White,
+            color = LocalKilnColors.current.onAccent,
             strokeWidth = 3.dp,
             modifier = Modifier
                 .align(Alignment.Center)
@@ -110,7 +111,7 @@ private fun LoadingContent() {
         Text(
             text = "Cargando...",
             style = MaterialTheme.typography.bodyLarge,
-            color = AppColors.White.copy(alpha = 0.8f),
+            color = LocalKilnColors.current.onAccent.copy(alpha = 0.8f),
             modifier = Modifier
                 .align(Alignment.Center)
                 .offset(y = 80.dp)
@@ -135,7 +136,7 @@ fun GetStarted(
         modifier = modifier
             .requiredWidth(width = 390.dp)
             .requiredHeight(height = 844.dp)
-            .background(color = AppColors.Primary800)
+            .background(color = LocalKilnColors.current.brandSurface)
     ) {
 
         // Logo
@@ -153,7 +154,7 @@ fun GetStarted(
         // App name
         Text(
             text = "SmartKiln",
-            color = Color.White,
+            color = LocalKilnColors.current.onAccent,
             style = TextStyle(
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Bold,
@@ -167,7 +168,7 @@ fun GetStarted(
         // Description
         Text(
             text = "Conecta tu horno a la nube y descubre una nueva forma de controlar, analizar y perfeccionar cada proceso de cocción, desde cualquier lugar.",
-            color = Color.White,
+            color = LocalKilnColors.current.onAccent,
             textAlign = TextAlign.Center,
             lineHeight = 1.39.em,
             style = TextStyle(

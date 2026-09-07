@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.data.model.RealtimeData
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Tarjeta que muestra los datos en tiempo real del horno
@@ -39,7 +40,7 @@ fun RealtimeDataCard(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = LocalKilnColors.current.cardBackground
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp
@@ -60,7 +61,7 @@ fun RealtimeDataCard(
                     text = "Estado del Horno",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = AppColors.Primary800
+                    color = LocalKilnColors.current.title
                 )
                 
                 ConnectionIndicator(
@@ -80,7 +81,7 @@ fun RealtimeDataCard(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(32.dp),
-                        color = AppColors.Primary600
+                        color = LocalKilnColors.current.body
                     )
                 }
             } else {
@@ -101,7 +102,7 @@ fun RealtimeDataCard(
                         modifier = Modifier
                             .width(1.dp)
                             .height(60.dp)
-                            .background(AppColors.Primary200)
+                            .background(LocalKilnColors.current.cardBorder)
                     )
                     
                     // Estado
@@ -135,14 +136,14 @@ private fun ConnectionIndicator(
             CircularProgressIndicator(
                 modifier = Modifier.size(12.dp),
                 strokeWidth = 2.dp,
-                color = AppColors.Primary600
+                color = LocalKilnColors.current.body
             )
         } else {
             Box(
                 modifier = Modifier
                     .size(10.dp)
                     .background(
-                        color = if (isConnected) Color(0xFF4CAF50) else Color(0xFFFF5252),
+                        color = if (isConnected) LocalKilnColors.current.success else LocalKilnColors.current.danger,
                         shape = CircleShape
                     )
             )
@@ -156,9 +157,9 @@ private fun ConnectionIndicator(
             },
             style = MaterialTheme.typography.bodySmall,
             color = when {
-                isLoading -> AppColors.Primary600
-                isConnected -> Color(0xFF4CAF50)
-                else -> Color(0xFFFF5252)
+                isLoading -> LocalKilnColors.current.muted
+                isConnected -> LocalKilnColors.current.success
+                else -> LocalKilnColors.current.danger
             },
             fontSize = 12.sp
         )
@@ -184,7 +185,7 @@ private fun DataItem(
         Icon(
             painter = painterResource(id = icon),
             contentDescription = label,
-            tint = if (isConnected) AppColors.Primary600 else AppColors.Primary300,
+            tint = if (isConnected) LocalKilnColors.current.accent else LocalKilnColors.current.muted,
             modifier = Modifier.size(24.dp)
         )
         
@@ -193,7 +194,7 @@ private fun DataItem(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = AppColors.Primary500,
+            color = LocalKilnColors.current.accent,
             fontSize = 11.sp
         )
         
@@ -203,7 +204,7 @@ private fun DataItem(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = if (isConnected) AppColors.Primary800 else AppColors.Primary400,
+            color = if (isConnected) LocalKilnColors.current.title else LocalKilnColors.current.muted,
             fontSize = 18.sp
         )
     }

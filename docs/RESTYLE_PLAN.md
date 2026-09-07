@@ -34,23 +34,25 @@ git checkout master
 
 ## Fases
 
-### Fase A — Theme / tokens + toggle (EN CURSO)
+### Fase A — Theme / tokens + toggle (CASI LISTA — validar en dispositivo)
 **Impacto:** alto percibido · **Riesgo:** bajo · **Esfuerzo:** 1–3 días
 
-1. Tokens ESP (`EspBrand` / `KilnColors` semánticos).
-2. Preferencia persistida `ThemeMode`: `CLASSIC` | `ESP`.
-3. `MySmartKilnTheme` + `LocalKilnColors` + `LocalThemeController`.
-4. Toggle en Ajustes (reutilizar selector Claro/Oscuro).
-5. Migrar pantallas clave a colores semánticos (sin cambiar layout):
-   - KilnDetail / Status
-   - Kilns
-   - Settings
-   - Bottom nav (tintes básicos)
-6. ProgressArcs: track/progress desde `KilnColors` (sigue layout actual).
+1. Tokens ESP (`EspBrand` / `KilnColors` semánticos). ✅
+2. Preferencia persistida `ThemeMode`: `CLASSIC` | `ESP`. ✅
+3. `MySmartKilnTheme` + `LocalKilnColors` + `LocalThemeController`. ✅
+4. Toggle en Ajustes (reutilizar selector Claro/Oscuro). ✅
+5. Migrar pantallas + chrome compartido a colores semánticos (sin cambiar layout): ✅ mayor parte
+   - Pantallas (`screens/*`) usan `LocalKilnColors`
+   - Inputs, FAB (`Plusbtn`), hexágono, swipe actions, StageCard read-only, auth CTAs
+   - Bottom nav / cards / diálogos clave
+6. ProgressArcs: track/progress desde `KilnColors` (sigue layout actual). ✅
+7. Compila `:app:compileDebugKotlin`. ✅ (2026-09-07)
 
 **No hacer en A:** rediseñar jerarquía tipo dashboard ESP.
 
 **Done cuando:** con Oscuro la app se ve negra/naranja; con Claro idéntica (o casi) a hoy.
+
+**Por qué se veía “parcial”:** fondos/nav ya iban a negro, pero inputs, FAB, hexágonos, cards blancas de etapas y CTAs de login seguían con `AppColors.Primary*` / blancos clásicos.
 
 ---
 
@@ -93,25 +95,23 @@ git checkout master
 
 ---
 
-## Continuidad (mañana)
+## Continuidad
 
 1. Leer este archivo: `docs/RESTYLE_PLAN.md`
-2. `git checkout feature/ui-restyle-esp` && `git status`
-3. Probar en dispositivo: Ajustes → Tema → **Oscuro** (ESP) / **Claro** (clásico)
-4. Completar migración a `LocalKilnColors` en pantallas aún claras:
-   - ProgramsScreen, ActivityScreen
-   - KilnProgramScreen, KilnCurveScreen, KilnCard
-   - ResponsiveBottomNavigation (barra compartida)
-   - Diálogos (Sending, ApReconfig, OperateOffline, Interrupted)
+2. `git checkout feature/ui-restyle-esp` && Sync Gradle → Run
+3. Probar en dispositivo: Ajustes → Tema → **Oscuro** (ESP) / **Claro** (clásico) en Hornos, Programas, Actividad, Detalle (Estado/Programa/Curva), Settings, Login
+4. Si algo sigue “azul/blanco clásico”, anotar pantalla; restos conocidos menores: teclado numérico iOS mock, WifiScanDialog, algunos hex en Connect/Scan/Configure
 5. Cuando A se vea bien → validar toggle → decidir Fase B
 6. **No mergear a master** hasta validar
 
-### Estado al 2026-09-06 (inicio)
-- Plan creado
+### Estado al 2026-09-07
 - Tag `v-pre-restyle` = último commit estable en master (`dde123a` / origin)
-- Rama `feature/ui-restyle-esp` con WIP funcional + **Fase A iniciada**
-- Hecho en A: tokens ESP, ThemeController, toggle Ajustes, Detail/Status/Kilns/Settings parcialmente migrados
-- Pendiente A: resto de pantallas + bottom nav compartida + diálogos
+- Rama `feature/ui-restyle-esp`
+- Fase A: tokens + toggle + migración masiva a `LocalKilnColors` (pantallas + chrome P0/P1)
+- Compilación debug Kotlin OK
+- Pendiente A: QA visual en dispositivo (Oscuro/Claro en todas las tabs) + restos menores (`SystemKeyboards*`, `WifiScanDialog`, comentarios en `ButtonStandards`)
+- Siguiente: validar → decidir Fase B (layout Estado estilo ESP)
+- **No mergear a master** hasta validar
 
 ---
 

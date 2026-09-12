@@ -11,41 +11,42 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-/** Scheme Material para modo Clásico (app actual). */
+/** Scheme Material para Claro (UI ESP luminosa). */
 private val ClassicLightColorScheme = lightColorScheme(
-    primary = MySmartKilnPrimary,
-    onPrimary = MySmartKilnOnPrimary,
-    primaryContainer = AppColors.Primary100,
-    onPrimaryContainer = AppColors.Primary900,
-    secondary = MySmartKilnSecondary,
-    onSecondary = MySmartKilnOnSecondary,
-    secondaryContainer = AppColors.Secondary100,
-    onSecondaryContainer = AppColors.Secondary900,
-    tertiary = MySmartKilnTertiary,
-    onTertiary = MySmartKilnOnTertiary,
-    tertiaryContainer = AppColors.Tertiary100,
-    onTertiaryContainer = AppColors.Tertiary900,
-    background = AppColors.Primary100,
-    onBackground = MySmartKilnOnBackground,
-    surface = MySmartKilnSurface,
-    onSurface = MySmartKilnOnSurface,
-    surfaceVariant = MySmartKilnSurfaceVariant,
-    onSurfaceVariant = MySmartKilnOnSurfaceVariant,
-    error = MySmartKilnError,
-    onError = AppColors.White,
-    errorContainer = AppColors.Error100,
-    onErrorContainer = AppColors.Error900,
-    outline = AppColors.Neutral400,
-    outlineVariant = AppColors.Neutral200,
-    scrim = AppColors.Black
+    primary = EspBrand.Orange,
+    onPrimary = EspBrand.White,
+    primaryContainer = EspBrand.OrangeLight,
+    onPrimaryContainer = EspBrand.Light.Ink,
+    secondary = EspBrand.OrangeDim,
+    onSecondary = EspBrand.White,
+    secondaryContainer = EspBrand.Light.TrackGray,
+    onSecondaryContainer = EspBrand.Light.Ink,
+    tertiary = EspBrand.Green,
+    onTertiary = EspBrand.Light.Ink,
+    tertiaryContainer = EspBrand.Light.Divider,
+    onTertiaryContainer = EspBrand.Light.Ink,
+    background = EspBrand.Light.Screen,
+    onBackground = EspBrand.Light.Ink,
+    surface = EspBrand.Light.Card,
+    onSurface = EspBrand.Light.Ink,
+    surfaceVariant = EspBrand.Light.TrackGray,
+    onSurfaceVariant = EspBrand.Light.BodyGray,
+    error = EspBrand.Red,
+    onError = EspBrand.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = EspBrand.Light.Ink,
+    outline = EspBrand.Light.CardBorder,
+    outlineVariant = EspBrand.Light.Divider,
+    scrim = EspBrand.Black.copy(alpha = 0.45f)
 )
 
-/** Scheme Material alineado al display ESP. */
+/** Scheme Material alineado al display ESP (Oscuro). Sin cambios de diseño. */
 private val EspDarkColorScheme = darkColorScheme(
     primary = EspBrand.Orange,
     onPrimary = EspBrand.White,
@@ -83,14 +84,14 @@ fun MySmartKilnTheme(
     content: @Composable () -> Unit
 ) {
     val kilnColors = KilnColors.forMode(themeMode)
-    val useEsp = themeMode == ThemeMode.ESP
+    val useEspDark = themeMode == ThemeMode.ESP
 
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (useEsp) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (useEspDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        useEsp -> EspDarkColorScheme
+        useEspDark -> EspDarkColorScheme
         else -> ClassicLightColorScheme
     }
 
@@ -101,9 +102,9 @@ fun MySmartKilnTheme(
             window.statusBarColor = kilnColors.screenBackground.toArgb()
             window.navigationBarColor = kilnColors.navBar.toArgb()
             val insets = WindowCompat.getInsetsController(window, view)
-            // Iconos claros sobre fondo oscuro ESP; oscuros sobre fondo claro clásico
-            insets.isAppearanceLightStatusBars = !useEsp
-            insets.isAppearanceLightNavigationBars = false
+            // Iconos oscuros sobre Claro; claros sobre Oscuro
+            insets.isAppearanceLightStatusBars = !useEspDark
+            insets.isAppearanceLightNavigationBars = !useEspDark
         }
     }
 

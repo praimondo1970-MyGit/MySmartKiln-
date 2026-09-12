@@ -23,7 +23,4 @@ sealed class Screen(val route: String) {
             }
         }
     }
-    object AddStage : Screen("add_stage")
 }
-
-

@@ -30,14 +30,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ble.BleViewModel
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.screens.AddMenuScreen
-import com.example.mysmartkiln.ui.theme.AppColors
-import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.AppTypes
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.data.local.entity.KilnEntity
@@ -66,7 +65,6 @@ import kotlinx.coroutines.withContext
 fun ConfigureKilnScreen(
     macAddress: String,
     deviceName: String,
-    bleViewModel: BleViewModel,
     authViewModel: AuthViewModel,
     deviceModel: String = "",
     deviceVolume: String = "",
@@ -113,6 +111,8 @@ fun ConfigureKilnScreen(
     
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    val kilnColors = LocalKilnColors.current
+    val fieldShape = RoundedCornerShape(12.dp)
     
     // Repository para manejo de datos
     val firebaseManager = remember { FirebaseRealtimeManager() }
@@ -233,7 +233,7 @@ fun ConfigureKilnScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = kilnColors.screenBackground)
             .pointerInput(Unit) {
                 detectTapGestures {
                     focusManager.clearFocus()
@@ -250,7 +250,7 @@ fun ConfigureKilnScreen(
             Text(
                 text = "Por favor completa la siguiente información",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = kilnColors.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 32.dp),
@@ -273,7 +273,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Nombre del horno",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -281,11 +281,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -293,10 +293,10 @@ fun ConfigureKilnScreen(
                             value = kilnName,
                             onValueChange = { kilnName = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -310,7 +310,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Fabricante/Marca",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -318,11 +318,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -330,10 +330,10 @@ fun ConfigureKilnScreen(
                             value = manufacturer,
                             onValueChange = { manufacturer = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -347,7 +347,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Volumen (lts)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -355,11 +355,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -367,10 +367,10 @@ fun ConfigureKilnScreen(
                             value = volume,
                             onValueChange = { volume = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -387,7 +387,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Red Wifi (acceso a internet)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -395,18 +395,18 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Opcional. El horno funciona sin internet; solo si quieres sincronización remota.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF64748B)
+                            color = kilnColors.muted
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -418,10 +418,10 @@ fun ConfigureKilnScreen(
                                 value = wifiSSID,
                                 onValueChange = { wifiSSID = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = kilnColors.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(kilnColors.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 decorationBox = { innerTextField ->
@@ -430,7 +430,7 @@ fun ConfigureKilnScreen(
                                             Text(
                                                 text = "Selecciona o escribe tu red de casa",
                                                 style = TextStyle(
-                                                    color = Color(0xFF94A3B8),
+                                                    color = kilnColors.muted,
                                                     fontSize = 14.sp
                                                 )
                                             )
@@ -446,7 +446,7 @@ fun ConfigureKilnScreen(
                                 Icon(
                                     painter = painterResource(R.drawable.icon_wifi),
                                     contentDescription = "Seleccionar red WiFi",
-                                    tint = Color(0xFF1E3A8A),
+                                    tint = kilnColors.title,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -461,7 +461,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Contraseña WiFi (opcional)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -469,11 +469,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -484,7 +484,7 @@ fun ConfigureKilnScreen(
                             Icon(
                                 painter = painterResource(R.drawable.icon_lock),
                                 contentDescription = "Contraseña",
-                                tint = Color(0xFF1E3A8A),
+                                tint = kilnColors.title,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -492,10 +492,10 @@ fun ConfigureKilnScreen(
                                 value = wifiPassword,
                                 onValueChange = { wifiPassword = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = kilnColors.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(kilnColors.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
@@ -544,11 +544,11 @@ fun ConfigureKilnScreen(
                     .height(48.dp)
                     .padding(horizontal = 24.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
-                    contentColor = Color.White
+                    containerColor = DialogBrand.primaryButton(),
+                    contentColor = kilnColors.onAccent
                     // Removidos los colores de disabled para mantener siempre el mismo aspecto
                 ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                shape = fieldShape
             ) {
                 Text(
                     text = if (isEditMode) "Actualizar horno" else "Agregar Horno",
@@ -753,7 +753,6 @@ fun ConfigureKilnScreenPreview() {
         ConfigureKilnScreen(
             macAddress = "A4:CF:12:88:56:E8",
             deviceName = "SmartKiln - Ceramica",
-            bleViewModel = null as BleViewModel? ?: return@MySmartKilnTheme,
             authViewModel = null as AuthViewModel? ?: return@MySmartKilnTheme
         )
     }

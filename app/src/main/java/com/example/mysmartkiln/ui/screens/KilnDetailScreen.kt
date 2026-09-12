@@ -256,9 +256,6 @@ fun KilnDetailScreen(
                         viewModel = viewModel,
                         onLoadProgram = {
                             navController.navigate("select_program/$kilnMacAddress/$kilnName")
-                        },
-                        onConnectToKiln = {
-                            navController.navigate("connect_kiln/$kilnMacAddress/$kilnName")
                         }
                     )
                     1 -> KilnProgramScreen(

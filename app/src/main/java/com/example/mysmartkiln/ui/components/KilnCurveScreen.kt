@@ -1,17 +1,35 @@
 package com.example.mysmartkiln.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.utils.KilnCurveBuilder
@@ -47,27 +65,27 @@ fun KilnCurveScreen(
         temperatureHistory.lastOrNull()?.elapsedMin ?: 0f
     )
 
-    Card(
+    // Título fuera del gris; marco solo para leyenda + gráfico + textos inferiores.
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(450.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
-        border = androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (kilnColors.isEsp) 0.dp else 4.dp
-        )
+            .fillMaxHeight()
     ) {
+        val fabClearance = 112.dp
+        val layoutHeight = (maxHeight - fabClearance).coerceAtLeast(280.dp)
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
+                .fillMaxWidth()
+                .height(layoutHeight)
+                .padding(horizontal = 2.dp)
         ) {
             Text(
                 text = "Temperatura y programa",
                 color = kilnColors.title,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontSize = 18.sp,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
             )
 
             if (kilnProgram.name.isNotBlank()) {
@@ -75,80 +93,96 @@ fun KilnCurveScreen(
                     text = kilnProgram.name,
                     color = kilnColors.muted,
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
+                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                LegendItem(color = kilnColors.title, label = "Programa")
-                LegendItem(color = kilnColors.accent, label = "Real")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (kilnProgram.stages.isEmpty()) {
-                Box(
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Sin programa cargado",
-                            color = kilnColors.body,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Carga un programa para ver la curva teórica",
-                            color = kilnColors.muted,
-                            fontSize = 12.sp
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        LegendItem(color = kilnColors.title, label = "Programa")
+                        LegendItem(color = kilnColors.accent, label = "Real")
                     }
-                }
-            } else {
-                KilnTemperatureChart(
-                    chartModel = chartModel,
-                    realSamples = temperatureHistory,
-                    currentElapsedMin = currentElapsedMin,
-                    currentTemperature = kilnStatus.currentTemperature,
-                    showProgress = isActiveRun,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Actual: ${kilnStatus.currentTemperature.toInt()}°C",
-                        color = kilnColors.accent,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    if (isActiveRun) {
-                        Text(
-                            text = "Transcurrido: ${KilnCurveBuilder.formatAxisMinutes(currentElapsedMin)}",
-                            color = kilnColors.body,
-                            fontSize = 12.sp
+                    if (kilnProgram.stages.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Sin programa cargado",
+                                    color = kilnColors.body,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Carga un programa para ver la curva teórica",
+                                    color = kilnColors.muted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    } else {
+                        KilnTemperatureChart(
+                            chartModel = chartModel,
+                            realSamples = temperatureHistory,
+                            currentElapsedMin = currentElapsedMin,
+                            currentTemperature = kilnStatus.currentTemperature,
+                            showProgress = isActiveRun,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
                         )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Actual: ${kilnStatus.currentTemperature.toInt()}°C",
+                                color = kilnColors.accent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (isActiveRun) {
+                                Text(
+                                    text = "Transcurrido: ${KilnCurveBuilder.formatAxisMinutes(currentElapsedMin)}",
+                                    color = kilnColors.body,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Text(
+                                text = "Duración: ${KilnCurveBuilder.formatAxisMinutes(chartModel.totalMinutes)}",
+                                color = kilnColors.muted,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
-                    Text(
-                        text = "Duración: ${KilnCurveBuilder.formatAxisMinutes(chartModel.totalMinutes)}",
-                        color = kilnColors.muted,
-                        fontSize = 12.sp
-                    )
                 }
             }
         }

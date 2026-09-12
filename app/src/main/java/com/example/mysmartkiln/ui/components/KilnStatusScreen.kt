@@ -65,8 +65,7 @@ import kotlin.math.roundToInt
 fun KilnStatusScreen(
     kilnMacAddress: String,
     viewModel: KilnDetailViewModel,
-    onLoadProgram: () -> Unit = {},
-    onConnectToKiln: () -> Unit = {}
+    onLoadProgram: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val kilnStatus by viewModel.kilnStatus.collectAsState()
@@ -413,7 +412,7 @@ private fun StatusSummaryCard(
 ) {
     val kilnColors = LocalKilnColors.current
     val panelColor = if (kilnColors.isEsp) kilnColors.cardBackground else kilnColors.screenBackground
-    val separatorColor = if (kilnColors.isEsp) Color(0xFF5C5C5C) else kilnColors.cardBorder
+    val separatorColor = kilnColors.panelLine
     val stageValue = if (stage == "—" || stage.isBlank()) "—" else "ETAPA $stage"
     Column(
         modifier = modifier
@@ -769,7 +768,14 @@ private fun StatusActionButtons(
                         disabledContentColor = kilnColors.muted
                     ),
                     border = if (kilnColors.isEsp) {
-                        BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                        BorderStroke(
+                            1.dp,
+                            if (kilnColors.isDark) {
+                                Color.White.copy(alpha = 0.35f)
+                            } else {
+                                kilnColors.title.copy(alpha = 0.25f)
+                            }
+                        )
                     } else {
                         null
                     },

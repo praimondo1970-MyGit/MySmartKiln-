@@ -57,6 +57,7 @@ fun SplashScreen(
     afterLoading: AfterSplashDestination = AfterSplashDestination.GetStarted,
     onNavigateToMain: () -> Unit,
     onNavigateToLogin: () -> Unit = {},
+    onGetStarted: () -> Unit = onNavigateToMain,
     modifier: Modifier = Modifier
 ) {
     var showGetStarted by remember { mutableStateOf(false) }
@@ -72,7 +73,7 @@ fun SplashScreen(
 
     if (showGetStarted) {
         GetStarted(
-            onGetStarted = onNavigateToMain,
+            onGetStarted = onGetStarted,
             onSignIn = onNavigateToLogin,
             modifier = modifier
         )

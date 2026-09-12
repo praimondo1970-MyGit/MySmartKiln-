@@ -2,14 +2,9 @@ package com.example.mysmartkiln.navigation
 
 import android.app.Activity
 import android.content.Intent
-import android.app.Application
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -19,28 +14,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mysmartkiln.LoginActivity
-import com.example.mysmartkiln.ble.BleViewModel
-import com.example.mysmartkiln.ble.BleViewModelFactory
-import com.example.mysmartkiln.data.local.KilnProgramUploader
-import com.example.mysmartkiln.data.local.database.BakingDatabase
-import com.example.mysmartkiln.data.repository.ProgramRepository
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.screens.ActivityScreen
-import com.example.mysmartkiln.ui.screens.AddStageScreen
-import com.example.mysmartkiln.ui.screens.BleMonitoringScreen
 import com.example.mysmartkiln.ui.screens.ConfigureKilnScreen
 import com.example.mysmartkiln.ui.screens.CreateProgramScreen
-import com.example.mysmartkiln.ui.screens.DevicesFoundScreen
-import com.example.mysmartkiln.ui.screens.ConnectKilnScreen
 import com.example.mysmartkiln.ui.screens.KilnDetailScreen
 import com.example.mysmartkiln.ui.screens.KilnsScreen
 import com.example.mysmartkiln.ui.screens.ProgramsScreen
-import com.example.mysmartkiln.ui.screens.ScanKilnScreen
 import com.example.mysmartkiln.ui.screens.SettingsScreen
 
 /**
@@ -52,9 +33,6 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
-    val bleViewModel: BleViewModel = viewModel(
-        factory = BleViewModelFactory(context.applicationContext as Application)
-    )
     val authViewModel: AuthViewModel = viewModel()
     
     NavHost(
@@ -74,12 +52,7 @@ fun AppNavigation(
             val startScanning = backStackEntry.arguments?.getBoolean("startScanning") ?: false
             
             KilnsScreen(
-                bleViewModel = bleViewModel,
                 authViewModel = authViewModel,
-                onDevicesFound = {
-                    // Navegar a pantalla de dispositivos encontrados
-                    navController.navigate("devices_found")
-                },
                 onNavigateToPrograms = {
                     navController.navigate(Screen.Programs.route)
                 },
@@ -222,9 +195,6 @@ fun AppNavigation(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onNavigateToAddStage = {
-                    navController.navigate(Screen.AddStage.route)
-                },
                 onNavigateToKilns = {
                     navController.navigate(Screen.Kilns.createRoute())
                 },
@@ -239,41 +209,6 @@ fun AppNavigation(
                 },
                 onNavigateToKilnsWithScan = {
                     navController.navigate(Screen.Kilns.createRoute(startScanning = true))
-                }
-            )
-        }
-        
-        // Pantalla de Agregar Etapa
-        composable(Screen.AddStage.route) {
-            AddStageScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        // Pantalla de Dispositivos Encontrados
-        composable("devices_found") {
-            DevicesFoundScreen(
-                bleViewModel = bleViewModel,
-                onDeviceSelected = { macAddress ->
-                    // Navegar a configuración del horno
-                    navController.navigate("configure_kiln/$macAddress")
-                },
-                onNavigateToKilns = {
-                    navController.popBackStack(Screen.Kilns.route, false)
-                },
-                onNavigateToPrograms = {
-                    navController.navigate(Screen.Programs.route)
-                },
-                onNavigateToActivity = {
-                    navController.navigate(Screen.Activity.route)
-                },
-                onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route)
-                },
-                onCreateProgram = {
-                    navController.navigate(Screen.CreateProgram.createRoute())
                 }
             )
         }
@@ -303,17 +238,10 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            // Sugerencia de nombre: primero lo que vino del horno (HTTP info),
-            // luego el nombre BLE del scan (compatibilidad con flujo legacy),
-            // por último vacío para que el usuario lo complete.
-            val deviceNameFromWifi = backStackEntry.arguments?.getString("deviceName")
+            // Sugerencia de nombre desde GET /api/info (WiFi SoftAP); vacío si no viene.
+            val deviceName = backStackEntry.arguments?.getString("deviceName")
                 ?.takeIf { it.isNotBlank() && it != "Mi Kiln Cerámico" }
-            val deviceName = deviceNameFromWifi
-                ?: bleViewModel.scannedDevices.value.find {
-                    it.address.equals(macAddress, ignoreCase = true) ||
-                        it.address.replace(":", "").equals(macAddress, ignoreCase = true)
-                }?.name
-                ?: ""
+                .orEmpty()
             val deviceModel = backStackEntry.arguments?.getString("deviceModel")
                 ?.takeIf { it.isNotBlank() }
                 .orEmpty()
@@ -326,7 +254,6 @@ fun AppNavigation(
                 deviceName = deviceName,
                 deviceModel = deviceModel,
                 deviceVolume = deviceVolume,
-                bleViewModel = bleViewModel,
                 authViewModel = authViewModel,
                 existingKiln = null, // Se buscará automáticamente si existe
                 onKilnConfigured = {
@@ -394,52 +321,6 @@ fun AppNavigation(
                 kilnName = kilnName,
                 kilnMacAddress = macAddress,
                 viewModel = kilnDetailViewModel
-            )
-        }
-
-        composable(
-            route = "connect_kiln/{macAddress}/{kilnName}",
-            arguments = listOf(
-                navArgument("macAddress") { type = NavType.StringType },
-                navArgument("kilnName") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
-            val kilnDetailRoute = "kiln_detail/$macAddress/$kilnName"
-            val parentEntry = navController.getBackStackEntry(kilnDetailRoute)
-            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel =
-                viewModel(
-                    viewModelStoreOwner = parentEntry,
-                    factory = ViewModelFactory(context)
-                )
-            ConnectKilnScreen(
-                kilnName = kilnName,
-                viewModel = kilnDetailViewModel,
-                onBack = { navController.popBackStack() }
-            )
-        }
-        
-        // Pantalla de Monitoreo BLE (modo continuo)
-        composable(
-            route = "ble_monitoring/{macAddress}",
-            arguments = listOf(
-                navArgument("macAddress") {
-                    type = NavType.StringType
-                }
-            )
-        ) { backStackEntry ->
-            val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            
-            BleMonitoringScreen(
-                macAddress = macAddress,
-                bleViewModel = bleViewModel,
-                onProgramFinished = {
-                    navController.popBackStack()
-                },
-                onBack = {
-                    navController.popBackStack()
-                }
             )
         }
         

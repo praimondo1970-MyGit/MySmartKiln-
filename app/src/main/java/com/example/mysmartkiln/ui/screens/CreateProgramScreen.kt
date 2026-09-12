@@ -89,7 +89,6 @@ fun CreateProgramScreen(
     programIdToEdit: String? = null,
     isEditMode: Boolean = false,
     onNavigateBack: () -> Unit = {},
-    onNavigateToAddStage: () -> Unit = {},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
     onNavigateToActivity: () -> Unit = {},
@@ -247,6 +246,7 @@ fun CreateProgramScreen(
         // Header fijo + scroll solo de etapas + Guardar fijo
         // ESP: ~110dp como Programas (más cerca del nav → más alto el scroll).
         // Clásico: 160dp por el FAB elevado.
+        // LazyColumn: padding bottom sube el extremo inferior del listado vs GUARDAR.
         val contentBottomPad =
             if (LocalKilnColors.current.isEsp) 110.dp else 160.dp
         Column(
@@ -293,7 +293,9 @@ fun CreateProgramScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(start = 5.dp),
+                    .padding(start = 5.dp)
+                    // Sube el extremo inferior del scroll; GUARDAR queda donde está.
+                    .padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 12.dp)
             ) {

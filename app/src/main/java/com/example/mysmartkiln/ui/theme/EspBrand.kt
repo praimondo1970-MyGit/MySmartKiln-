@@ -37,4 +37,25 @@ object EspBrand {
     val Red = Color(0xFFFF4444)
 
     val NavBar = Color(0xFF161616)
+
+    /**
+     * Espejo luminoso de la misma jerarquía (misma lógica de escalones, invertida).
+     * Misma marca naranja / semáforos; no cambia el modo Oscuro.
+     */
+    object Light {
+        /** Fondo: near-white (espejo de #121212). */
+        val Screen = Color(0xFFF5F5F5)
+        /** Nav: un peldaño respecto al fondo (espejo de #161616). */
+        val NavBar = Color(0xFFEBEBEB)
+        /** Cards: más claras que el fondo (espejo de card > screen). */
+        val Card = Color(0xFFFFFFFF)
+        val CardBorder = Color(0xFFE0E0E0)
+        val Divider = Color(0xFFE6E6E6)
+        val TrackGray = Color(0xFFD6D6D6)
+        val MidGray = Color(0xFF757575)
+        val BodyGray = Color(0xFF5C5C5C)
+        val Ink = Color(0xFF121212)
+        /** Separadores de panel (espejo de #5C5C5C en oscuro). */
+        val PanelLine = Color(0xFFD0D0D0)
+    }
 }

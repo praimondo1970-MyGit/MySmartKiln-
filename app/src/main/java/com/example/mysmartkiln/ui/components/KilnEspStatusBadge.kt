@@ -30,6 +30,9 @@ import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.utils.KilnEspStatusLabels
 
+/**
+ * Badge de estado del horno (detalle). Misma semántica/visual que el chip de la lista.
+ */
 @Composable
 fun KilnEspStatusBadge(
     espStatus: String,
@@ -38,15 +41,17 @@ fun KilnEspStatusBadge(
     val kilnColors = LocalKilnColors.current
     val normalized = KilnEspStatusLabels.normalize(espStatus)
     val label = KilnEspStatusLabels.label(espStatus).uppercase()
-    val isPaused = normalized == "PAUSADO"
-    val isBaking = normalized == "CALENTANDO"
+    val isPaused = normalized == "PAUSADO" || normalized == "PAUSED" || normalized == "RECONNECTING"
+    val isBaking = normalized == "CALENTANDO" || normalized == "RUNNING"
+    val isInterrupted = normalized == "INTERRUMPIDO"
+    val isFinished = normalized == "FINALIZADO" || normalized == "FINISHED"
 
     val infiniteTransition = rememberInfiniteTransition(label = "paused_blink")
     val blinkAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 0.35f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 750),
+            animation = tween(durationMillis = 700),
             repeatMode = RepeatMode.Reverse
         ),
         label = "paused_alpha"
@@ -55,32 +60,28 @@ fun KilnEspStatusBadge(
 
     val bg: Color
     val fg: Color
-    if (kilnColors.isEsp) {
-        when (normalized) {
-            "CALENTANDO" -> {
-                bg = kilnColors.accent
-                fg = kilnColors.onAccent
-            }
-            "PAUSADO", "RECONNECTING" -> {
-                bg = kilnColors.warning.copy(alpha = 0.25f)
-                fg = kilnColors.warning
-            }
-            "INTERRUMPIDO" -> {
-                bg = kilnColors.danger.copy(alpha = 0.25f)
-                fg = kilnColors.danger
-            }
-            "FINALIZADO" -> {
-                bg = kilnColors.success.copy(alpha = 0.25f)
-                fg = kilnColors.success
-            }
-            else -> {
-                bg = kilnColors.cardBorder
-                fg = kilnColors.muted
-            }
+    when {
+        isBaking -> {
+            bg = kilnColors.accent
+            fg = kilnColors.onAccent
         }
-    } else {
-        bg = KilnEspStatusLabels.chipBackground(espStatus)
-        fg = KilnEspStatusLabels.chipContent(espStatus)
+        isPaused -> {
+            bg = kilnColors.warning.copy(alpha = 0.22f)
+            fg = kilnColors.warning
+        }
+        isInterrupted -> {
+            bg = kilnColors.danger.copy(alpha = 0.22f)
+            fg = kilnColors.danger
+        }
+        isFinished -> {
+            bg = kilnColors.success.copy(alpha = 0.22f)
+            fg = kilnColors.success
+        }
+        else -> {
+            // INACTIVO / Detenido — mismo criterio que la lista
+            bg = kilnColors.muted.copy(alpha = 0.22f)
+            fg = kilnColors.title
+        }
     }
 
     Surface(
@@ -93,7 +94,7 @@ fun KilnEspStatusBadge(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            if (isBaking && kilnColors.isEsp) {
+            if (isBaking) {
                 Icon(
                     painter = painterResource(id = R.drawable.icon_flame),
                     contentDescription = null,
@@ -110,7 +111,7 @@ fun KilnEspStatusBadge(
             Text(
                 text = label,
                 color = fg,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = if (isBaking) FontWeight.Bold else FontWeight.SemiBold,
                 fontSize = 11.sp,
                 lineHeight = 13.sp
             )

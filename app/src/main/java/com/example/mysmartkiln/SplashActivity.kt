@@ -42,15 +42,17 @@ class SplashActivity : ComponentActivity() {
                 ) {
                     SplashScreen(
                         afterLoading = afterLoading,
-                        onNavigateToMain = {
-                            // Get Started "Comenzar": si hay sesión → Main; si no → Login
+                        // Sesión activa: siempre Main (no re-ramificar a Login)
+                        onNavigateToMain = { navigateToMain() },
+                        onNavigateToLogin = { navigateToLogin() },
+                        // Get Started → Comenzar: sin sesión va a Login
+                        onGetStarted = {
                             if (authManager.isUserLoggedIn) {
                                 navigateToMain()
                             } else {
                                 navigateToLogin()
                             }
-                        },
-                        onNavigateToLogin = { navigateToLogin() }
+                        }
                     )
                 }
             }

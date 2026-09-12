@@ -11,6 +11,9 @@ enum class ThemeMode {
 /**
  * Colores semánticos de la app. Las pantallas deben usar esto
  * (vía [LocalKilnColors]) en lugar de hardcodear Primary100 / White.
+ *
+ * [isEsp] controla el lenguaje visual / layouts (misma UI ESP en Claro y Oscuro).
+ * [isDark] distingue Oscuro vs luminoso para tokens que lo necesiten.
  */
 data class KilnColors(
     val screenBackground: Color,
@@ -30,28 +33,37 @@ data class KilnColors(
     val success: Color,
     val warning: Color,
     val danger: Color,
-    val isEsp: Boolean
+    /** Separadores internos de paneles (resumen de estado, etc.). */
+    val panelLine: Color,
+    val isEsp: Boolean,
+    val isDark: Boolean
 ) {
     companion object {
+        /**
+         * Claro = misma UI ESP que Oscuro, paleta luminosa espejo.
+         * isEsp=true para no bifurcar layouts al viejo “classic”.
+         */
         val Classic = KilnColors(
-            screenBackground = AppColors.Primary100,
-            cardBackground = AppColors.White,
-            cardBorder = AppColors.Primary200,
-            title = Color(0xFF1E3A8A),
-            body = AppColors.Primary700,
-            muted = AppColors.Primary400,
-            accent = AppColors.Primary700,
-            accentMuted = AppColors.Primary600,
-            onAccent = AppColors.White,
-            navBar = AppColors.Primary900,
-            fab = AppColors.Tertiary900,
-            onFab = AppColors.White,
-            track = Color.DarkGray.copy(alpha = 0.4f),
-            progress = AppColors.Primary700,
-            success = AppColors.Success600,
-            warning = AppColors.Warning700,
-            danger = AppColors.Error600,
-            isEsp = false
+            screenBackground = EspBrand.Light.Screen,
+            cardBackground = EspBrand.Light.Card,
+            cardBorder = EspBrand.Light.CardBorder,
+            title = EspBrand.Light.Ink,
+            body = EspBrand.Light.BodyGray,
+            muted = EspBrand.Light.MidGray,
+            accent = EspBrand.Orange,
+            accentMuted = EspBrand.OrangeDim,
+            onAccent = EspBrand.White,
+            navBar = EspBrand.Light.NavBar,
+            fab = EspBrand.Orange,
+            onFab = EspBrand.White,
+            track = EspBrand.Light.TrackGray,
+            progress = EspBrand.Orange,
+            success = EspBrand.Green,
+            warning = EspBrand.OrangeDim,
+            danger = EspBrand.Red,
+            panelLine = EspBrand.Light.PanelLine,
+            isEsp = true,
+            isDark = false
         )
 
         val Esp = KilnColors(
@@ -72,7 +84,9 @@ data class KilnColors(
             success = EspBrand.Green,
             warning = EspBrand.Yellow,
             danger = EspBrand.Red,
-            isEsp = true
+            panelLine = Color(0xFF5C5C5C),
+            isEsp = true,
+            isDark = true
         )
 
         fun forMode(mode: ThemeMode): KilnColors = when (mode) {

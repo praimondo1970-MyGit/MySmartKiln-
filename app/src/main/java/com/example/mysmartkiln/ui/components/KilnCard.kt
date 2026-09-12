@@ -672,7 +672,7 @@ private fun KilnListStatusChip(
         )
         KilnListChipKind.CONNECTED -> ChipStyle(
             bg = kilnColors.muted.copy(alpha = 0.22f),
-            fg = Color(0xFFE0E0E0),
+            fg = kilnColors.title,
             label = "INACTIVO",
             showFlame = false
         )

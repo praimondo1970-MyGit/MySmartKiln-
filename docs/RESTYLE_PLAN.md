@@ -126,6 +126,15 @@ git checkout master
 
 ## Pendiente UX / Auth (recordar)
 
-- **Google Sign-In (Gmail):** evaluar cuando el flujo email/password + Recordarme esté estable.
-  Tiene sentido para onboarding más rápido; implica Firebase Auth Google provider, SHA-1 en Firebase Console, y UI en Login/Splash.
-  Advertir al usuario en la próxima fase de auth / post-QA si aún no se hizo.
+- **Google Sign-In (Gmail):** cuando email/password + Recordarme estén validados en dispositivo.
+  - Firebase Console → Authentication → Sign-in method → Google (habilitar).
+  - SHA-1/SHA-256 del keystore de debug/release en el proyecto Firebase.
+  - Dependencias: Credential Manager / Google Identity + `FirebaseAuth.getInstance().signInWithCredential`.
+  - UI: botón “Continuar con Google” en Login (y opcional en Get Started), sin quitar email/password.
+  - No implementar hasta cerrar QA de Splash/Recordarme.
+
+## QA Splash / Recordarme (checklist)
+
+1. Sesión Firebase activa → splash breve → Main (sin Get Started).
+2. Recordarme ON, sin sesión → splash → Login con email/pass prellenados.
+3. Primera vez / Recordarme OFF → splash → Get Started → Comenzar o Iniciar sesión.

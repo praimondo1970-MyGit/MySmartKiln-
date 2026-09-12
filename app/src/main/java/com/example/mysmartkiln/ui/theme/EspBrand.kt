@@ -5,20 +5,28 @@ import androidx.compose.ui.graphics.Color
 /**
  * Paleta cruda del display ESP (display_ui / display_lvgl).
  * No usar directamente en pantallas: preferir [KilnColors] semánticos.
+ *
+ * Jerarquía de grises (mockup / captura):
+ * - Fondo pantalla ≈ #121212
+ * - Menú inferior ≈ #161616 (casi fundido al fondo)
+ * - Tarjetas ≈ #1C1C1C (un escalón más claras)
+ * - Chips / pills ≈ #363636
+ * - Bordes muy sutiles ≈ #2C2C2C
  */
 object EspBrand {
-    val Black = Color(0xFF000000)
-    /** Cards: un poco más claras que #161616 para separarlas del fondo. */
-    val Card = Color(0xFF2A2A2A)
-    val CardBorder = Color(0xFF555555)
-    val Divider = Color(0xFF4A4A4A)
+    val Black = Color(0xFF121212)
+    /** Cards: un escalón más claras que el fondo, sin saltar a gris medio. */
+    val Card = Color(0xFF1C1C1C)
+    val CardBorder = Color(0xFF2C2C2C)
+    val Divider = Color(0xFF2A2A2A)
     val DarkGray = Color(0xFF404040)
-    val TrackGray = Color(0xFF333333)
+    /** Pills de estado (p.ej. Desconectado). */
+    val TrackGray = Color(0xFF363636)
     val MidGray = Color(0xFF888888)
     val LightGray = Color(0xFFB0B0B0)
     val White = Color(0xFFFFFFFF)
 
-    /** Naranja marca (antes Material Deep Orange #FF5722, muy rojizo en pantalla). */
+    /** Naranja marca. */
     val Orange = Color(0xFFFF9800)
     val OrangeDim = Color(0xFFF57C00)
     val OrangeLight = Color(0xFFFFB74D)
@@ -27,4 +35,6 @@ object EspBrand {
     val Green = Color(0xFF8BC34A)
     val Yellow = Color(0xFFFFCC00)
     val Red = Color(0xFFFF4444)
+
+    val NavBar = Color(0xFF161616)
 }

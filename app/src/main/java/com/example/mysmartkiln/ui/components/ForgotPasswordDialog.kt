@@ -1,11 +1,9 @@
 package com.example.mysmartkiln.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -21,12 +19,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 
 @Composable
@@ -37,14 +35,16 @@ fun ForgotPasswordDialog(
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
-    
+    val kilnColors = LocalKilnColors.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = AppColors.Primary800,
+        containerColor = kilnColors.cardBackground,
+        shape = RoundedCornerShape(16.dp),
         title = {
             Text(
                 text = "Restablecer Contraseña",
-                color = Color.White,
+                color = kilnColors.title,
                 style = TextStyle(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -56,22 +56,22 @@ fun ForgotPasswordDialog(
             Column {
                 Text(
                     text = "Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.",
-                    color = Color.White,
+                    color = kilnColors.body,
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontFamily = RalewayFontFamily
                     )
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
                     label = {
                         Text(
                             text = "Correo electrónico",
-                            color = Color.White,
+                            color = kilnColors.muted,
                             style = TextStyle(
                                 fontSize = 14.sp,
                                 fontFamily = RalewayFontFamily
@@ -80,15 +80,15 @@ fun ForgotPasswordDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedLabelColor = Color.White,
-                        unfocusedLabelColor = Color.White,
-                        focusedIndicatorColor = Color.White,
-                        unfocusedIndicatorColor = Color.White,
-                        cursorColor = Color.White,
-                        focusedContainerColor = AppColors.Primary800,
-                        unfocusedContainerColor = AppColors.Primary800
+                        focusedTextColor = kilnColors.title,
+                        unfocusedTextColor = kilnColors.title,
+                        focusedLabelColor = kilnColors.muted,
+                        unfocusedLabelColor = kilnColors.muted,
+                        focusedIndicatorColor = DialogBrand.primaryButton(),
+                        unfocusedIndicatorColor = kilnColors.cardBorder,
+                        cursorColor = DialogBrand.primaryButton(),
+                        focusedContainerColor = kilnColors.cardBackground,
+                        unfocusedContainerColor = kilnColors.cardBackground
                     ),
                     shape = RoundedCornerShape(8.dp)
                 )
@@ -96,26 +96,27 @@ fun ForgotPasswordDialog(
         },
         confirmButton = {
             Button(
-                onClick = { 
+                onClick = {
                     if (email.isNotBlank()) {
                         onConfirm(email)
                     }
                 },
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3385FF)
+                    containerColor = DialogBrand.primaryButton(),
+                    contentColor = kilnColors.onAccent
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = kilnColors.onAccent,
                         modifier = Modifier.height(20.dp)
                     )
                 } else {
                     Text(
                         text = "Enviar",
-                        color = Color.White,
+                        color = kilnColors.onAccent,
                         style = TextStyle(
                             fontFamily = RalewayFontFamily,
                             fontWeight = FontWeight.Medium
@@ -131,7 +132,7 @@ fun ForgotPasswordDialog(
             ) {
                 Text(
                     text = "Cancelar",
-                    color = Color.White,
+                    color = kilnColors.muted,
                     style = TextStyle(
                         fontFamily = RalewayFontFamily,
                         fontWeight = FontWeight.Medium
@@ -141,49 +142,3 @@ fun ForgotPasswordDialog(
         }
     )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

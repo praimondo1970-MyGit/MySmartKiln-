@@ -44,11 +44,11 @@ data class KilnStatus(
     val espStatus: String = "",
     val currentStage: Int = 0,
     val totalStages: Int = 0,
-    val elapsedTime: String = "0h 00min",
-    val remainingTime: String = "0h 00min",
-    val totalTime: String = "0h 00min",
+    val elapsedTime: String = "0h 00m",
+    val remainingTime: String = "0h 00m",
+    val totalTime: String = "0h 00m",
     val rampRate: Float = 0f,
-    val maintenanceTime: String = "0min",
+    val maintenanceTime: String = "0m",
     val elapsedMinutes: Int = 0
 )
 
@@ -475,7 +475,7 @@ class KilnDetailViewModel(
     }
 
     private fun parseFormattedDurationMinutes(formatted: String): Int {
-        val match = Regex("""(\d+)h\s*(\d+)min""").find(formatted.trim()) ?: return 0
+        val match = Regex("""(\d+)h\s*(\d+)(?:min|m)\b""").find(formatted.trim()) ?: return 0
         val hours = match.groupValues[1].toIntOrNull() ?: 0
         val mins = match.groupValues[2].toIntOrNull() ?: 0
         return hours * 60 + mins
@@ -1230,7 +1230,7 @@ class KilnDetailViewModel(
     private fun formatMinutes(totalMinutes: Int): String {
         val hours = totalMinutes / 60
         val mins = totalMinutes % 60
-        return "${hours}h ${String.format("%02d", mins)}min"
+        return "${hours}h ${String.format("%02d", mins)}m"
     }
 
     private suspend fun ensureLocalConnection(): Boolean {
@@ -1615,7 +1615,7 @@ class KilnDetailViewModel(
                 name = programEntity.name,
                 duration = formatMinutes(totalMinutes),
                 remaining = formatMinutes(totalMinutes),
-                elapsed = "0h 00min",
+                elapsed = "0h 00m",
                 stage = "0/${programStages.size}",
                 stages = programStages
             )

@@ -1,6 +1,5 @@
 package com.example.mysmartkiln.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -18,27 +16,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Diálogo modal con un círculo girando que se muestra mientras la app se
  * conecta al AP del horno y envía un comando (START / PAUSE / STOP / programa / configuración).
- *
- * Bloquea la interacción de la pantalla detrás (no se puede cerrar con back
- * ni con tap fuera) hasta que el ViewModel apague el flag.
  */
 @Composable
 fun KilnSendingCommandDialog(
     phase: String,
     detail: String? = null
 ) {
+    val kilnColors = LocalKilnColors.current
     Dialog(
         onDismissRequest = { /* no-op: bloqueamos el cierre */ },
         properties = DialogProperties(
@@ -47,9 +43,10 @@ fun KilnSendingCommandDialog(
         )
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            color = kilnColors.cardBackground,
             tonalElevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
@@ -67,7 +64,7 @@ fun KilnSendingCommandDialog(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(64.dp),
-                        color = AppColors.Primary700,
+                        color = DialogBrand.primaryButton(),
                         strokeWidth = 5.dp
                     )
                 }
@@ -77,7 +74,7 @@ fun KilnSendingCommandDialog(
                 Text(
                     text = phase,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     ),
@@ -89,7 +86,7 @@ fun KilnSendingCommandDialog(
                     Text(
                         text = detail,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF64748B),
+                            color = kilnColors.muted,
                             fontSize = 13.sp
                         ),
                         textAlign = TextAlign.Center

@@ -77,10 +77,10 @@ import com.example.mysmartkiln.ui.components.ProgramNameInput
 import com.example.mysmartkiln.ui.components.Rectangle134
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.StageCard
 import com.example.mysmartkiln.ui.components.StageData
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
@@ -244,109 +244,100 @@ fun CreateProgramScreen(
             .fillMaxSize()
             .background(color = LocalKilnColors.current.screenBackground)
     ) {
-        // Scrollable content con gradiente
-        Box(
+        // Header fijo + scroll solo de etapas + Guardar fijo
+        // ESP: ~110dp como Programas (más cerca del nav → más alto el scroll).
+        // Clásico: 160dp por el FAB elevado.
+        val contentBottomPad =
+            if (LocalKilnColors.current.isEsp) 110.dp else 160.dp
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 160.dp) // 160dp from bottom
+                .padding(bottom = contentBottomPad)
         ) {
-            LazyColumn(
-                state = lazyListState, // Usar el estado para mejor detección de gestos
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 29.dp,
-                    end = 24.dp,
-                    top = 0.dp, // Sin padding superior - el contenido empieza desde arriba
-                    bottom = 40.dp // Espacio para el gradiente
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 29.dp, end = 24.dp)
             ) {
-            // Title según el modo
-            item {
                 CrearPrograma(
                     text = when {
                         programIdToEdit != null && isEditMode -> "Modificar programa"
                         programIdToEdit != null && !isEditMode -> "Duplicar programa"
                         else -> "Crear programa"
                     },
-                    modifier = Modifier.padding(top = 70.dp) // Padding superior reducido a 70dp
+                    modifier = Modifier.padding(top = 70.dp)
                 )
-            }
-            
-            // Program Name Input
-            item {
+
                 ProgramNameInput(
                     value = programName,
                     onValueChange = { viewModel.updateProgramName(it) }
                 )
-            }
-            
-            // Etapas title and Add Stage Button row
-            item {
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Etapas()
                     AddStageButton(
-                        onClick = {
-                            openCreateStageModal()
-                        }
+                        onClick = { openCreateStageModal() }
                     )
                 }
             }
-            
-            // Stages List
-            if (stages.isNotEmpty()) {
-                itemsIndexed(stages) { index, stage ->
-                    StageCard(
-                        stageData = stage,
-                        onStageClick = { editStage(index) },
-                        onDeleteClick = { deleteStage(index) }
-                    )
-                }
-            }
-            
-            // Create Button - appears when there's at least one stage
-            if (stages.isNotEmpty()) {
-                item {
-                           androidx.compose.material3.Button(
-                               onClick = { viewModel.saveProgram() },
-                               enabled = !viewModel.isSaving, // Deshabilitar mientras guarda
-                               modifier = Modifier
-                                   .fillMaxWidth()
-                                   .height(48.dp) // Same height as "Comenzar" button
-                                   .padding(top = 5.dp), // Padding superior reducido a 5dp
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = LocalKilnColors.current.accent,
-                            contentColor = LocalKilnColors.current.onAccent,
-                            disabledContainerColor = LocalKilnColors.current.cardBorder,
-                            disabledContentColor = LocalKilnColors.current.muted
-                        ),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = if (viewModel.isSaving) {
-                                "Guardando..."
-                            } else if (programIdToEdit != null) {
-                                "Guardar"  // Tanto para editar como duplicar
-                            } else {
-                                "Crear"
-                            },
-                            style = MaterialTheme.typography.titleMedium
+
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(start = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 12.dp)
+            ) {
+                if (stages.isNotEmpty()) {
+                    itemsIndexed(stages) { index, stage ->
+                        StageCard(
+                            stageData = stage,
+                            onStageClick = { editStage(index) },
+                            onDeleteClick = { deleteStage(index) }
                         )
                     }
                 }
             }
-        }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = LocalKilnColors.current.screenBackground,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+
+            if (stages.isNotEmpty()) {
+                androidx.compose.material3.Button(
+                    onClick = { viewModel.saveProgram() },
+                    enabled = !viewModel.isSaving,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 29.dp, end = 24.dp, bottom = 8.dp)
+                        .height(48.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = DialogBrand.primaryButton(),
+                        contentColor = LocalKilnColors.current.onAccent,
+                        disabledContainerColor = LocalKilnColors.current.cardBorder,
+                        disabledContentColor = LocalKilnColors.current.muted
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                        if (LocalKilnColors.current.isEsp) 12.dp else 16.dp
+                    )
+                ) {
+                    Text(
+                        text = if (viewModel.isSaving) {
+                            "Guardando..."
+                        } else if (programIdToEdit != null) {
+                            "Guardar"
+                        } else {
+                            "Crear"
+                        },
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
         }
         
         // Overlay del menú de agregar - SE SUPERPONE cuando isMenuOpen = true
@@ -433,27 +424,28 @@ fun CreateProgramScreen(
                         .align(alignment = Alignment.BottomCenter)
                         .offset(y = additionalOffset)
                 ) {
-                           // Agregar/Editar etapa title positioned at top-left of the modal
-                           AgregarEtapa(
-                               text = if (isEditingStage) "Editar etapa" else "Agregar etapa",
-                               modifier = Modifier
-                                   .align(alignment = Alignment.TopStart)
-                                   .padding(start = 30.dp, top = 25.dp) // Moved 5dp to the right (25dp + 5dp = 30dp)
-                           )
-                    
-                    // CircularTerciary close button positioned in the modal
+                    val isEspSheet = LocalKilnColors.current.isEsp
+                    val titleTop = if (isEspSheet) 28.dp else 25.dp
+                    val closeTop = if (isEspSheet) 34.dp else 38.dp
+
+                    AgregarEtapa(
+                        text = if (isEditingStage) "Editar etapa" else "Agregar etapa",
+                        modifier = Modifier
+                            .align(alignment = Alignment.TopStart)
+                            .padding(start = 30.dp, top = titleTop)
+                    )
+
                     CircularTerciary(
                         onClick = { closeModal() },
                         modifier = Modifier
                             .align(alignment = Alignment.TopEnd)
-                            .padding(end = 25.dp, top = 38.dp) // Moved 2dp left (27dp - 2dp = 25dp)
+                            .padding(end = 25.dp, top = closeTop)
                     )
-                    
-                    // Group20 component with input fields positioned below the title
+
                     Group20(
                         modifier = Modifier
                             .align(alignment = Alignment.TopStart)
-                            .padding(top = 100.dp), // Ya no necesita padding horizontal
+                            .padding(top = if (isEspSheet) 108.dp else 100.dp),
                         temperature = modalTemperature,
                         speed = modalSpeed,
                         maintenance = modalMaintenance,
@@ -461,13 +453,12 @@ fun CreateProgramScreen(
                         onSpeedChange = { modalSpeed = it },
                         onMaintenanceChange = { modalMaintenance = it }
                     )
-                    
-                    // Agregar button positioned at 200dp from top of the modal
+
                     AgregarButton(
                         onClick = { addStage() },
                         modifier = Modifier
                             .align(alignment = Alignment.TopStart)
-                            .padding(start = 25.dp, end = 25.dp, top = 240.dp) // Aumentar de 200dp a 240dp
+                            .padding(start = 25.dp, end = 25.dp, top = 240.dp)
                     )
                 }
             }

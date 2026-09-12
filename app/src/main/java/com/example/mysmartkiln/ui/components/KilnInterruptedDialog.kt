@@ -1,5 +1,6 @@
 package com.example.mysmartkiln.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -16,27 +17,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Diálogo modal que aparece cuando el horno reporta status="INTERRUMPIDO".
- * Esto sucede cuando el ESP se reinició mientras estaba CALENTANDO o
- * PAUSADO (ej: corte de luz). El firmware persiste el segmento/fase en NVS
- * y al boot deja el horno en este estado especial esperando una decisión.
- *
- * El usuario tiene dos opciones:
- *  - Reanudar: el ESP retoma el programa desde el segmento/fase guardados.
- *  - Cancelar: el ESP limpia el run_state y vuelve a IDLE.
- *
- * El diálogo no se puede cerrar con back ni con tap fuera porque queremos
- * que el usuario tome una decisión consciente.
  */
 @Composable
 fun KilnInterruptedDialog(
@@ -44,6 +35,7 @@ fun KilnInterruptedDialog(
     onResume: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val kilnColors = LocalKilnColors.current
     Dialog(
         onDismissRequest = { /* no-op: bloqueamos el cierre */ },
         properties = DialogProperties(
@@ -52,9 +44,10 @@ fun KilnInterruptedDialog(
         )
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            color = kilnColors.cardBackground,
             tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, kilnColors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
@@ -69,7 +62,7 @@ fun KilnInterruptedDialog(
                 Text(
                     text = "Programa interrumpido",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = AppColors.Warning800,
+                        color = kilnColors.warning,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     ),
@@ -86,7 +79,7 @@ fun KilnInterruptedDialog(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF334155),
+                        color = kilnColors.body,
                         fontSize = 14.sp
                     ),
                     textAlign = TextAlign.Center
@@ -98,8 +91,8 @@ fun KilnInterruptedDialog(
                     onClick = onResume,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AppColors.Primary700,
-                        contentColor = Color.White
+                        containerColor = DialogBrand.primaryButton(),
+                        contentColor = kilnColors.onAccent
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -115,8 +108,9 @@ fun KilnInterruptedDialog(
                     onClick = onCancel,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, kilnColors.danger),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = AppColors.Error600
+                        contentColor = kilnColors.danger
                     )
                 ) {
                     Text(

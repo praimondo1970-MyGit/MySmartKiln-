@@ -49,7 +49,6 @@ import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.LocalThemeController
@@ -163,13 +162,6 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(180.dp))
             }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = kilnColors.screenBackground,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
         
         // Overlay del menú de agregar - SE SUPERPONE cuando isMenuOpen = true

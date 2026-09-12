@@ -21,7 +21,6 @@ import com.example.mysmartkiln.ui.components.DeviceCard
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
@@ -92,11 +91,6 @@ fun DevicesFoundScreen(
                         Spacer(modifier = Modifier.height(160.dp))
                     }
                 }
-                
-                // Gradiente de scroll
-                ScrollGradient(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
             }
         }
         

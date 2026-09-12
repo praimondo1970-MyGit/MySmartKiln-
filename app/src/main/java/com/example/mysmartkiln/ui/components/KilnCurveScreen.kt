@@ -54,7 +54,9 @@ fun KilnCurveScreen(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
         border = androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (kilnColors.isEsp) 0.dp else 4.dp
+        )
     ) {
         Column(
             modifier = Modifier

@@ -96,24 +96,35 @@ fun KilnDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 10.dp)
+                .padding(vertical = 4.dp)
         ) {
-            // Título a la izquierda; conexión + estado operativo apilados a la derecha
+            // Título + ID a la izquierda; conexión + estado a la derecha
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 12.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = kilnName,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        color = kilnColors.title,
-                        fontWeight = FontWeight.Bold
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = kilnName,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = kilnColors.title,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        ),
+                        maxLines = 1
                     )
-                )
+                    if (kilnColors.isEsp) {
+                        Text(
+                            text = "ID: ${kilnMacAddress.takeLast(8).uppercase()}",
+                            color = kilnColors.muted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
 
                 val statusLabel = when (dataSource) {
                     KilnDataSource.LOCAL_AP -> "Local"
@@ -139,7 +150,7 @@ fun KilnDetailScreen(
 
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -150,12 +161,12 @@ fun KilnDetailScreen(
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = kilnColors.title,
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             )
                         )
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(8.dp)
                                 .background(statusColor, CircleShape)
                         )
                     }
@@ -165,16 +176,15 @@ fun KilnDetailScreen(
 
             // Tab Navigation con indicador manual
             Column {
-                // Tabs sin indicador
                 TabRow(
                     selectedTabIndex = pagerState.currentPage,
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .height(27.dp), // Solo para los textos
+                        .padding(horizontal = 16.dp)
+                        .height(26.dp),
                     containerColor = kilnColors.screenBackground,
                     contentColor = kilnColors.accent,
-                    divider = {}, // Sin divisor
-                    indicator = {} // Sin indicador automático
+                    divider = {},
+                    indicator = {}
                 ) {
                     listOf("Estado", "Programa", "Curva").forEachIndexed { index, title ->
                         Tab(
@@ -186,40 +196,41 @@ fun KilnDetailScreen(
                             },
                             text = {
                                 Text(
-                                    text = title,
-                                    color = if (pagerState.currentPage == index) kilnColors.accent else kilnColors.muted,
+                                    text = if (kilnColors.isEsp) title.uppercase() else title,
+                                    color = if (pagerState.currentPage == index) {
+                                        kilnColors.accent
+                                    } else {
+                                        kilnColors.body
+                                    },
                                     fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 14.sp
+                                    fontSize = 13.sp
                                 )
                             }
                         )
                     }
                 }
-                
-                // Indicador manual debajo de los tabs
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .height(3.dp)
+                        .padding(horizontal = 16.dp)
+                        .height(2.dp)
                 ) {
-                    // Tres espacios para los tres tabs
                     repeat(3) { index ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(3.dp),
+                                .height(2.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Mostrar indicador solo en el tab seleccionado
                             if (index == pagerState.currentPage) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(0.5f) // 50% del ancho del tab
-                                        .height(3.dp)
+                                        .fillMaxWidth(0.4f)
+                                        .height(2.dp)
                                         .background(
                                             color = kilnColors.accent,
-                                            shape = RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)
+                                            shape = RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)
                                         )
                                 )
                             }
@@ -228,14 +239,16 @@ fun KilnDetailScreen(
                 }
             }
 
-            // Spacer para posicionar las Cards justo debajo de los tabs
-            Spacer(modifier = Modifier.height(10.dp))
-            
-            // Content with Horizontal Pager
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // El pager ocupa el resto: evita el “hueco muerto” del Spacer(weight)
+            // entre botones y el FAB/nav.
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.Top
             ) { page ->
                 when (page) {
                     0 -> KilnStatusScreen(
@@ -270,9 +283,6 @@ fun KilnDetailScreen(
                     )
                 }
             }
-            
-            // Spacer para el resto del espacio
-            Spacer(modifier = Modifier.weight(1f))
         }
 
         // Overlay del menú de agregar - SE SUPERPONE cuando isMenuOpen = true

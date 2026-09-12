@@ -1,6 +1,10 @@
 package com.example.mysmartkiln.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +61,18 @@ import com.example.mysmartkiln.ble.HybridConnectionState
 import com.example.mysmartkiln.utils.UserIdUtils
 import com.example.mysmartkiln.utils.ConnectivityManager
 import com.example.mysmartkiln.utils.ProgramStatusUtils
+
+/** Timeout sin updates del ESP → "Sin conexión" en la tarjeta ESP. */
+private const val ESP_CARD_TELEMETRY_STALE_MS = 3 * 60 * 1000L // 3 min
+
+private enum class KilnListChipKind {
+    BAKING,
+    PAUSED,
+    INTERRUPTED,
+    FINISHED,
+    CONNECTED,
+    OFFLINE
+}
 
 @Composable
 fun KilnCard(
@@ -389,39 +406,84 @@ fun KilnCard(
         animationSpec = tween(durationMillis = 200),
         label = "swipe"
     )
-    
+
+    val activityStatusText = when {
+        isBleConnected && bleStatus != null -> {
+            when (bleStatus) {
+                "CALENTANDO" -> "Horneando"
+                "PAUSADO" -> "Pausa"
+                "DETENIDO" -> "Detenido"
+                "FINALIZADO" -> "Finalizado"
+                "INTERRUMPIDO" -> "Interrumpido"
+                "IDLE" -> "Inactivo"
+                else -> "Inactivo"
+            }
+        }
+        firebaseStatus != null -> {
+            when (firebaseStatus) {
+                "running", "CALENTANDO" -> "Horneando"
+                "paused", "PAUSADO" -> "Pausa"
+                "stopped", "DETENIDO" -> "Detenido"
+                "finished", "FINALIZADO" -> "Finalizado"
+                "INTERRUMPIDO" -> "Interrumpido"
+                "idle", "IDLE" -> "Inactivo"
+                else -> "Inactivo"
+            }
+        }
+        else -> "Inactivo"
+    }
+    // Telemetría fresca del ESP (o BLE activo). Timeout 3 min para no parpadear en la lista.
+    // connectionCheckTicker fuerza recomposición cada ~5s para evaluar el stale.
+    val nowMs = if (connectionCheckTicker > 0L) connectionCheckTicker else System.currentTimeMillis()
+    val telemetryAgeMs = if (lastOnlineTimestamp > 0L) {
+        nowMs - lastOnlineTimestamp
+    } else {
+        Long.MAX_VALUE
+    }
+    val isTelemetryFresh =
+        isBleConnected || (lastOnlineTimestamp > 0L && telemetryAgeMs < ESP_CARD_TELEMETRY_STALE_MS)
+    val listChipKind = when {
+        !isTelemetryFresh -> KilnListChipKind.OFFLINE
+        activityStatusText == "Horneando" -> KilnListChipKind.BAKING
+        activityStatusText == "Pausa" -> KilnListChipKind.PAUSED
+        activityStatusText == "Interrumpido" -> KilnListChipKind.INTERRUPTED
+        activityStatusText == "Finalizado" -> KilnListChipKind.FINISHED
+        else -> KilnListChipKind.CONNECTED
+    }
+    val temperatureLabel = if (temperature != null) "${temperature?.toInt()}°C" else "--°C"
+    val cardHeight = if (kilnColors.isEsp) 96.dp else 235.dp
+    val cardCorner = if (kilnColors.isEsp) 12.dp else 16.dp
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .requiredHeight(235.dp)
+            .requiredHeight(cardHeight)
     ) {
-        // Swipe Actions (background) - usando patrón de ProgramCard
         KilnSwipeActions(
             onEdit = onEditClick,
             onDelete = onDeleteClick,
             modifier = Modifier
-                .align(Alignment.CenterEnd) // Alinear a la derecha
-                .requiredHeight(235.dp)
+                .align(Alignment.CenterEnd)
+                .requiredHeight(cardHeight)
         )
-        
-        // Main card (foreground)
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .requiredHeight(235.dp)
+                .requiredHeight(cardHeight)
                 .offset(x = swipeOffset.dp)
                 .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(16.dp)
+                    elevation = if (kilnColors.isEsp) 0.dp else 4.dp,
+                    shape = RoundedCornerShape(cardCorner)
                 )
                 .background(
                     color = kilnColors.cardBackground,
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(cardCorner)
                 )
                 .border(
                     width = 1.dp,
                     color = kilnColors.cardBorder,
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(cardCorner)
                 )
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
@@ -429,7 +491,6 @@ fun KilnCard(
                             offsetX = 0f
                         },
                         onDragEnd = {
-                            // Auto-close if not swiped enough to the left
                             if (offsetX > -10f) {
                                 isSwiped = false
                             }
@@ -442,264 +503,419 @@ fun KilnCard(
                             offsetX += dragAmount
                             val newOffset = swipeOffset + dragAmount
 
-                            // Si está deslizada hacia la izquierda y se desliza hacia la derecha
                             if (isSwiped && dragAmount > 0) {
-                                // Regresar a posición original si se desliza hacia la derecha
                                 isSwiped = false
-                            }
-                            // Deslizamiento normal hacia la izquierda
-                            else if (newOffset <= 0f && newOffset >= -160f) {
+                            } else if (newOffset <= 0f && newOffset >= -160f) {
                                 isSwiped = newOffset < -10f
                             }
                         }
                     )
                 }
-                .clickable { 
+                .clickable {
                     if (isSwiped) {
                         isSwiped = false
                     } else {
-                        onClick() 
+                        onClick()
                     }
                 }
-                .padding(16.dp)
+                .padding(if (kilnColors.isEsp) 12.dp else 16.dp)
         ) {
-            // Información del horno
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Nombre del horno (centrado)
-                Text(
-                    text = kiln.name,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        color = kilnColors.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    ),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
+            if (kilnColors.isEsp) {
+                KilnCardEspContent(
+                    kilnName = kiln.name,
+                    kilnId = "ID: ${kiln.macAddress.takeLast(8).uppercase()}",
+                    temperatureLabel = temperatureLabel,
+                    chipKind = listChipKind
                 )
-                
-                // Icono de temperatura debajo del nombre
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Icono de temperatura
-                    Box(
-                        modifier = Modifier
-                            .requiredSize(35.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(color = kilnColors.accent.copy(alpha = 0.15f))
-                            .padding(6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.etapa_temp),
-                            contentDescription = "Temperature",
-                            tint = kilnColors.accent,
-                            modifier = Modifier.requiredSize(24.dp)
-                        )
-                    }
-                    
-                    // Temperatura en tiempo real
-                    Text(
-                        text = if (temperature != null) "${temperature?.toInt()}°C" else "--°C",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = kilnColors.body,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    )
-                }
-                
-                // Icono dinámico: Bluetooth (BLE) > WiFi > Reloj (desconectado)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Icono con prioridad: Bluetooth > WiFi > Reloj
-                    Box(
-                        modifier = Modifier
-                            .requiredSize(35.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(color = kilnColors.accent.copy(alpha = 0.15f))
-                            .padding(6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                id = when {
-                                    // Solo mostrar Bluetooth cuando BLE está realmente conectado
-                                    connectionType == "ble" && isConnected -> R.drawable.icon_bluetooth
-                                    // Todos los demás casos usan WiFi
-                                    else -> R.drawable.icon_wifi
-                                }
-                            ),
-                            contentDescription = when {
-                                connectionType == "ble" && isConnected -> "Connected via Bluetooth"
-                                else -> "WiFi connection status"
-                            },
-                            tint = kilnColors.accent,
-                            modifier = Modifier.requiredSize(24.dp)
-                        )
-                    }
-                    
-                    // Texto dinámico según el estado de conexión
-                    val timeSinceLastOnline = calculateTimeSinceLastOnline(lastOnlineTimestamp)
-                    
-                    // Log para debugging de UI
-                    android.util.Log.d("KilnCard", "🎨 UI Update - connectionType: $connectionType, isConnected: $isConnected, lastOnlineTimestamp: $lastOnlineTimestamp")
-                    
-                    val displayText = when {
-                        // BLE conectado: solo "Conectado"
-                        connectionType == "ble" && isConnected -> "Conectado"
-                        // WiFi conectado: "Conectado"
-                        connectionType == "wifi" && isConnected -> "Conectado"
-                        // WiFi sin internet: "Sin internet"
-                        updatedConnectionState == HybridConnectionState.WIFI_NO_INTERNET -> "Sin internet"
-                        // WiFi Firebase down: "Sin conexion a la nube"
-                        updatedConnectionState == HybridConnectionState.WIFI_FIREBASE_DOWN -> "Sin conexion a la nube"
-                        // WiFi desconectado pero con timestamp: "Visto hace xxx"
-                        connectionType == "wifi" && !isConnected && lastOnlineTimestamp > 0 -> "Visto hace $timeSinceLastOnline"
-                        // WiFi desconectado sin timestamp: "Desconectado"
-                        connectionType == "wifi" && !isConnected -> "Desconectado"
-                        // BLE desconectado: "Desconectado"
-                        connectionType == "ble" && !isConnected -> "Desconectado"
-                        // Fallback: "Desconectado"
-                        else -> "Desconectado"
-                    }
-                    
-                    android.util.Log.d("KilnCard", "🎨 Texto final: $displayText")
-                    
-                    Text(
-                        text = displayText,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = kilnColors.body,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        )
-                    )
-                }
-                
-                // Icono de programa debajo de los iconos anteriores
-                // El espaciado de 12.dp del Column asegura la misma distancia entre filas
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        android.util.Log.d("KilnCard", "🔥 Program icon clicked for kiln: ${kiln.name}")
-                        onLoadProgramClick()
-                    }
-                ) {
-                    // Icono de programa
-                    Box(
-                        modifier = Modifier
-                            .requiredSize(35.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(color = kilnColors.accent.copy(alpha = 0.15f))
-                            .padding(6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.icon_programs),
-                            contentDescription = "Program",
-                            tint = kilnColors.accent,
-                            modifier = Modifier.requiredSize(24.dp)
-                        )
-                    }
-                    
-                    // Nombre del programa cargado o texto por defecto
-                    // Usar finalProgramName que viene de BLE (si hay conexión) o Firebase (si no hay BT)
-                    val programDisplayText = if (finalProgramName != null && finalProgramName.isNotEmpty()) {
-                        finalProgramName
-                    } else if (hasProgram) {
-                        "Programa activo"
-                    } else {
-                        "Sin programa"
-                    }
-                    
-                    Text(
-                        text = programDisplayText,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = kilnColors.body,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                
-                // Icono de estado de actividad (llama) debajo del icono de programa
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Icono de llama
-                    Box(
-                        modifier = Modifier
-                            .requiredSize(35.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(color = kilnColors.accent.copy(alpha = 0.15f))
-                            .padding(6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.icon_flame),
-                            contentDescription = "Activity Status",
-                            tint = kilnColors.accent,
-                            modifier = Modifier.requiredSize(24.dp)
-                        )
-                    }
-                    
-                    // Texto del estado de actividad
-                    val activityStatusText = when {
-                        // Prioridad 1: Estado desde BLE (más confiable)
-                        isBleConnected && bleStatus != null -> {
-                            when (bleStatus) {
-                                "CALENTANDO" -> "Horneando"
-                                "PAUSADO" -> "Pausa"
-                                "DETENIDO" -> "Detenido"
-                                "FINALIZADO" -> "Finalizado"
-                                "INTERRUMPIDO" -> "Interrumpido"
-                                "IDLE" -> "Inactivo"
-                                else -> "Inactivo"
-                            }
-                        }
-                        // Prioridad 2: Estado desde Firebase
-                        firebaseStatus != null -> {
-                            when (firebaseStatus) {
-                                "running", "CALENTANDO" -> "Horneando"
-                                "paused", "PAUSADO" -> "Pausa"
-                                "stopped", "DETENIDO" -> "Detenido"
-                                "finished", "FINALIZADO" -> "Finalizado"
-                                "INTERRUMPIDO" -> "Interrumpido"
-                                "idle", "IDLE" -> "Inactivo"
-                                else -> "Inactivo"
-                            }
-                        }
-                        // Fallback: Sin estado conocido
-                        else -> "Inactivo"
-                    }
-                    
-                    Text(
-                        text = activityStatusText,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            color = kilnColors.body,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+            } else {
+                KilnCardClassicContent(
+                    kilnName = kiln.name,
+                    temperatureLabel = temperatureLabel,
+                    connectionType = connectionType,
+                    isConnected = isConnected,
+                    updatedConnectionState = updatedConnectionState,
+                    lastOnlineTimestamp = lastOnlineTimestamp,
+                    finalProgramName = finalProgramName,
+                    hasProgram = hasProgram,
+                    activityStatusText = activityStatusText,
+                    onLoadProgramClick = onLoadProgramClick
+                )
             }
         }
     }
 }
+
+@Composable
+private fun KilnCardEspContent(
+    kilnName: String,
+    kilnId: String,
+    temperatureLabel: String,
+    chipKind: KilnListChipKind
+) {
+    val kilnColors = LocalKilnColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.icon_flame),
+            contentDescription = null,
+            tint = kilnColors.accent,
+            modifier = Modifier.size(36.dp)
+        )
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = kilnName,
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = kilnId,
+                    color = kilnColors.muted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_thermometer),
+                        contentDescription = null,
+                        tint = kilnColors.accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = temperatureLabel,
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        maxLines = 1
+                    )
+                }
+                KilnListStatusChip(
+                    kind = chipKind,
+                    modifier = Modifier.offset(x = 10.dp)
+                )
+            }
+        }
+
+        Icon(
+            painter = painterResource(id = R.drawable.icon_arrow_right),
+            contentDescription = null,
+            tint = kilnColors.muted,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun KilnListStatusChip(
+    kind: KilnListChipKind,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    val transition = rememberInfiniteTransition(label = "pauseBlink")
+    val blinkAlpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pauseAlpha"
+    )
+    val pauseAlpha = if (kind == KilnListChipKind.PAUSED) blinkAlpha else 1f
+
+    val style = when (kind) {
+        KilnListChipKind.BAKING -> ChipStyle(
+            bg = kilnColors.accent,
+            fg = kilnColors.onAccent,
+            label = "HORNEANDO",
+            showFlame = true
+        )
+        KilnListChipKind.PAUSED -> ChipStyle(
+            bg = kilnColors.warning.copy(alpha = 0.22f),
+            fg = kilnColors.warning,
+            label = "PAUSA",
+            showFlame = false
+        )
+        KilnListChipKind.INTERRUPTED -> ChipStyle(
+            bg = kilnColors.danger.copy(alpha = 0.22f),
+            fg = kilnColors.danger,
+            label = "INTERRUMPIDO",
+            showFlame = false
+        )
+        KilnListChipKind.FINISHED -> ChipStyle(
+            bg = kilnColors.success.copy(alpha = 0.22f),
+            fg = kilnColors.success,
+            label = "FINALIZADO",
+            showFlame = false
+        )
+        KilnListChipKind.CONNECTED -> ChipStyle(
+            bg = kilnColors.muted.copy(alpha = 0.22f),
+            fg = Color(0xFFE0E0E0),
+            label = "INACTIVO",
+            showFlame = false
+        )
+        KilnListChipKind.OFFLINE -> ChipStyle(
+            bg = kilnColors.track,
+            fg = kilnColors.muted,
+            label = "Sin conexión",
+            showFlame = false
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .alpha(pauseAlpha)
+            .clip(RoundedCornerShape(18.dp))
+            .background(style.bg)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (style.showFlame) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_flame),
+                    contentDescription = null,
+                    tint = style.fg,
+                    modifier = Modifier.size(12.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(style.fg, CircleShape)
+                )
+            }
+            Text(
+                text = style.label,
+                color = style.fg,
+                fontWeight = if (kind == KilnListChipKind.BAKING) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = 11.sp,
+                lineHeight = 13.sp,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+private data class ChipStyle(
+    val bg: Color,
+    val fg: Color,
+    val label: String,
+    val showFlame: Boolean
+)
+
+@Composable
+private fun KilnCardClassicContent(
+    kilnName: String,
+    temperatureLabel: String,
+    connectionType: String,
+    isConnected: Boolean,
+    updatedConnectionState: HybridConnectionState,
+    lastOnlineTimestamp: Long,
+    finalProgramName: String?,
+    hasProgram: Boolean,
+    activityStatusText: String,
+    onLoadProgramClick: () -> Unit
+) {
+    val kilnColors = LocalKilnColors.current
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = kilnName,
+            style = MaterialTheme.typography.titleMedium.copy(
+                color = kilnColors.title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            ),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(35.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color = kilnColors.accent.copy(alpha = 0.15f))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.etapa_temp),
+                    contentDescription = "Temperature",
+                    tint = kilnColors.accent,
+                    modifier = Modifier.requiredSize(24.dp)
+                )
+            }
+
+            Text(
+                text = temperatureLabel,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = kilnColors.body,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(35.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color = kilnColors.accent.copy(alpha = 0.15f))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = when {
+                            connectionType == "ble" && isConnected -> R.drawable.icon_bluetooth
+                            else -> R.drawable.icon_wifi
+                        }
+                    ),
+                    contentDescription = when {
+                        connectionType == "ble" && isConnected -> "Connected via Bluetooth"
+                        else -> "WiFi connection status"
+                    },
+                    tint = kilnColors.accent,
+                    modifier = Modifier.requiredSize(24.dp)
+                )
+            }
+
+            val timeSinceLastOnline = calculateTimeSinceLastOnline(lastOnlineTimestamp)
+            val displayText = when {
+                connectionType == "ble" && isConnected -> "Conectado"
+                connectionType == "wifi" && isConnected -> "Conectado"
+                updatedConnectionState == HybridConnectionState.WIFI_NO_INTERNET -> "Sin internet"
+                updatedConnectionState == HybridConnectionState.WIFI_FIREBASE_DOWN -> "Sin nube"
+                connectionType == "wifi" && !isConnected && lastOnlineTimestamp > 0 -> "Visto hace $timeSinceLastOnline"
+                connectionType == "wifi" && !isConnected -> "Desconectado"
+                connectionType == "ble" && !isConnected -> "Desconectado"
+                else -> "Desconectado"
+            }
+
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = kilnColors.body,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp
+                )
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable {
+                onLoadProgramClick()
+            }
+        ) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(35.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color = kilnColors.accent.copy(alpha = 0.15f))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_programs),
+                    contentDescription = "Program",
+                    tint = kilnColors.accent,
+                    modifier = Modifier.requiredSize(24.dp)
+                )
+            }
+
+            val programDisplayText = if (finalProgramName != null && finalProgramName.isNotEmpty()) {
+                finalProgramName
+            } else if (hasProgram) {
+                "Programa activo"
+            } else {
+                "Sin programa"
+            }
+
+            Text(
+                text = programDisplayText,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = kilnColors.body,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(35.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color = kilnColors.accent.copy(alpha = 0.15f))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_flame),
+                    contentDescription = "Activity Status",
+                    tint = kilnColors.accent,
+                    modifier = Modifier.requiredSize(24.dp)
+                )
+            }
+
+            Text(
+                text = activityStatusText,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = kilnColors.body,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 
 /**
  * Calcula el tiempo transcurrido desde la última conexión
@@ -719,12 +935,12 @@ private fun calculateTimeSinceLastOnline(timestamp: Long): String {
         elapsedSeconds < 60 -> "${elapsedSeconds}s"
         elapsedSeconds < 3600 -> {
             val minutes = elapsedSeconds / 60
-            "${minutes}min"
+            "${minutes}m"
         }
         elapsedSeconds < 86400 -> {
             val hours = elapsedSeconds / 3600
             val minutes = (elapsedSeconds % 3600) / 60
-            if (minutes > 0) "${hours}h ${minutes}min" else "${hours}h"
+            if (minutes > 0) "${hours}h ${minutes}m" else "${hours}h"
         }
         else -> {
             val days = elapsedSeconds / 86400

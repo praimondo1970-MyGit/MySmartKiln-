@@ -51,11 +51,11 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.mysmartkiln.R
+import com.example.mysmartkiln.ui.components.EspBrandHeader
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.OrangeHexagon
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
@@ -70,7 +70,7 @@ data class ActivityItem(
     val executionDate: String,    // "26/09/2025"
     val programName: String,      // "Esmalte de Gres"
     val maxTemperature: String,   // "1120"
-    val duration: String,         // "6h 30min"
+    val duration: String,         // "6h 30m"
     val timestamp: Long = System.currentTimeMillis() // Para ordenamiento
 )
 
@@ -97,7 +97,7 @@ fun ActivityScreen(
             executionDate = "26/09/2025",
             programName = "Esmalte de Gres",
             maxTemperature = "1120",
-            duration = "6h 30min"
+            duration = "6h 30m"
         ),
         ActivityItem(
             id = "2",
@@ -107,7 +107,7 @@ fun ActivityScreen(
             executionDate = "24/09/2025",
             programName = "Biscoho para baja temperatura",
             maxTemperature = "800",
-            duration = "10h 30min"
+            duration = "10h 30m"
         ),
         ActivityItem(
             id = "3",
@@ -117,7 +117,7 @@ fun ActivityScreen(
             executionDate = "15/09/2025",
             programName = "Gres media temperatura",
             maxTemperature = "1080",
-            duration = "6h 30min"
+            duration = "6h 30m"
         )
     )
     
@@ -132,22 +132,48 @@ fun ActivityScreen(
                 .fillMaxSize()
                 .padding(vertical = 10.dp)
         ) {
-            // Título
-            Text(
-                text = "Actividad",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    color = LocalKilnColors.current.title,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
-            )
+            val kilnColors = LocalKilnColors.current
+
+            if (kilnColors.isEsp) {
+                EspBrandHeader(
+                    modifier = Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 48.dp,
+                        bottom = 8.dp
+                    )
+                )
+                Text(
+                    text = "Actividad",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 8.dp,
+                        bottom = 16.dp
+                    )
+                )
+            } else {
+                Text(
+                    text = "Actividad",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
+                )
+            }
             
-            // SearchBar
+            // SearchBar (mismo estilo compacto del mockup ESP)
             SearchBar(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
+                placeholder = "Buscar...",
                 onSearchClick = { /* Solo funciona como filtro */ },
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
             )
             
             // Separador de fecha
@@ -177,22 +203,17 @@ fun ActivityScreen(
                         )
                     }
                     
-                    // Espacio adicional al final para el gradiente
+                    // Espacio final para poder desplazar la última tarjeta
                     item {
-                    Spacer(modifier = Modifier.height(40.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
             }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = LocalKilnColors.current.screenBackground,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-        }
         
-        // Bottom spacing for navigation
-        Spacer(modifier = Modifier.height(160.dp))
+            // Misma distancia al + que en Programas (~12–15dp en ESP).
+            Spacer(
+                modifier = Modifier.height(if (kilnColors.isEsp) 110.dp else 160.dp)
+            )
         }
         
         // Overlay del menú de agregar
@@ -454,45 +475,61 @@ private fun ActivitySwipeActions(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = modifier
             .width(80.dp)
-            .requiredHeight(height = 130.dp)
+            .requiredHeight(height = 130.dp),
+        contentAlignment = Alignment.CenterEnd
     ) {
-        // Botón de Borrar (azul) - mismo estilo que ProgramSwipeActions
-        Box(
-            modifier = Modifier
-                .align(alignment = Alignment.CenterEnd)
-                .requiredSize(size = 64.dp)
-                .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = LocalKilnColors.current.fab) // Mismo color que ProgramSwipeActions
-                .clickable { onDelete() }
-        ) {
-            Box(
+        val shape = RoundedCornerShape(12.dp)
+        if (kilnColors.isEsp) {
+            val tint = kilnColors.title.copy(alpha = 0.72f)
+            Column(
                 modifier = Modifier
-                    .align(alignment = Alignment.Center)
-                    .offset(y = 4.dp)
-                    .requiredWidth(width = 36.dp)
-                    .requiredHeight(height = 48.dp)
+                    .requiredSize(width = 62.dp, height = 72.dp)
+                    .border(1.dp, tint, shape)
+                    .clip(shape)
+                    .clickable(onClick = onDelete),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.typedeletesize16colorblack),
-                    contentDescription = "Delete",
-                    modifier = Modifier
-                        .align(alignment = Alignment.TopCenter)
-                        .requiredWidth(width = 25.dp)
-                        .requiredHeight(height = 24.dp)
+                    contentDescription = "BORRAR",
+                    tint = tint,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = "BORRAR",
+                    color = tint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .requiredSize(64.dp)
+                    .clip(shape)
+                    .background(AppColors.Primary400)
+                    .clickable(onClick = onDelete),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.typedeletesize16colorblack),
+                    contentDescription = "borrar",
+                    tint = AppColors.White,
+                    modifier = Modifier.size(22.dp)
                 )
                 Text(
                     text = "borrar",
-                    color = LocalKilnColors.current.onAccent,
-                    lineHeight = 1.em,
-                    style = TextStyle(fontSize = 10.sp),
-                    modifier = Modifier
-                        .align(alignment = Alignment.BottomCenter)
-                        .offset(x = 6.dp, y = 2.dp)
-                        .requiredWidth(width = 36.dp)
-                        .requiredHeight(height = 23.dp)
+                    color = AppColors.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
             }
         }
@@ -524,7 +561,7 @@ fun ActivityCardPreview() {
                     executionDate = "26/09/2025",
                     programName = "Esmalte de Gres",
                     maxTemperature = "1120",
-                    duration = "6h 30min"
+                    duration = "6h 30m"
                 ),
                 onDelete = { /* Delete action */ }
             )

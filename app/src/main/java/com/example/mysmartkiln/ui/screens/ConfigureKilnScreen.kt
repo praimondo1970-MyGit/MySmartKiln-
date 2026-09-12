@@ -48,7 +48,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
 import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
@@ -506,19 +505,12 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
-                    
-                    // Espacio adicional al final para el gradiente
+
+                    // Espacio adicional al final
                     item {
                         Spacer(modifier = Modifier.height(40.dp))
                     }
                 }
-                
-                // Gradiente en la parte inferior
-                ScrollGradient(
-                    height = 40.dp,
-                    backgroundColor = AppColors.Primary100,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
             }
             
             // Espacio antes del botón

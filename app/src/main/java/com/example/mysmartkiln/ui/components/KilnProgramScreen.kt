@@ -95,7 +95,9 @@ fun KilnProgramScreen(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
         border = androidx.compose.foundation.BorderStroke(1.dp, kilnColors.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (kilnColors.isEsp) 0.dp else 4.dp
+        )
     ) {
         Column(
             modifier = Modifier
@@ -216,7 +218,11 @@ fun KilnProgramScreen(
                     .fillMaxWidth()
                     .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = kilnColors.accent
+                    containerColor = if (kilnColors.isEsp) {
+                        Color(0xFFFF7811) // mismo naranja que INICIAR en Estado
+                    } else {
+                        kilnColors.accent
+                    }
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {

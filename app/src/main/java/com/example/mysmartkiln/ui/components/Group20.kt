@@ -57,7 +57,7 @@ fun Group20(
             // Speed Field
             StageInputField(
                 label = "", // Ya no necesita label
-                unit = "°C/Min",
+                unit = "°C/min",
                 value = speed,
                 onValueChange = onSpeedChange,
                 textOffset = (-4).dp // Offset del texto dentro del campo
@@ -66,7 +66,7 @@ fun Group20(
             // Maintenance Field
             StageInputField(
                 label = "", // Ya no necesita label
-                unit = "Min",
+                unit = "m",
                 value = maintenance,
                 onValueChange = onMaintenanceChange,
                 textOffset = 1.dp // Offset del texto dentro del campo

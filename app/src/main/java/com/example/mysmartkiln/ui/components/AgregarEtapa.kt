@@ -30,12 +30,12 @@ fun AgregarEtapa(
         contentAlignment = Alignment.CenterStart // Align to left instead of center
     ) {
         Text(
-            text = text,
+            text = if (LocalKilnColors.current.isEsp) text.uppercase() else text,
             style = MaterialTheme.typography.titleLarge.copy(
-                color = LocalKilnColors.current.title, // Dark blue - same as CrearPrograma
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Bold
             ),
-            textAlign = TextAlign.Start // Left align instead of center
+            textAlign = TextAlign.Start
         )
     }
 }

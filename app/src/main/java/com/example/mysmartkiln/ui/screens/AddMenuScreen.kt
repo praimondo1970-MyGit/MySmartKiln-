@@ -19,7 +19,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.ui.components.NewKilnCard
 import com.example.mysmartkiln.ui.components.NewProgramCard
-import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
@@ -39,43 +38,36 @@ fun AddMenuScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = LocalKilnColors.current.screenBackground.copy(alpha = 0.40f)) // Fondo semi-transparente al 40% para ver el contenido debajo
+            .background(
+                color = if (LocalKilnColors.current.isEsp) {
+                    LocalKilnColors.current.screenBackground.copy(alpha = 0.72f)
+                } else {
+                    LocalKilnColors.current.screenBackground.copy(alpha = 0.40f)
+                }
+            )
             .clickable(
                 interactionSource = backgroundInteractionSource,
-                indication = null // Sin efecto visual
-            ) { onDismiss() } // Cerrar el menú al hacer click en el fondo
+                indication = null
+            ) { onDismiss() }
     ) {
-        // Contenido principal - tarjetas de selección
         Column(
-            modifier = Modifier
-                .fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Bottom
         ) {
-            // Contenedor de las tarjetas con offset hacia abajo
             Column(
-                modifier = Modifier.offset(y = 10.dp) // Mueve las tarjetas 10dp más abajo
+                modifier = Modifier.offset(y = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Tarjeta "Nuevo Programa" con padding horizontal
                 NewProgramCard(
-                    onClick = {
-                        onNewProgramClick()
-                    },
+                    onClick = { onNewProgramClick() },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Tarjeta "Nuevo Horno" con padding horizontal
                 NewKilnCard(
-                    onClick = {
-                        onNewKilnClick()
-                    },
+                    onClick = { onNewKilnClick() },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-            
-            // Espaciador para posicionar 200dp desde el límite inferior
             Spacer(modifier = Modifier.height(200.dp))
         }
     }

@@ -41,13 +41,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mysmartkiln.ui.components.AppPrimaryButton
+import com.example.mysmartkiln.ui.components.EspBrandHeader
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.Plusbtn
 import com.example.mysmartkiln.ui.components.ProgramCard
 import com.example.mysmartkiln.ui.components.ProgramCardData
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.viewmodels.ProgramsListViewModel
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
@@ -177,28 +177,53 @@ private fun ProgramsListContent(
     onDuplicateProgram: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     // Estado para rastrear qué tarjeta está abierta
     var openCardId by remember { mutableStateOf<String?>(null) }
-    
-        Column(
+
+    Column(
         modifier = modifier.padding(vertical = 10.dp) // Remover padding horizontal para permitir swipe
     ) {
-        // Title - Same position as "Crear Programa"
-        Text(
-            text = "Programas",
-            style = MaterialTheme.typography.titleLarge.copy(
-                color = LocalKilnColors.current.title,
-                fontWeight = FontWeight.Bold
-            ),
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
-        )
+        if (kilnColors.isEsp) {
+            EspBrandHeader(
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 48.dp,
+                    bottom = 8.dp
+                )
+            )
+            Text(
+                text = "Programas",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 8.dp,
+                    bottom = 16.dp
+                )
+            )
+        } else {
+            Text(
+                text = "Programas",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
+            )
+        }
         
-        // Search bar
+        // Search bar (mockup ESP: compacta, icono a la izquierda)
         SearchBar(
             query = searchQuery,
             onQueryChange = onSearchQueryChange,
+            placeholder = "Buscar programas...",
             onSearchClick = { /* Solo funciona como filtro, no navega */ },
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
         )
         
         // Programs list con gradiente
@@ -224,22 +249,17 @@ private fun ProgramsListContent(
                     )
                 }
                 
-                // Espacio adicional al final para el gradiente
+                // Espacio final para poder desplazar la última tarjeta
                 item {
-                    Spacer(modifier = Modifier.height(40.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = LocalKilnColors.current.screenBackground,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
         
-        // Bottom spacing for navigation
-        Spacer(modifier = Modifier.height(160.dp))
+        // Deja ~12–15dp entre el final del scroll y el botón + (ESP).
+        Spacer(
+            modifier = Modifier.height(if (kilnColors.isEsp) 110.dp else 160.dp)
+        )
     }
 }
 
@@ -248,6 +268,7 @@ private fun EmptyProgramsContent(
     onCreateProgram: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = modifier
             .padding(horizontal = 24.dp)
@@ -255,6 +276,13 @@ private fun EmptyProgramsContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
         ) {
+            if (kilnColors.isEsp) {
+                EspBrandHeader(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp, bottom = 8.dp)
+                )
+            }
             // Top Content Group
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally

@@ -123,3 +123,9 @@ git checkout master
 - Cambiar `applicationId` (salvo que más adelante se pida build side-by-side).
 - Copiar layout landscape 800×480 1:1 al teléfono.
 - Toclar firmware ESP en este trabajo.
+
+## Pendiente UX / Auth (recordar)
+
+- **Google Sign-In (Gmail):** evaluar cuando el flujo email/password + Recordarme esté estable.
+  Tiene sentido para onboarding más rápido; implica Firebase Auth Google provider, SHA-1 en Firebase Console, y UI en Login/Splash.
+  Advertir al usuario en la próxima fase de auth / post-QA si aún no se hizo.

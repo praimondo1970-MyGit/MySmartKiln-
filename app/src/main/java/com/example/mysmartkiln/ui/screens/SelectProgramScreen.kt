@@ -43,7 +43,6 @@ import com.example.mysmartkiln.ui.components.ProgramCard
 import com.example.mysmartkiln.ui.components.ProgramCardData
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
 import com.example.mysmartkiln.ui.components.BottomNavBarBackground
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
@@ -199,8 +198,9 @@ private fun SelectProgramListContent(
         SearchBar(
             query = searchQuery,
             onQueryChange = onSearchQueryChange,
+            placeholder = "Buscar programas...",
             onSearchClick = { /* Solo funciona como filtro */ },
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
         )
         
         // Programs list with gradient
@@ -225,18 +225,10 @@ private fun SelectProgramListContent(
                     )
                 }
                 
-                // Extra space at the end for gradient
                 item {
                     Spacer(modifier = Modifier.height(40.dp))
                 }
             }
-            
-            // Gradient at the bottom
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = LocalKilnColors.current.screenBackground,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
         
         // Bottom spacing for navigation

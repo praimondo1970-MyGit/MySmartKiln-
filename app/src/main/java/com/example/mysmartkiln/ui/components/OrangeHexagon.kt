@@ -21,7 +21,7 @@ import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 fun OrangeHexagon(
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 44.dp,
-    color: Color = AppColors.Primary300 // Color del hexágono
+    color: Color = AppColors.Primary300
 ) {
     Image(
         painter = painterResource(id = R.drawable.poligono_iconos),

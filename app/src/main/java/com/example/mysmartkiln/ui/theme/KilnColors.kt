@@ -64,7 +64,7 @@ data class KilnColors(
             accent = EspBrand.Orange,
             accentMuted = EspBrand.OrangeDim,
             onAccent = EspBrand.White,
-            navBar = Color(0xFF1F1F1F),
+            navBar = EspBrand.NavBar,
             fab = EspBrand.Orange,
             onFab = EspBrand.White,
             track = EspBrand.TrackGray,

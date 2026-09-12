@@ -22,23 +22,28 @@ fun AgregarButton(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp), // Same height as Comenzar button
+            .height(48.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = LocalKilnColors.current.accent,
-            contentColor = LocalKilnColors.current.onAccent,
-            disabledContainerColor = LocalKilnColors.current.cardBorder,
-            disabledContentColor = LocalKilnColors.current.muted
+            containerColor = if (kilnColors.isEsp) {
+                Color(0xFFFF7811) // mismo naranja que INICIAR
+            } else {
+                kilnColors.accent
+            },
+            contentColor = kilnColors.onAccent,
+            disabledContainerColor = kilnColors.cardBorder,
+            disabledContentColor = kilnColors.muted
         ),
-        shape = RoundedCornerShape(16.dp) // Same shape as Comenzar button
+        shape = RoundedCornerShape(if (kilnColors.isEsp) 12.dp else 16.dp)
     ) {
         Text(
             text = "Agregar",
-            style = MaterialTheme.typography.titleMedium // Same style as Comenzar button
+            style = MaterialTheme.typography.titleMedium
         )
     }
 }

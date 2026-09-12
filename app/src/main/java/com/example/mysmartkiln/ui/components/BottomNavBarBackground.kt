@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -74,26 +76,54 @@ private fun Path.appendNavTopCurve(width: Float, d: Float, curveStartY: Float) {
 fun BottomNavBarBackground(modifier: Modifier = Modifier) {
     val kilnColors = LocalKilnColors.current
     val topBorderColor = kilnColors.cardBorder
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .requiredHeight(141.dp)
-            .background(color = kilnColors.navBar, shape = CurvedBottomNavShape)
-            .drawWithContent {
-                drawContent()
-                val d = density
-                val curveStartY = 34f * d
-                val topPath = Path().apply {
-                    moveTo(0f, curveStartY)
-                    lineTo(size.width * (147f / 390f), curveStartY)
-                    appendNavTopCurve(size.width, d, curveStartY)
-                    lineTo(size.width, curveStartY)
+
+    if (kilnColors.isEsp) {
+        // ESP: barra plana (sin notch); el + vive dentro de la fila de tabs.
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .requiredHeight(141.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .requiredHeight(107.dp)
+                    .background(color = kilnColors.navBar)
+                    .drawWithContent {
+                        drawContent()
+                        drawLine(
+                            color = topBorderColor,
+                            start = Offset(0f, 0f),
+                            end = Offset(size.width, 0f),
+                            strokeWidth = 1.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+            )
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .requiredHeight(141.dp)
+                .background(color = kilnColors.navBar, shape = CurvedBottomNavShape)
+                .drawWithContent {
+                    drawContent()
+                    val d = density
+                    val curveStartY = 34f * d
+                    val topPath = Path().apply {
+                        moveTo(0f, curveStartY)
+                        lineTo(size.width * (147f / 390f), curveStartY)
+                        appendNavTopCurve(size.width, d, curveStartY)
+                        lineTo(size.width, curveStartY)
+                    }
+                    drawPath(
+                        path = topPath,
+                        color = topBorderColor,
+                        style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round)
+                    )
                 }
-                drawPath(
-                    path = topPath,
-                    color = topBorderColor,
-                    style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round)
-                )
-            }
-    )
+        )
+    }
 }

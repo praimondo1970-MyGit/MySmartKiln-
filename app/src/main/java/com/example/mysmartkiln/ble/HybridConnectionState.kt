@@ -7,7 +7,7 @@ enum class HybridConnectionState {
     BLE_CONNECTED,      // "Conectado" + icono Bluetooth
     WIFI_ONLINE,        // "Conectado" + icono WiFi (internet + Firebase OK)
     WIFI_NO_INTERNET,   // "Sin internet" + icono WiFi
-    WIFI_FIREBASE_DOWN, // "Sin conexion a la nube" + icono WiFi
+    WIFI_FIREBASE_DOWN, // "Sin nube" + icono WiFi
     OFFLINE             // "Desconectado" + icono offline
 }
 

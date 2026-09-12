@@ -4,12 +4,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -17,8 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -33,68 +33,120 @@ import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
-/**
- * Componente para la tarjeta "Nuevo Programa"
- * Muestra un fondo blanco con imagen bg_new_item_card2 superpuesta y el icono/texto blanco
- */
 @Composable
 fun NewProgramCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val kilnColors = LocalKilnColors.current
+    if (kilnColors.isEsp) {
+        EspAddActionCard(
+            title = "Nuevo Programa",
+            onClick = onClick,
+            modifier = modifier
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = R.drawable.nav_programas),
+                contentDescription = "Icono programa",
+                tint = kilnColors.accent,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    } else {
+        ClassicNewProgramCard(modifier = modifier, onClick = onClick)
+    }
+}
+
+@Composable
+private fun ClassicNewProgramCard(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val kilnColors = LocalKilnColors.current
+    val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(83.dp) // Incrementada 10% (75dp * 1.1 = 82.5dp ≈ 83dp)
-            .clip(shape = RoundedCornerShape(16.dp)) // Reducido para coincidir con las imágenes
-            .background(color = LocalKilnColors.current.cardBackground) // Fondo blanco
+            .height(83.dp)
+            .clip(shape)
+            .background(color = kilnColors.cardBackground)
             .clickable { onClick() }
     ) {
-        // Imagen superpuesta sobre el fondo blanco - responsive al ancho de la tarjeta
         Image(
             painter = painterResource(id = R.drawable.bg_new_item_card2),
             contentDescription = null,
             modifier = Modifier
-                .align(Alignment.BottomStart) // Alineada desde extremo inferior izquierdo
-                .fillMaxWidth() // Responsive: toma todo el ancho disponible
-                .height(83.dp), // Altura exacta de la tarjeta
-            contentScale = ContentScale.FillBounds // Deforma la imagen para llenar exactamente el área
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(83.dp),
+            contentScale = ContentScale.FillBounds
         )
-        
-        // Contenedor del hexágono e icono
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 24.dp)
-                .size(44.dp) // Aumentado a 44dp para coincidir con el hexágono
+                .size(44.dp)
         ) {
-            // Hexágono azul como fondo
-            OrangeHexagon(
-                modifier = Modifier.size(44.dp)
-            )
-            
-            // Icono de programa - centrado automáticamente dentro del Box/hexágono
+            OrangeHexagon(modifier = Modifier.size(44.dp), color = AppColors.Primary300)
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.nav_programas),
                 contentDescription = "Icono programa",
-                tint = LocalKilnColors.current.onAccent,
+                tint = kilnColors.onAccent,
                 modifier = Modifier
-                    .align(Alignment.Center) // Centrado automático dentro del Box
-                    .size(24.dp) // Reducido proporcionalmente (28dp * 40/48 = ~23dp, redondeado a 24dp)
+                    .align(Alignment.Center)
+                    .size(24.dp)
             )
         }
-        
-        // Texto "Nuevo Programa"
         Text(
             text = "Nuevo Programa",
             style = TextStyle(
-                fontSize = 17.sp, // Reducido mínimamente a 17sp
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = LocalKilnColors.current.muted // Azul
+                color = kilnColors.muted
             ),
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 80.dp)
+        )
+    }
+}
+
+@Composable
+internal fun EspAddActionCard(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit
+) {
+    val kilnColors = LocalKilnColors.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(shape)
+            .background(kilnColors.cardBackground, shape)
+            .border(1.dp, kilnColors.cardBorder, shape)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(kilnColors.track, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            icon()
+        }
+        Text(
+            text = title,
+            style = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = kilnColors.title
+            )
         )
     }
 }
@@ -106,4 +158,3 @@ private fun NewProgramCardPreview() {
         NewProgramCard()
     }
 }
-

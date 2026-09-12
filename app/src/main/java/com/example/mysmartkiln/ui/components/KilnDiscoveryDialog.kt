@@ -45,6 +45,8 @@ import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoDto
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.utils.KilnAccessPoint
 import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.WifiUtils
@@ -53,26 +55,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Diálogo de alta de horno por descubrimiento WiFi.
- *
- * Reemplaza el flujo viejo de "abrí Ajustes y seleccioná la red SmartKiln":
- *  1. Pide al usuario el permiso runtime que requiere `WifiNetworkSpecifier`
- *     (NEARBY_WIFI_DEVICES en Android 13+, ACCESS_FINE_LOCATION antes).
- *  2. Escanea redes WiFi y filtra las que arrancan con `SmartKiln-`.
- *  3. Lista los hornos detectados; al tap, deriva la passphrase WPA2 desde
- *     el BSSID y pide a Android conectarse vía WifiNetworkSpecifier.
- *  4. Cuando la asociación es aceptada, hace `GET /api/info` por la red
- *     bound y devuelve los datos del horno al caller.
- *
- * Si todo va bien, el caller recibe en [onKilnSelected] un [KilnInfoDto]
- * con name/model/volume/userId/macAddress prellenados desde el firmware,
- * y se ocupa de navegar a `ConfigureKilnScreen` para que el usuario
- * confirme/edite los datos antes de guardar.
  */
 @Composable
 fun KilnDiscoveryDialog(
     onDismiss: () -> Unit,
     onKilnSelected: (KilnInfoDto) -> Unit
 ) {
+    val kilnColors = LocalKilnColors.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val httpClient = remember { KilnHttpClient(context.applicationContext) }
@@ -124,12 +113,14 @@ fun KilnDiscoveryDialog(
         onDismissRequest = {
             if (connectingTo == null) onDismiss()
         },
+        containerColor = kilnColors.cardBackground,
+        shape = RoundedCornerShape(16.dp),
         title = {
             Text(
                 text = "Buscar horno",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.Primary700
+                    color = kilnColors.title
                 )
             )
         },
@@ -139,7 +130,7 @@ fun KilnDiscoveryDialog(
                     Text(
                         text = "Para descubrir hornos cercanos necesitamos permiso para ver redes WiFi.",
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF334155)
+                            color = kilnColors.body
                         )
                     )
                     Spacer(Modifier.height(12.dp))
@@ -150,8 +141,8 @@ fun KilnDiscoveryDialog(
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700,
-                            contentColor = Color.White
+                            containerColor = DialogBrand.primaryButton(),
+                            contentColor = kilnColors.onAccent
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
@@ -168,7 +159,7 @@ fun KilnDiscoveryDialog(
                 Text(
                     text = "Encendé el horno y verificá que esté en modo de configuración. Vamos a buscar las redes SmartKiln cercanas.",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFF334155)
+                        color = kilnColors.body
                     )
                 )
                 Spacer(Modifier.height(12.dp))
@@ -179,13 +170,13 @@ fun KilnDiscoveryDialog(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = AppColors.Primary700
+                                color = DialogBrand.primaryButton()
                             )
                             Spacer(Modifier.width(12.dp))
                             Text(
                                 text = "Buscando hornos…",
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = AppColors.Primary700
+                                    color = kilnColors.title
                                 )
                             )
                         }
@@ -231,7 +222,7 @@ fun KilnDiscoveryDialog(
                         Text(
                             text = "No detectamos ningún horno SmartKiln. Asegurate de que esté encendido y a pocos metros del teléfono.",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color(0xFF64748B)
+                                color = kilnColors.muted
                             )
                         )
                     }
@@ -241,13 +232,13 @@ fun KilnDiscoveryDialog(
                     Spacer(Modifier.height(10.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = AppColors.Error50,
+                        color = kilnColors.danger.copy(alpha = 0.18f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = AppColors.Error700,
+                                color = kilnColors.danger,
                                 fontSize = 13.sp
                             ),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
@@ -266,7 +257,7 @@ fun KilnDiscoveryDialog(
                 ) {
                     Text(
                         text = if (isScanning) "Buscando…" else "Buscar de nuevo",
-                        color = AppColors.Primary700,
+                        color = DialogBrand.primaryButton(),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -277,7 +268,7 @@ fun KilnDiscoveryDialog(
                 TextButton(onClick = onDismiss) {
                     Text(
                         text = "Cancelar",
-                        color = Color(0xFF64748B)
+                        color = kilnColors.muted
                     )
                 }
             }
@@ -291,9 +282,10 @@ private fun AccessPointRow(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val kilnColors = LocalKilnColors.current
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF1F5F9),
+        color = if (kilnColors.isEsp) kilnColors.track else Color(0xFFF1F5F9),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
@@ -310,13 +302,13 @@ private fun AccessPointRow(
                     text = accessPoint.ssid,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = AppColors.Primary700
+                        color = kilnColors.title
                     )
                 )
                 Text(
                     text = "Señal: ${accessPoint.signalLevel} dBm",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFF64748B)
+                        color = kilnColors.muted
                     )
                 )
             }
@@ -334,13 +326,14 @@ private fun AccessPointRow(
 
 @Composable
 private fun ConnectingBlock(ssid: String, phase: String) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(56.dp),
-            color = AppColors.Primary700,
+            color = DialogBrand.primaryButton(),
             strokeWidth = 4.dp
         )
         Spacer(Modifier.height(14.dp))
@@ -348,7 +341,7 @@ private fun ConnectingBlock(ssid: String, phase: String) {
             text = "Conectando a $ssid",
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = AppColors.Primary700
+                color = kilnColors.title
             )
         )
         if (phase.isNotBlank()) {
@@ -356,7 +349,7 @@ private fun ConnectingBlock(ssid: String, phase: String) {
             Text(
                 text = phase,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFF64748B)
+                    color = kilnColors.muted
                 )
             )
         }

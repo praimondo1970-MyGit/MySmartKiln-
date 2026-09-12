@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.components.AppPrimaryButton
+import com.example.mysmartkiln.ui.components.EspBrandHeader
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.Plusbtn
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
@@ -66,7 +67,6 @@ import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.ui.components.KilnCard
 import com.example.mysmartkiln.ui.components.KilnDiscoveryDialog
 import com.example.mysmartkiln.ui.components.KilnSearchInProgressOverlay
-import com.example.mysmartkiln.ui.components.ScrollGradient
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import com.example.mysmartkiln.ble.HybridConnectionState
@@ -196,15 +196,43 @@ fun KilnsScreen(
             Column(
                 modifier = Modifier.padding(vertical = 10.dp)
             ) {
-                // Título para hornos registrados (posición igual a "Actividad" y "Programas")
-                Text(
-                    text = "Mis Hornos",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        color = kilnColors.title,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
-                )
+                if (kilnColors.isEsp) {
+                    EspBrandHeader(
+                        modifier = Modifier.padding(
+                            start = 24.dp,
+                            end = 24.dp,
+                            top = 48.dp,
+                            bottom = 8.dp
+                        )
+                    )
+                    Text(
+                        text = "Hornos",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            color = kilnColors.title,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(
+                            start = 24.dp,
+                            end = 24.dp,
+                            top = 8.dp,
+                            bottom = 16.dp
+                        )
+                    )
+                } else {
+                    Text(
+                        text = "Mis Hornos",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            color = kilnColors.title,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(
+                            start = 24.dp,
+                            end = 24.dp,
+                            top = 70.dp,
+                            bottom = 16.dp
+                        )
+                    )
+                }
                 
                 // Lista de hornos registrados (mismo padding que ProgramsScreen)
                 Box(
@@ -253,13 +281,6 @@ fun KilnsScreen(
                             Spacer(modifier = Modifier.height(40.dp))
                         }
                     }
-                    
-                    // Gradiente en la parte inferior
-                    ScrollGradient(
-                        height = 40.dp,
-                        backgroundColor = kilnColors.screenBackground,
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
                 }
                 
                 // Bottom spacing for navigation
@@ -270,6 +291,14 @@ fun KilnsScreen(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (kilnColors.isEsp) {
+                    EspBrandHeader(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 24.dp, end = 24.dp, top = 58.dp)
+                    )
+                }
+
                 // Imagen posicionada en el centro-superior
                 Image(
                     painter = painterResource(

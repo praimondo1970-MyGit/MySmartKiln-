@@ -37,6 +37,9 @@ import androidx.compose.ui.res.painterResource
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.AppTypes
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
+import androidx.compose.foundation.border
 
 /**
  * Custom button components for MySmartKiln app
@@ -259,13 +262,16 @@ fun TypePrimarySizeDefaultStateActiveIconNewValue(
     label50447: String = "Comenzar ahora",
     onClick: () -> Unit = {}
 ) {
+    val kilnColors = LocalKilnColors.current
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .requiredWidth(width = 332.dp)
             .clip(shape = RoundedCornerShape(12.dp))
-            .background(color = AppColors.color_Primary_400)
+            .background(
+                color = if (kilnColors.isEsp) DialogBrand.PrimaryEsp else AppColors.color_Primary_400
+            )
             .padding(all = 16.dp)
             .clickable { onClick() }
     ) {
@@ -273,7 +279,7 @@ fun TypePrimarySizeDefaultStateActiveIconNewValue(
         if (haslabel50434) {
             Text(
                 text = label50447,
-                color = AppColors.color_Primary_800,
+                color = if (kilnColors.isEsp) kilnColors.onAccent else AppColors.color_Primary_800,
                 lineHeight = 1.21.em,
                 style = AppTypes.type_Button_Large
             )
@@ -306,13 +312,23 @@ fun TypeTerciarySizeDefaultStateActiveIconNewValue(
     haslabel50434: Boolean = true,
     onClick: () -> Unit = {}
 ) {
+    val kilnColors = LocalKilnColors.current
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .requiredWidth(width = 332.dp)
             .clip(shape = RoundedCornerShape(12.dp))
-            .background(color = AppColors.color_Terciary_800)
+            .background(
+                color = if (kilnColors.isEsp) kilnColors.cardBackground else AppColors.color_Terciary_800
+            )
+            .then(
+                if (kilnColors.isEsp) {
+                    Modifier.border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                }
+            )
             .padding(all = 16.dp)
             .clickable { onClick() }
     ) {
@@ -320,7 +336,7 @@ fun TypeTerciarySizeDefaultStateActiveIconNewValue(
         if (haslabel50434) {
             Text(
                 text = label50447,
-                color = AppColors.color_Primary_800,
+                color = if (kilnColors.isEsp) kilnColors.title else AppColors.color_Primary_800,
                 lineHeight = 1.21.em,
                 style = AppTypes.type_Button_Large
             )
@@ -331,6 +347,7 @@ fun TypeTerciarySizeDefaultStateActiveIconNewValue(
 
 @Composable
 fun HomeIndicatorWhite(modifier: Modifier = Modifier) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = modifier
             .requiredWidth(width = 390.dp)
@@ -343,7 +360,9 @@ fun HomeIndicatorWhite(modifier: Modifier = Modifier) {
                 .requiredWidth(width = 134.dp)
                 .requiredHeight(height = 5.dp)
                 .clip(shape = RoundedCornerShape(100.dp))
-                .background(color = AppColors.color_Primary_700)
+                .background(
+                    color = if (kilnColors.isEsp) kilnColors.muted else AppColors.color_Primary_700
+                )
         )
     }
 }

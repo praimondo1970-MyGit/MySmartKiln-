@@ -12,6 +12,8 @@ import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.example.mysmartkiln.data.local.KilnApiDefaults
+import com.example.mysmartkiln.data.local.SoftApDeviceType
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -38,7 +40,7 @@ object KilnNetworkConnector {
     var activeNetwork: Network? = null
         private set
 
-    /** Tras release(): evita re-pedir el AP en el mismo ciclo de resume (perfil B). */
+    /** Tras release(): evita re-pedir el AP en el mismo ciclo de resume (perfil C). */
     @Volatile
     var lastReleaseAtMs: Long = 0L
         private set
@@ -157,9 +159,22 @@ object KilnNetworkConnector {
     /**
      * Suelta el callback activo. Android vuelve solo a la red anterior (la WiFi
      * de casa con internet validada).
+     *
+     * @param markHandoffCooldown Solo true tras una sesión SoftAP real (ESP apaga
+     * el AP ~8–10 s perfil C). Cleanup al abrir la lista / salir de pantalla no debe
+     * bloquear «cambiar programa» ni otros comandos locales.
      */
-    fun release(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    fun release(context: Context, markHandoffCooldown: Boolean = false) {
+        // Crítico: si quedó bindProcessToNetwork al SoftAP (sin internet),
+        // Firebase/RTDB no llegan y TODOS los dispositivos aparecen desconectados.
+        KilnWifiNetworkBinder.unbind(context)
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (markHandoffCooldown) {
+                lastReleaseAtMs = System.currentTimeMillis()
+            }
+            return
+        }
         val cm = context.applicationContext
             .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return
@@ -173,22 +188,33 @@ object KilnNetworkConnector {
         }
         activeCallback = null
         activeNetwork = null
-        lastReleaseAtMs = System.currentTimeMillis()
+        if (markHandoffCooldown) {
+            lastReleaseAtMs = System.currentTimeMillis()
+            Log.d(TAG, "handoff SoftAP: cooldown de reconfiguración iniciado")
+        }
     }
 
     /**
-     * Construye el SSID del AP a partir del MAC del horno. El firmware usa el
-     * patrón `SmartKiln-XXXX` con los últimos 4 caracteres hex del MAC.
+     * SSID SoftAP del horno: `SmartKiln-` + últimos 8 hex (= passphrase).
+     * DataLogger usará [ssidFromMac] con prefijo SmartLink en su propio helper.
      */
     fun ssidFromMac(macAddress: String): String? {
-        val clean = macAddress.replace(":", "").replace("-", "").uppercase()
-        if (clean.length < 4) return null
-        return "SmartKiln-${clean.takeLast(4)}"
+        val pass = passphraseFromMac(macAddress) ?: return null
+        return "${KilnApiDefaults.SMART_KILN_SSID_PREFIX}-$pass"
+    }
+
+    fun ssidFromMac(macAddress: String, type: SoftApDeviceType): String? {
+        val pass = passphraseFromMac(macAddress) ?: return null
+        val prefix = when (type) {
+            SoftApDeviceType.DATALOGGER -> KilnApiDefaults.SMART_LINK_SSID_PREFIX
+            SoftApDeviceType.KILN, SoftApDeviceType.UNKNOWN ->
+                KilnApiDefaults.SMART_KILN_SSID_PREFIX
+        }
+        return "$prefix-$pass"
     }
 
     /**
-     * Construye la passphrase del AP a partir del MAC: últimos 8 caracteres hex
-     * del MAC del horno (formato usado por el firmware).
+     * Passphrase SoftAP = últimos 8 hex del MAC (WPA2, mismo sufijo del SSID).
      */
     fun passphraseFromMac(macAddress: String): String? {
         val clean = macAddress.replace(":", "").replace("-", "").uppercase()
@@ -197,11 +223,36 @@ object KilnNetworkConnector {
     }
 
     /**
-     * Variante de [passphraseFromMac] que acepta el BSSID que devuelve el
-     * scan WiFi (`aa:bb:cc:dd:ee:ff`). Funciona porque el ESP32-S3 deriva
-     * el MAC del SoftAP del MAC base del SoC, conservando los últimos 4
-     * bytes idénticos al MAC del controlador BT/STA con el que el firmware
-     * arma SSID y passphrase.
+     * Variante desde BSSID del scan. En ESP32 el SoftAP suele ser STA+1
+     * (ej. …C569 vs …C568 del SSID/pass), así que **no** es fuente primaria.
      */
     fun passphraseFromBssid(bssid: String): String? = passphraseFromMac(bssid)
+
+    /**
+     * Si el SSID es `SmartKiln-XXXXXXXX` / `SmartLink-XXXXXXXX` (8 hex),
+     * la clave es el sufijo. Legacy `SmartKiln-XXXX` (4) → null (usar BSSID).
+     */
+    fun passphraseFromSsid(ssid: String): String? {
+        val cleaned = ssid.trim().removeSurrounding("\"")
+        val suffix = when {
+            cleaned.startsWith("${KilnApiDefaults.SMART_LINK_SSID_PREFIX}-", ignoreCase = true) ->
+                cleaned.substring(KilnApiDefaults.SMART_LINK_SSID_PREFIX.length + 1)
+            cleaned.startsWith("${KilnApiDefaults.SMART_KILN_SSID_PREFIX}-", ignoreCase = true) ->
+                cleaned.substring(KilnApiDefaults.SMART_KILN_SSID_PREFIX.length + 1)
+            else -> return null
+        }
+        val hex = suffix.replace(":", "").replace("-", "").uppercase()
+        // Solo 8 hex: coincide con WPA2 pass del firmware. Sufijo corto = legacy.
+        if (hex.length == 8 && hex.all { it in '0'..'9' || it in 'A'..'F' }) return hex
+        return null
+    }
+
+    /**
+     * Preferir sufijo del SSID (misma fuente que el firmware).
+     * BSSID solo si el SSID no trae los 8 hex (legacy / sin sufijo).
+     */
+    fun resolvePassphrase(accessPoint: KilnAccessPoint): String? {
+        passphraseFromSsid(accessPoint.ssid)?.let { return it }
+        return passphraseFromBssid(accessPoint.bssid)
+    }
 }

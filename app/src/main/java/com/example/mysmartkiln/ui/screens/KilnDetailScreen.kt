@@ -19,6 +19,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.navigation.NavController
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.screens.AddMenuScreen
@@ -28,11 +34,15 @@ import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.KilnStatusScreen
 import com.example.mysmartkiln.ui.components.KilnProgramScreen
 import com.example.mysmartkiln.ui.components.KilnCurveScreen
+import com.example.mysmartkiln.ui.components.DataLoggerStatusScreen
+import com.example.mysmartkiln.ui.components.DataLoggerDataScreen
+import com.example.mysmartkiln.ui.components.DataLoggerCurveScreen
 import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
 import com.example.mysmartkiln.ui.components.KilnInterruptedDialog
 import com.example.mysmartkiln.ui.components.KilnApReconfigWaitDialog
 import com.example.mysmartkiln.ui.components.KilnEspStatusBadge
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
@@ -46,7 +56,13 @@ fun KilnDetailScreen(
     kilnMacAddress: String,
     viewModel: KilnDetailViewModel
 ) {
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val isDataLogger by viewModel.isDataLogger.collectAsState()
+    val tabTitles = if (isDataLogger) {
+        listOf("Estado", "Datos", "Curva")
+    } else {
+        listOf("Estado", "Programa", "Curva")
+    }
+    val pagerState = rememberPagerState(pageCount = { tabTitles.size })
     val scope = rememberCoroutineScope()
     var isMenuOpen by remember { mutableStateOf(false) }
     val kilnStatus by viewModel.kilnStatus.collectAsState()
@@ -56,6 +72,7 @@ fun KilnDetailScreen(
     val sendingDetail by viewModel.sendingCommandDetail.collectAsState()
     val showInterruptedDialog by viewModel.showInterruptedDialog.collectAsState()
     val apReconfigWaitDialog by viewModel.apReconfigWaitDialog.collectAsState()
+    val localActionError by viewModel.localActionError.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
     val kilnColors = LocalKilnColors.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -67,8 +84,8 @@ fun KilnDetailScreen(
     // Etapas para el círculo de duración: Firebase/HTTP suelen traer solo el
     // nombre; las etapas viven en Room. Sin esto, Status no dibuja arcos hasta
     // visitar la pestaña Programa (que sí llama ensureProgramStagesLoaded).
-    LaunchedEffect(kilnMacAddress, kilnProgram.name) {
-        if (kilnProgram.name.isNotBlank()) {
+    LaunchedEffect(kilnMacAddress, kilnProgram.name, isDataLogger) {
+        if (!isDataLogger && kilnProgram.name.isNotBlank()) {
             viewModel.ensureProgramStagesLoaded()
         }
     }
@@ -142,9 +159,33 @@ fun KilnDetailScreen(
                     KilnDataSource.DISCONNECTED ->
                         if (kilnStatus.currentTemperature > 0f) Color(0xFF10B981) else Color(0xFF94A3B8)
                 }
+                val loggerConnected = dataSource != KilnDataSource.DISCONNECTED &&
+                    (kilnStatus.isConnected || kilnStatus.currentTemperature > 0f)
                 val badgeStatus = when {
                     showInterruptedDialog -> "INTERRUMPIDO"
-                    kilnStatus.isReconnecting -> "RECONNECTING"
+                    // SoftAP: el HTTP local manda (aunque el flag isConnected
+                    // de Firebase parpadee en el handoff).
+                    dataSource == KilnDataSource.LOCAL_AP ->
+                        kilnStatus.espStatus.ifBlank { "IDLE" }
+                    // Pausa / horneando / interrumpido: no tapar con DESCONECTADO
+                    // durante el cambio SoftAP → WiFi casa (mismo bounce que el botón).
+                    kilnStatus.isPaused ||
+                        kilnStatus.espStatus.equals("PAUSADO", ignoreCase = true) ->
+                        "PAUSADO"
+                    kilnStatus.espStatus.equals("CALENTANDO", ignoreCase = true) ||
+                        kilnStatus.espStatus.equals("INTERRUMPIDO", ignoreCase = true) ||
+                        kilnStatus.espStatus.equals("RECONNECTING", ignoreCase = true) ||
+                        kilnStatus.espStatus.equals("FINALIZADO", ignoreCase = true) ->
+                        kilnStatus.espStatus
+                    !kilnStatus.isConnected &&
+                        kilnStatus.lastKnownEspStatus.equals("PAUSADO", ignoreCase = true) ->
+                        "PAUSADO"
+                    !kilnStatus.isConnected &&
+                        kilnStatus.lastKnownEspStatus.uppercase() in setOf(
+                            "CALENTANDO", "INTERRUMPIDO", "FINALIZADO"
+                        ) ->
+                        kilnStatus.lastKnownEspStatus
+                    !kilnStatus.isConnected -> "DESCONECTADO"
                     else -> kilnStatus.espStatus
                 }
 
@@ -170,14 +211,18 @@ fun KilnDetailScreen(
                                 .background(statusColor, CircleShape)
                         )
                     }
-                    KilnEspStatusBadge(espStatus = badgeStatus)
+                    if (isDataLogger) {
+                        DataLoggerConnectionBadge(connected = loggerConnected)
+                    } else {
+                        KilnEspStatusBadge(espStatus = badgeStatus)
+                    }
                 }
             }
 
             // Tab Navigation con indicador manual
             Column {
                 TabRow(
-                    selectedTabIndex = pagerState.currentPage,
+                    selectedTabIndex = pagerState.currentPage.coerceIn(0, tabTitles.lastIndex),
                     modifier = Modifier
                         .padding(horizontal = 16.dp)
                         .height(26.dp),
@@ -186,7 +231,7 @@ fun KilnDetailScreen(
                     divider = {},
                     indicator = {}
                 ) {
-                    listOf("Estado", "Programa", "Curva").forEachIndexed { index, title ->
+                    tabTitles.forEachIndexed { index, title ->
                         Tab(
                             selected = pagerState.currentPage == index,
                             onClick = {
@@ -216,7 +261,7 @@ fun KilnDetailScreen(
                         .padding(horizontal = 16.dp)
                         .height(2.dp)
                 ) {
-                    repeat(3) { index ->
+                    repeat(tabTitles.size) { index ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -241,8 +286,6 @@ fun KilnDetailScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // El pager ocupa el resto: evita el “hueco muerto” del Spacer(weight)
-            // entre botones y el FAB/nav.
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -250,34 +293,51 @@ fun KilnDetailScreen(
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.Top
             ) { page ->
-                when (page) {
-                    0 -> KilnStatusScreen(
-                        kilnMacAddress = kilnMacAddress,
-                        viewModel = viewModel,
-                        onLoadProgram = {
-                            navController.navigate("select_program/$kilnMacAddress/$kilnName")
-                        }
-                    )
-                    1 -> KilnProgramScreen(
-                        kilnMacAddress = kilnMacAddress,
-                        viewModel = viewModel,
-                        onChangeProgram = {
-                            navController.navigate("select_program/$kilnMacAddress/$kilnName")
-                        },
-                        onEditCurrentProgram = { programId ->
-                            navController.currentBackStackEntry
-                                ?.savedStateHandle
-                                ?.set("await_program_reload", true)
-                            navController.navigate(
-                                com.example.mysmartkiln.navigation.Screen.CreateProgram
-                                    .createRoute(programId, "edit")
-                            )
-                        }
-                    )
-                    2 -> KilnCurveScreen(
-                        kilnMacAddress = kilnMacAddress,
-                        viewModel = viewModel
-                    )
+                if (isDataLogger) {
+                    when (page) {
+                        0 -> DataLoggerStatusScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel
+                        )
+                        1 -> DataLoggerDataScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel
+                        )
+                        else -> DataLoggerCurveScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel
+                        )
+                    }
+                } else {
+                    when (page) {
+                        0 -> KilnStatusScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel,
+                            onLoadProgram = {
+                                navController.navigate("select_program/$kilnMacAddress/$kilnName")
+                            }
+                        )
+                        1 -> KilnProgramScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel,
+                            onChangeProgram = {
+                                navController.navigate("select_program/$kilnMacAddress/$kilnName")
+                            },
+                            onEditCurrentProgram = { programId ->
+                                navController.currentBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("await_program_reload", true)
+                                navController.navigate(
+                                    com.example.mysmartkiln.navigation.Screen.CreateProgram
+                                        .createRoute(programId, "edit")
+                                )
+                            }
+                        )
+                        2 -> KilnCurveScreen(
+                            kilnMacAddress = kilnMacAddress,
+                            viewModel = viewModel
+                        )
+                    }
                 }
             }
         }
@@ -354,14 +414,83 @@ fun KilnDetailScreen(
             )
         }
 
+        localActionError?.let { message ->
+            AlertDialog(
+                onDismissRequest = { viewModel.clearLocalActionError() },
+                containerColor = kilnColors.cardBackground,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text(
+                        text = "No se actualizó el horno",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = kilnColors.title
+                        )
+                    )
+                },
+                text = {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = kilnColors.body,
+                            lineHeight = 22.sp
+                        )
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.clearLocalActionError() }) {
+                        Text(
+                            text = "Entendido",
+                            color = DialogBrand.primaryButton(),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            )
+        }
+
         // Diálogo "Programa interrumpido": el ESP detectó al boot que estaba
         // calentando antes del corte. Si está abierto el modal de envío de
         // comando, lo dejamos arriba (estamos justo respondiendo al usuario).
-        if (showInterruptedDialog && !isSendingCommand) {
+        if (!isDataLogger && showInterruptedDialog && !isSendingCommand) {
             KilnInterruptedDialog(
                 programName = kilnProgram.name,
                 onResume = { viewModel.resumeKiln() },
                 onCancel = { viewModel.cancelInterruptedProgram() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataLoggerConnectionBadge(connected: Boolean) {
+    val kilnColors = LocalKilnColors.current
+    val bg = if (connected) {
+        kilnColors.success.copy(alpha = 0.22f)
+    } else {
+        kilnColors.track
+    }
+    val fg = if (connected) kilnColors.success else kilnColors.muted
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = bg
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(fg, CircleShape)
+            )
+            Text(
+                text = if (connected) "CONECTADO" else "SIN CONEXIÓN",
+                color = fg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                lineHeight = 13.sp
             )
         }
     }

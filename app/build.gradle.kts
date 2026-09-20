@@ -65,18 +65,13 @@ dependencies {
     
     // Room Database - Almacenamiento local
     implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1") // Soporte para coroutines
-    ksp("androidx.room:room-compiler:2.6.1") // Generador de código
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
     
     // ViewModel - Manejo de estado UI
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    
-    // Room Database
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
     
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")
@@ -100,9 +95,6 @@ dependencies {
     
     // Coroutines - Para operaciones asíncronas con Firebase
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
-    
-    // BLE y Permisos
-    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

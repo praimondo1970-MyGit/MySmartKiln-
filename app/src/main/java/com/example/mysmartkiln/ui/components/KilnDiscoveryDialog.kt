@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoDto
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.data.local.SoftApDeviceType
 import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.utils.KilnAccessPoint
@@ -66,12 +66,17 @@ fun KilnDiscoveryDialog(
     val scope = rememberCoroutineScope()
     val httpClient = remember { KilnHttpClient(context.applicationContext) }
 
-    var hasPermission by remember {
-        mutableStateOf(
-            !KilnNetworkConnector.isSupported ||
-                KilnNetworkConnector.hasRequiredPermissions(context)
-        )
+    fun discoveryPermissionsGranted(): Boolean {
+        val nearbyOrLegacy = !KilnNetworkConnector.isSupported ||
+            KilnNetworkConnector.hasRequiredPermissions(context)
+        val locationOk = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return nearbyOrLegacy && locationOk
     }
+
+    var hasPermission by remember { mutableStateOf(discoveryPermissionsGranted()) }
     var isScanning by remember { mutableStateOf(false) }
     var accessPoints by remember { mutableStateOf<List<KilnAccessPoint>>(emptyList()) }
     var connectingTo by remember { mutableStateOf<KilnAccessPoint?>(null) }
@@ -80,30 +85,63 @@ fun KilnDiscoveryDialog(
     var hasScanned by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasPermission = granted ||
-            ContextCompat.checkSelfPermission(
-                context,
-                KilnNetworkConnector.requiredRuntimePermission()
-            ) == PackageManager.PERMISSION_GRANTED
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        hasPermission = discoveryPermissionsGranted()
+    }
+
+    fun requestDiscoveryPermissions() {
+        val needed = buildList {
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            if (KilnNetworkConnector.isSupported) {
+                add(KilnNetworkConnector.requiredRuntimePermission())
+            }
+        }.distinct().toTypedArray()
+        permissionLauncher.launch(needed)
     }
 
     suspend fun runScan() {
         isScanning = true
         errorMessage = null
-        // Damos un breve respiro para que el HW de WiFi entregue resultados
-        // frescos antes de leerlos.
         accessPoints = WifiUtils.getSmartKilnAccessPoints(context)
-        delay(1500)
-        accessPoints = WifiUtils.getSmartKilnAccessPoints(context)
+        delay(1200)
+        var found = WifiUtils.getSmartKilnAccessPoints(context)
+
+        // SoftAP conectado pero SSID oculto (<unknown ssid>) / ausente en scan.
+        if (found.isEmpty()) {
+            try {
+                com.example.mysmartkiln.utils.KilnWifiNetworkBinder.bindToWifi(context)
+                if (httpClient.ping()) {
+                    val apInfo = httpClient.getApInfo().getOrNull()
+                    val ssid = apInfo?.ssid?.takeIf { it.isNotBlank() }
+                        ?: "SmartKiln (conectado)"
+                    val type = WifiUtils.deviceTypeFromSsid(ssid).let { t ->
+                        if (t == SoftApDeviceType.UNKNOWN) SoftApDeviceType.KILN else t
+                    }
+                    found = listOf(
+                        KilnAccessPoint(
+                            ssid = ssid,
+                            bssid = "",
+                            signalLevel = 0,
+                            deviceType = type,
+                            alreadyConnected = true
+                        )
+                    )
+                }
+            } finally {
+                // No dejar el proceso atado al SoftAP (rompe Firebase en la lista).
+                com.example.mysmartkiln.utils.KilnWifiNetworkBinder.unbind(context)
+            }
+        }
+
+        accessPoints = found
         hasScanned = true
         isScanning = false
     }
 
     LaunchedEffect(hasPermission) {
         if (!hasPermission) {
-            permissionLauncher.launch(KilnNetworkConnector.requiredRuntimePermission())
+            requestDiscoveryPermissions()
         } else {
             runScan()
         }
@@ -128,18 +166,14 @@ fun KilnDiscoveryDialog(
             Column {
                 if (!hasPermission) {
                     Text(
-                        text = "Para descubrir hornos cercanos necesitamos permiso para ver redes WiFi.",
+                        text = "Para descubrir hornos necesitamos permiso de ubicación (leer el nombre de la WiFi) y de dispositivos cercanos.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = kilnColors.body
                         )
                     )
                     Spacer(Modifier.height(12.dp))
                     Button(
-                        onClick = {
-                            permissionLauncher.launch(
-                                KilnNetworkConnector.requiredRuntimePermission()
-                            )
-                        },
+                        onClick = { requestDiscoveryPermissions() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = DialogBrand.primaryButton(),
                             contentColor = kilnColors.onAccent
@@ -157,7 +191,7 @@ fun KilnDiscoveryDialog(
                 }
 
                 Text(
-                    text = "Encendé el horno y verificá que esté en modo de configuración. Vamos a buscar las redes SmartKiln cercanas.",
+                    text = "Encendé el horno y, si hace falta, conectá el teléfono a su WiFi SmartKiln. Buscamos redes cercanas y también la conexión actual.",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = kilnColors.body
                     )
@@ -188,7 +222,10 @@ fun KilnDiscoveryDialog(
                                 .fillMaxWidth()
                                 .heightIn(max = 220.dp)
                         ) {
-                            items(accessPoints, key = { it.bssid }) { ap ->
+                            items(
+                                accessPoints,
+                                key = { "${it.ssid}|${it.bssid}|${it.alreadyConnected}" }
+                            ) { ap ->
                                 AccessPointRow(
                                     accessPoint = ap,
                                     enabled = connectingTo == null,
@@ -220,7 +257,7 @@ fun KilnDiscoveryDialog(
 
                     hasScanned -> {
                         Text(
-                            text = "No detectamos ningún horno SmartKiln. Asegurate de que esté encendido y a pocos metros del teléfono.",
+                            text = "No detectamos ningún horno. Si ya estás en la WiFi SmartKiln, tocá «Buscar de nuevo» y concedé ubicación si Android lo pide.",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = kilnColors.muted
                             )
@@ -306,9 +343,17 @@ private fun AccessPointRow(
                     )
                 )
                 Text(
-                    text = "Señal: ${accessPoint.signalLevel} dBm",
+                    text = if (accessPoint.alreadyConnected) {
+                        "Ya conectado · Señal: ${accessPoint.signalLevel} dBm"
+                    } else {
+                        "Señal: ${accessPoint.signalLevel} dBm"
+                    },
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = kilnColors.muted
+                        color = if (accessPoint.alreadyConnected) {
+                            kilnColors.success
+                        } else {
+                            kilnColors.muted
+                        }
                     )
                 )
             }
@@ -379,26 +424,31 @@ private suspend fun connectToKiln(
 ) {
     onConnectingStarted()
     try {
-        val passphrase = KilnNetworkConnector.passphraseFromBssid(accessPoint.bssid)
-        if (passphrase.isNullOrBlank()) {
-            onError("No se pudo derivar la contraseña del horno desde el BSSID.")
-            return
-        }
+        val alreadyOnThisAp = accessPoint.alreadyConnected ||
+            WifiUtils.getCurrentWifiSSID(context)
+                ?.equals(accessPoint.ssid, ignoreCase = true) == true
 
-        onPhase("Solicitando autorización de Android…")
-        val network = KilnNetworkConnector.connect(
-            context = context,
-            ssid = accessPoint.ssid,
-            passphrase = passphrase
-        )
-        if (network == null) {
-            onError("No fue posible conectarse a ${accessPoint.ssid}. ¿Aceptaste el diálogo del sistema?")
-            return
+        if (alreadyOnThisAp) {
+            onPhase("Usando la red WiFi actual…")
+        } else {
+            val passphrase = KilnNetworkConnector.resolvePassphrase(accessPoint)
+            if (passphrase.isNullOrBlank()) {
+                onError("No se pudo derivar la contraseña del horno (BSSID/SSID).")
+                return
+            }
+            onPhase("Solicitando autorización de Android…")
+            val network = KilnNetworkConnector.connect(
+                context = context,
+                ssid = accessPoint.ssid,
+                passphrase = passphrase
+            )
+            if (network == null) {
+                onError("No fue posible conectarse a ${accessPoint.ssid}. ¿Aceptaste el diálogo del sistema?")
+                return
+            }
         }
 
         onPhase("Pidiendo datos al horno…")
-        // El AP recién aceptó la asociación; un pequeño margen evita timeouts
-        // del primer ping.
         delay(500)
 
         val infoResult = httpClient.getInfo()
@@ -408,7 +458,21 @@ private suspend fun connectToKiln(
                 KilnNetworkConnector.release(context)
                 return@onSuccess
             }
-            onSuccess(info)
+            val typeFromAp = when (accessPoint.deviceType) {
+                SoftApDeviceType.DATALOGGER -> "DATALOGGER"
+                SoftApDeviceType.KILN -> "KILN"
+                SoftApDeviceType.UNKNOWN -> ""
+            }
+            val merged = if (info.type.isBlank() && typeFromAp.isNotBlank()) {
+                info.copy(type = typeFromAp)
+            } else if (info.type.isBlank() &&
+                info.model.equals("DATALOGGER", ignoreCase = true)
+            ) {
+                info.copy(type = "DATALOGGER")
+            } else {
+                info
+            }
+            onSuccess(merged)
         }.onFailure { err ->
             onError("No se pudo leer la información del horno (${err.message ?: "error desconocido"}).")
             KilnNetworkConnector.release(context)

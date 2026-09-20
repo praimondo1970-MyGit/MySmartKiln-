@@ -17,7 +17,7 @@ import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
- * El ESP apaga su SoftAP ~12–14 s tras una sesión HTTP local (perfil B).
+ * El ESP apaga su SoftAP ~8–10 s tras una sesión HTTP local (perfil C).
  */
 @Composable
 fun KilnApReconfigWaitDialog(
@@ -29,7 +29,8 @@ fun KilnApReconfigWaitDialog(
     val secondsLabel = if (remainingSeconds == 1) "1 segundo" else "$remainingSeconds segundos"
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        // Solo se cierra con «Entendido» (no tap fuera ni atrás).
+        onDismissRequest = {},
         containerColor = kilnColors.cardBackground,
         shape = RoundedCornerShape(16.dp),
         title = {

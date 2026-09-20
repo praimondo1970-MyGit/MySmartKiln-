@@ -14,7 +14,7 @@ object ProgramStatusUtils {
      * Enum para representar el estado de ejecución del programa
      */
     enum class ProgramRunningState {
-        CONFIRMED_RUNNING,      // Confirmado por BLE o Firebase reciente
+        CONFIRMED_RUNNING,      // Confirmado por Firebase reciente
         ESTIMATED_RUNNING,      // Estimado basado en cálculos
         CONFIRMED_STOPPED,      // Confirmado que está detenido
         ESTIMATED_STOPPED,      // Estimado que debería estar detenido
@@ -22,42 +22,28 @@ object ProgramStatusUtils {
     }
     
     /**
-     * Determina el estado del programa usando lógica híbrida:
-     * 1. Estado desde BLE (más confiable)
-     * 2. Estado desde Firebase (reciente)
-     * 3. Estimación basada en cálculos de tiempo
+     * Determina el estado del programa:
+     * 1. Estado desde Firebase (reciente)
+     * 2. Estimación basada en cálculos de tiempo
      */
     fun determineProgramState(
-        hasBleConnection: Boolean,
-        bleStatus: String?,
-        bleProgramName: String?,
         firebaseData: Map<String, Any?>?,
-        programTotalDurationMinutes: Int? = null // Duración total calculada desde la app
+        programTotalDurationMinutes: Int? = null,
+        isDataLogger: Boolean = false
     ): ProgramRunningState {
-        
-        // 1. PRIORIDAD: Estado desde BLE (más confiable y en tiempo real)
-        if (hasBleConnection && bleStatus != null) {
-            val hasProgram = bleProgramName != null && bleProgramName.isNotEmpty()
-            when (bleStatus) {
-                "CALENTANDO" -> {
-                    if (hasProgram) {
-                        Log.d(TAG, "✅ Estado CONFIRMED_RUNNING desde BLE")
-                        return ProgramRunningState.CONFIRMED_RUNNING
-                    }
-                }
-                "PAUSADO" -> {
-                    // Pausado = no corriendo activamente
-                    Log.d(TAG, "⏸️ Estado CONFIRMED_STOPPED desde BLE (pausado)")
-                    return ProgramRunningState.CONFIRMED_STOPPED
-                }
-                "DETENIDO", "FINALIZADO", "IDLE" -> {
-                    Log.d(TAG, "🛑 Estado CONFIRMED_STOPPED desde BLE ($bleStatus)")
-                    return ProgramRunningState.CONFIRMED_STOPPED
-                }
+        // DataLogger no usa timing de cocción del horno
+        if (isDataLogger ||
+            (firebaseData?.get("type") as? String)?.equals("DATALOGGER", true) == true
+        ) {
+            val status = (firebaseData?.get("status") as? String)?.uppercase()
+            return when (status) {
+                "GRABANDO" -> ProgramRunningState.CONFIRMED_RUNNING
+                "IDLE", "FINALIZADO", "DETENIDO" -> ProgramRunningState.CONFIRMED_STOPPED
+                else -> ProgramRunningState.UNKNOWN
             }
         }
         
-        // 2. SEGUNDA PRIORIDAD: Estado desde Firebase (reciente, <30 segundos)
+        // 1. PRIORIDAD: Estado desde Firebase (reciente, <30 segundos)
         if (firebaseData != null) {
             val timestamp = firebaseData["timestamp"] as? Long ?: 0L
             val currentTime = System.currentTimeMillis()
@@ -92,7 +78,7 @@ object ProgramStatusUtils {
             }
         }
         
-        // 3. TERCERA PRIORIDAD: Estimación basada en cálculos de tiempo
+        // 2. Estimación basada en cálculos de tiempo
         if (firebaseData != null) {
             try {
                 // Convertir programStartTime de diferentes tipos posibles desde Firebase

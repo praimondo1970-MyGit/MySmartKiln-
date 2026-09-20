@@ -34,7 +34,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -54,8 +56,11 @@ import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.ui.viewmodels.TemperatureSample
+import com.example.mysmartkiln.utils.KilnEspStatusLabels
 import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.LinkLostFormat
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 /**
  * Pestaña Estado — Fase B: layout cercano al mockup ESP
@@ -167,9 +172,9 @@ fun KilnStatusScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.weight(0.45f))
-
                     if (hasProgram) {
+                        // Con tarjeta de programa: repartir aire arriba/abajo de la card.
+                        Spacer(modifier = Modifier.weight(0.45f))
                         StatusSummaryCard(
                             programName = kilnProgram.name,
                             duration = kilnStatus.totalTime.ifBlank { "—" },
@@ -177,11 +182,24 @@ fun KilnStatusScreen(
                             remaining = kilnStatus.remainingTime.ifBlank { "—" },
                             stage = stageLabel,
                             cycleProgress = cycleProgress,
-                            modifier = Modifier.offset(y = (-10).dp)
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            showLastKnownStatus = !kilnStatus.isConnected,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                            modifier = Modifier.offset(y = 10.dp)
                         )
+                        Spacer(modifier = Modifier.weight(1.55f))
+                    } else {
+                        // Sin programa: no dejar un “hueco muerto” enorme; botones cerca.
+                        Spacer(modifier = Modifier.height(28.dp))
+                        if (!kilnStatus.isConnected) {
+                            StatusOfflineCaption(
+                                lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                                lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
-
-                    Spacer(modifier = Modifier.weight(1.55f))
 
                     if (isUploadingProgram) {
                         LinearProgressIndicator(
@@ -203,8 +221,12 @@ fun KilnStatusScreen(
                         onPlay = { viewModel.playKiln() },
                         onPause = { viewModel.pauseKiln() },
                         onStop = { viewModel.stopKiln() },
-                        modifier = Modifier.offset(y = (-50).dp)
+                        modifier = Modifier.offset(y = if (hasProgram) (-10).dp else 0.dp)
                     )
+
+                    if (!hasProgram) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             } else {
                 Column(
@@ -239,7 +261,16 @@ fun KilnStatusScreen(
                             objective = "${kilnStatus.targetTemperature.toInt()}°C",
                             remaining = kilnStatus.remainingTime.ifBlank { "—" },
                             stage = stageLabel,
-                            cycleProgress = cycleProgress
+                            cycleProgress = cycleProgress,
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            showLastKnownStatus = !kilnStatus.isConnected,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs
+                        )
+                    } else if (!kilnStatus.isConnected) {
+                        StatusOfflineCaption(
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(20.dp))
@@ -262,7 +293,7 @@ fun KilnStatusScreen(
                         onPlay = { viewModel.playKiln() },
                         onPause = { viewModel.pauseKiln() },
                         onStop = { viewModel.stopKiln() },
-                        modifier = Modifier.offset(y = (-50).dp)
+                        modifier = Modifier.offset(y = (-10).dp)
                     )
                 }
             }
@@ -308,9 +339,19 @@ fun KilnStatusScreen(
                         objective = "${kilnStatus.targetTemperature.toInt()}°C",
                         remaining = kilnStatus.remainingTime.ifBlank { "—" },
                         stage = stageLabel,
-                        cycleProgress = cycleProgress
+                        cycleProgress = cycleProgress,
+                        lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                        showLastKnownStatus = !kilnStatus.isConnected,
+                        lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs
                     )
                     Spacer(modifier = Modifier.height(16.dp))
+                } else if (!kilnStatus.isConnected) {
+                    StatusOfflineCaption(
+                        lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                        lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 if (isUploadingProgram) {
@@ -340,9 +381,49 @@ fun KilnStatusScreen(
 }
 
 @Composable
-private fun StatusGaugeLabels(
+private fun StatusOfflineCaption(
+    lastKnownEspStatus: String,
+    lastLiveTelemetryAtMs: Long,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            nowTick = System.currentTimeMillis()
+        }
+    }
+    val lastKnownLabel = lastKnownEspStatus.takeIf { it.isNotBlank() }
+        ?.let { KilnEspStatusLabels.label(it) }
+    val lostSince = LinkLostFormat.formatSince(lastLiveTelemetryAtMs, nowTick)
+    val text = buildString {
+        if (!lastKnownLabel.isNullOrBlank()) {
+            append("Último estado: $lastKnownLabel")
+        }
+        if (lostSince.isNotBlank()) {
+            if (isNotEmpty()) append(" · ")
+            append(lostSince)
+        }
+    }
+    if (text.isBlank()) return
+    Text(
+        text = text,
+        modifier = modifier.fillMaxWidth(),
+        color = kilnColors.muted,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+internal fun StatusGaugeLabels(
     currentTempC: Float,
-    ascentRate: Float?
+    ascentRate: Float?,
+    showAscentRate: Boolean = true
 ) {
     val kilnColors = LocalKilnColors.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -370,33 +451,35 @@ private fun StatusGaugeLabels(
                 modifier = Modifier.padding(bottom = 10.dp)
             )
         }
-        if (kilnColors.isEsp) {
-            Spacer(modifier = Modifier.height(3.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.55f)
-                    .height(1.dp)
-                    .background(kilnColors.cardBorder)
+        if (showAscentRate) {
+            if (kilnColors.isEsp) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(1.dp)
+                        .background(kilnColors.cardBorder)
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+            }
+            Text(
+                text = "VELOCIDAD DE ASCENSO",
+                color = kilnColors.body,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.4.sp
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = formatAscentRate(ascentRate),
+                color = if (ascentRate != null && ascentRate >= 0f) {
+                    kilnColors.success
+                } else {
+                    kilnColors.muted
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
-        Text(
-            text = "VELOCIDAD DE ASCENSO",
-            color = kilnColors.body,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.4.sp
-        )
-        Text(
-            text = formatAscentRate(ascentRate),
-            color = if (ascentRate != null && ascentRate >= 0f) {
-                kilnColors.success
-            } else {
-                kilnColors.muted
-            },
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
@@ -408,12 +491,30 @@ private fun StatusSummaryCard(
     remaining: String,
     stage: String,
     cycleProgress: Float,
+    lastKnownEspStatus: String = "",
+    showLastKnownStatus: Boolean = false,
+    lastLiveTelemetryAtMs: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val kilnColors = LocalKilnColors.current
     val panelColor = if (kilnColors.isEsp) kilnColors.cardBackground else kilnColors.screenBackground
     val separatorColor = kilnColors.panelLine
     val stageValue = if (stage == "—" || stage.isBlank()) "—" else "ETAPA $stage"
+    var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(showLastKnownStatus) {
+        if (!showLastKnownStatus) return@LaunchedEffect
+        while (true) {
+            delay(30_000)
+            nowTick = System.currentTimeMillis()
+        }
+    }
+    val lastKnownLabel = lastKnownEspStatus.takeIf { it.isNotBlank() }
+        ?.let { KilnEspStatusLabels.label(it) }
+    val lostSince = if (showLastKnownStatus) {
+        LinkLostFormat.formatSince(lastLiveTelemetryAtMs, nowTick)
+    } else {
+        ""
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -436,14 +537,37 @@ private fun StatusSummaryCard(
                     tint = kilnColors.accent,
                     modifier = Modifier.size(18.dp)
                 )
-                Text(
-                    text = programName,
-                    color = kilnColors.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = programName,
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (showLastKnownStatus) {
+                        val detail = buildString {
+                            if (!lastKnownLabel.isNullOrBlank()) {
+                                append("Último estado: $lastKnownLabel")
+                            }
+                            if (lostSince.isNotBlank()) {
+                                if (isNotEmpty()) append(" · ")
+                                append(lostSince)
+                            }
+                        }
+                        if (detail.isNotBlank()) {
+                            Text(
+                                text = detail,
+                                color = kilnColors.muted,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Row(
@@ -713,7 +837,7 @@ private fun StatusActionButtons(
                 val primaryAction: () -> Unit
                 when {
                     isPaused -> {
-                        primaryLabel = "INICIAR"
+                        primaryLabel = "REANUDAR"
                         primaryIcon = R.drawable.icon_play
                         primaryAction = onPlay
                     }

@@ -77,15 +77,17 @@ fun AppNavigation(
                     // Navegar a pantalla de edición de horno
                     navController.navigate("configure_kiln/$macAddress")
                 },
-                onNavigateToConfigureKiln = { macAddress, deviceName, deviceModel, deviceVolume ->
+                onNavigateToConfigureKiln = { macAddress, deviceName, deviceModel, deviceVolume, deviceType ->
                     val encodedName = Uri.encode(deviceName)
                     val encodedModel = Uri.encode(deviceModel)
                     val encodedVolume = Uri.encode(deviceVolume)
+                    val encodedType = Uri.encode(deviceType.ifBlank { "KILN" })
                     navController.navigate(
                         "configure_kiln/$macAddress" +
                             "?deviceName=$encodedName" +
                             "&deviceModel=$encodedModel" +
-                            "&deviceVolume=$encodedVolume"
+                            "&deviceVolume=$encodedVolume" +
+                            "&deviceType=$encodedType"
                     ) {
                         popUpTo("kilns") { inclusive = false }
                     }
@@ -215,7 +217,7 @@ fun AppNavigation(
         
         // Pantalla de Configuración del Horno
         composable(
-            route = "configure_kiln/{macAddress}?deviceName={deviceName}&deviceModel={deviceModel}&deviceVolume={deviceVolume}",
+            route = "configure_kiln/{macAddress}?deviceName={deviceName}&deviceModel={deviceModel}&deviceVolume={deviceVolume}&deviceType={deviceType}",
             arguments = listOf(
                 navArgument("macAddress") {
                     type = NavType.StringType
@@ -234,6 +236,11 @@ fun AppNavigation(
                     type = NavType.StringType
                     defaultValue = ""
                     nullable = true
+                },
+                navArgument("deviceType") {
+                    type = NavType.StringType
+                    defaultValue = "KILN"
+                    nullable = true
                 }
             )
         ) { backStackEntry ->
@@ -248,12 +255,16 @@ fun AppNavigation(
             val deviceVolume = backStackEntry.arguments?.getString("deviceVolume")
                 ?.takeIf { it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true }
                 .orEmpty()
+            val deviceType = backStackEntry.arguments?.getString("deviceType")
+                ?.takeIf { it.isNotBlank() }
+                ?: "KILN"
 
             ConfigureKilnScreen(
                 macAddress = macAddress,
                 deviceName = deviceName,
                 deviceModel = deviceModel,
                 deviceVolume = deviceVolume,
+                deviceType = deviceType,
                 authViewModel = authViewModel,
                 existingKiln = null, // Se buscará automáticamente si existe
                 onKilnConfigured = {

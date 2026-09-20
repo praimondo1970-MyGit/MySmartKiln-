@@ -134,23 +134,48 @@ class KilnHttpClient(
 
 
     suspend fun uploadKilnInfo(kilnInfoJson: String): Result<KilnInfoUploadResponseDto> =
-
         withContext(Dispatchers.IO) {
-
             requestPost(
                 path = "/api/kiln-info",
                 jsonBody = kilnInfoJson,
                 connectTimeoutMs = 4000,
                 readTimeoutMs = 4000
             ) { body ->
-
                 gson.fromJson(body, KilnInfoUploadResponseDto::class.java)
-
             }
-
         }
 
+    /** Historial CSV del DataLogger (y compatible si el horno lo expone). */
+    suspend fun getHistoryCsv(): Result<String> = withContext(Dispatchers.IO) {
+        requestGet("/api/history.csv") { it }
+    }
 
+    /** Meta de sesión DataLogger. */
+    suspend fun getLoggerSession(): Result<LoggerSessionDto> = withContext(Dispatchers.IO) {
+        requestGet("/api/session") { body ->
+            gson.fromJson(body, LoggerSessionDto::class.java)
+        }
+    }
+
+    /**
+     * Comando DataLogger (`START_LOG` / `STOP_LOG`) con campos opcionales.
+     * Body JSON libre para no acoplar al DTO del horno.
+     */
+    suspend fun sendLoggerCommand(
+        cmd: String,
+        name: String? = null,
+        comments: String? = null,
+        sessionId: String? = null
+    ): Result<KilnCommandResponseDto> = withContext(Dispatchers.IO) {
+        val payload = mutableMapOf<String, Any>("cmd" to cmd)
+        if (!name.isNullOrBlank()) payload["name"] = name
+        if (comments != null) payload["comments"] = comments
+        if (!sessionId.isNullOrBlank()) payload["sessionId"] = sessionId
+        val jsonBody = gson.toJson(payload)
+        requestPost("/api/command", jsonBody) { body ->
+            gson.fromJson(body, KilnCommandResponseDto::class.java)
+        }
+    }
 
     private fun openConnection(path: String, method: String): HttpURLConnection {
 

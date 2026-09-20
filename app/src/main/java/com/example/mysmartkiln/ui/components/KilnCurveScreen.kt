@@ -2,6 +2,7 @@ package com.example.mysmartkiln.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,11 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
 import com.example.mysmartkiln.utils.KilnCurveBuilder
+import kotlin.math.roundToInt
 
 @Composable
 fun KilnCurveScreen(
@@ -65,13 +69,22 @@ fun KilnCurveScreen(
         temperatureHistory.lastOrNull()?.elapsedMin ?: 0f
     )
 
-    // Título fuera del gris; marco solo para leyenda + gráfico + textos inferiores.
+    val currentTemp = kilnStatus.currentTemperature
+    val targetTemp = kilnStatus.targetTemperature
+    val deviationC = if (isActiveRun && targetTemp > 0f) {
+        (currentTemp - targetTemp).roundToInt()
+    } else {
+        null
+    }
+
+    // Título fuera del gris; marco solo para leyenda + gráfico + métricas.
+    // +10dp clearance vs Programa (sin botón) para el mismo “aire” inferior.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .fillMaxHeight()
     ) {
-        val fabClearance = 112.dp
+        val fabClearance = 122.dp
         val layoutHeight = (maxHeight - fabClearance).coerceAtLeast(280.dp)
 
         Column(
@@ -80,20 +93,25 @@ fun KilnCurveScreen(
                 .height(layoutHeight)
                 .padding(horizontal = 2.dp)
         ) {
-            Text(
-                text = "Temperatura y programa",
-                color = kilnColors.title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-            )
-
-            if (kilnProgram.name.isNotBlank()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
+            ) {
                 Text(
-                    text = kilnProgram.name,
+                    text = "Curva de temperatura",
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = if (kilnProgram.name.isNotBlank()) {
+                        kilnProgram.name
+                    } else {
+                        "Sin programa seleccionado"
+                    },
                     color = kilnColors.muted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    fontSize = 12.sp
                 )
             }
 
@@ -111,14 +129,18 @@ fun KilnCurveScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        LegendItem(color = kilnColors.title, label = "Programa")
-                        LegendItem(color = kilnColors.accent, label = "Real")
+                        LegendLineItem(color = kilnColors.accent, label = "Programa")
+                        LegendDotItem(
+                            fill = kilnColors.title,
+                            ring = kilnColors.muted,
+                            label = "Horno"
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -132,16 +154,17 @@ fun KilnCurveScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "Sin programa cargado",
+                                    text = "No hay programa seleccionado",
                                     color = kilnColors.body,
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 14.sp
                                 )
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Carga un programa para ver la curva teórica",
+                                    text = "Elegí un programa en la pestaña Programa",
                                     color = kilnColors.muted,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
@@ -150,36 +173,56 @@ fun KilnCurveScreen(
                             chartModel = chartModel,
                             realSamples = temperatureHistory,
                             currentElapsedMin = currentElapsedMin,
-                            currentTemperature = kilnStatus.currentTemperature,
+                            currentTemperature = currentTemp,
                             showProgress = isActiveRun,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = "Actual: ${kilnStatus.currentTemperature.toInt()}°C",
-                                color = kilnColors.accent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                            CurveMetric(
+                                label = "TEMP. ACTUAL",
+                                value = "${currentTemp.toInt()}°C",
+                                valueColor = kilnColors.accent,
+                                modifier = Modifier.weight(1f)
                             )
-                            if (isActiveRun) {
-                                Text(
-                                    text = "Transcurrido: ${KilnCurveBuilder.formatAxisMinutes(currentElapsedMin)}",
-                                    color = kilnColors.body,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Text(
-                                text = "Duración: ${KilnCurveBuilder.formatAxisMinutes(chartModel.totalMinutes)}",
-                                color = kilnColors.muted,
-                                fontSize = 12.sp
+                            CurveMetric(
+                                label = "TEMP. OBJETIVO",
+                                value = if (targetTemp > 0f) {
+                                    "${targetTemp.toInt()}°C"
+                                } else {
+                                    "—"
+                                },
+                                valueColor = kilnColors.title,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CurveMetric(
+                                label = "DESVIACIÓN",
+                                value = deviationC?.let { dev ->
+                                    if (dev > 0) "+$dev°C" else "$dev°C"
+                                } ?: "—",
+                                valueColor = when {
+                                    deviationC == null -> kilnColors.muted
+                                    kotlin.math.abs(deviationC) <= 10 -> kilnColors.success
+                                    else -> kilnColors.warning
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            CurveMetric(
+                                label = "TIEMPO",
+                                value = if (isActiveRun) {
+                                    KilnCurveBuilder.formatAxisMinutes(currentElapsedMin)
+                                } else {
+                                    KilnCurveBuilder.formatAxisMinutes(chartModel.totalMinutes)
+                                },
+                                valueColor = kilnColors.title,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -190,15 +233,70 @@ fun KilnCurveScreen(
 }
 
 @Composable
-private fun LegendItem(color: Color, label: String) {
+private fun CurveMetric(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier
+) {
     val kilnColors = LocalKilnColors.current
+    Column(
+        modifier = modifier.padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = kilnColors.muted,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            color = valueColor,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
 
+@Composable
+private fun LegendLineItem(color: Color, label: String) {
+    val kilnColors = LocalKilnColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
                 .width(20.dp)
                 .height(3.dp)
                 .background(color, RoundedCornerShape(2.dp))
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            color = kilnColors.title,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+private fun LegendDotItem(
+    fill: Color,
+    ring: Color,
+    label: String
+) {
+    val kilnColors = LocalKilnColors.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .border(1.5.dp, ring, CircleShape)
+                .padding(2.dp)
+                .background(fill, CircleShape)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(

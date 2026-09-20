@@ -21,7 +21,6 @@ import androidx.compose.ui.window.Dialog
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
-import com.example.mysmartkiln.data.local.KilnApiDefaults
 import com.example.mysmartkiln.utils.WifiUtils
 import kotlinx.coroutines.delay
 
@@ -39,9 +38,7 @@ fun WifiScanDialog(
     LaunchedEffect(Unit) {
         delay(500) // Pequeño delay para iniciar el escaneo
         networks = WifiUtils.getAvailableNetworks(context)
-            .filter { ssid ->
-                !ssid.startsWith(KilnApiDefaults.SMART_KILN_SSID_PREFIX, ignoreCase = true)
-            }
+            .filter { ssid -> !WifiUtils.isDeviceSoftApSsid(ssid) }
         isScanning = false
     }
     

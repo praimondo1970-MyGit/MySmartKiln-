@@ -12,10 +12,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.TemperatureSample
 import com.example.mysmartkiln.utils.KilnCurveBuilder
@@ -30,11 +28,11 @@ fun KilnTemperatureChart(
     modifier: Modifier = Modifier
 ) {
     val kilnColors = LocalKilnColors.current
-    val bodyColor = kilnColors.body
     val mutedColor = kilnColors.muted
     val onAccentColor = kilnColors.onAccent
-    val gridColor = kilnColors.cardBorder
-    val realCurveColor = kilnColors.accent
+    val gridColor = kilnColors.cardBorder.copy(alpha = 0.45f)
+    val theoreticalColor = kilnColors.accent
+    val realCurveColor = kilnColors.title
     val totalMin = chartModel.totalMinutes.coerceAtLeast(1f)
     val minTemp = chartModel.minTemp
     val maxTemp = chartModel.maxTemp
@@ -103,16 +101,16 @@ fun KilnTemperatureChart(
                     drawLine(gridColor, Offset(x, padT), Offset(x, padT + plotH), strokeWidth = 1f)
                 }
 
-                // Theoretical program curve
+                // Theoretical program curve (orange)
                 drawPolyline(
                     points = chartModel.theoretical,
                     mapX = ::mapX,
                     mapY = ::mapY,
-                    color = bodyColor,
+                    color = theoreticalColor,
                     strokeWidth = 3f
                 )
 
-                // Real temperature trail
+                // Real temperature trail (light)
                 val realPoints = buildRealPoints(
                     samples = realSamples,
                     currentElapsedMin = currentElapsedMin,
@@ -135,11 +133,11 @@ fun KilnTemperatureChart(
                     )
                 }
 
-                // Progress marker
+                // Progress marker (“ahora”)
                 if (showProgress && currentElapsedMin >= 0f) {
                     val progressX = mapX(currentElapsedMin.coerceAtMost(totalMin))
                     drawLine(
-                        color = mutedColor.copy(alpha = 0.7f),
+                        color = mutedColor.copy(alpha = 0.55f),
                         start = Offset(progressX, padT),
                         end = Offset(progressX, padT + plotH),
                         strokeWidth = 1.5f,
@@ -147,13 +145,18 @@ fun KilnTemperatureChart(
                     )
                     if (currentTemperature > 0f) {
                         drawCircle(
+                            color = theoreticalColor,
+                            radius = 8f,
+                            center = Offset(progressX, mapY(currentTemperature))
+                        )
+                        drawCircle(
                             color = realCurveColor,
-                            radius = 7f,
+                            radius = 5f,
                             center = Offset(progressX, mapY(currentTemperature))
                         )
                         drawCircle(
                             color = onAccentColor,
-                            radius = 4f,
+                            radius = 2.5f,
                             center = Offset(progressX, mapY(currentTemperature))
                         )
                     }

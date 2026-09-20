@@ -45,6 +45,9 @@ fun KilnEspStatusBadge(
     val isBaking = normalized == "CALENTANDO" || normalized == "RUNNING"
     val isInterrupted = normalized == "INTERRUMPIDO"
     val isFinished = normalized == "FINALIZADO" || normalized == "FINISHED"
+    val isDisconnected = normalized == "DESCONECTADO" ||
+        normalized == "DISCONNECTED" ||
+        normalized == "OFFLINE"
 
     val infiniteTransition = rememberInfiniteTransition(label = "paused_blink")
     val blinkAlpha by infiniteTransition.animateFloat(
@@ -77,6 +80,10 @@ fun KilnEspStatusBadge(
             bg = kilnColors.success.copy(alpha = 0.22f)
             fg = kilnColors.success
         }
+        isDisconnected -> {
+            bg = kilnColors.muted.copy(alpha = 0.22f)
+            fg = kilnColors.muted
+        }
         else -> {
             // INACTIVO / Detenido — mismo criterio que la lista
             bg = kilnColors.muted.copy(alpha = 0.22f)
@@ -94,19 +101,30 @@ fun KilnEspStatusBadge(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            if (isBaking) {
-                Icon(
-                    painter = painterResource(id = R.drawable.icon_flame),
-                    contentDescription = null,
-                    tint = fg,
-                    modifier = Modifier.size(12.dp)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .background(fg, CircleShape)
-                )
+            when {
+                isBaking -> {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_flame),
+                        contentDescription = null,
+                        tint = fg,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+                isDisconnected -> {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_wifi),
+                        contentDescription = null,
+                        tint = fg,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(fg, CircleShape)
+                    )
+                }
             }
             Text(
                 text = label,

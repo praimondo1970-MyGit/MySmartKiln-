@@ -53,7 +53,7 @@ fun KilnOperateOfflineDialog(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "1. Pulsa «Abrir WiFi» y elige la red SmartKiln-XXXX.\n" +
+                    text = "1. Pulsa «Abrir WiFi» y elige la red SmartKiln-XXXXXXXX.\n" +
                         "2. Contraseña: últimos 8 caracteres del MAC del horno.\n" +
                         "3. Vuelve a la app e intenta el comando otra vez.",
                     style = MaterialTheme.typography.bodyMedium.copy(

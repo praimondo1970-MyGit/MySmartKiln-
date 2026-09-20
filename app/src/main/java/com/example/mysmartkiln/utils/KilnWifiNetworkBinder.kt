@@ -49,15 +49,35 @@ object KilnWifiNetworkBinder {
 
         var kilnCandidate: Network? = null
         var validatedWifi: Network? = null
+        var anyWifi: Network? = null
 
         for (network in cm.allNetworks) {
             val caps = cm.getNetworkCapabilities(network) ?: continue
             if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) continue
+            anyWifi = network
+
+            // SoftAP sin internet: a menudo activeNetwork es celular; matchear SSID.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
+                val ssid = wifiInfo?.ssid
+                    ?.removeSurrounding("\"")
+                    ?.trim()
+                if (!ssid.isNullOrBlank() &&
+                    !ssid.equals("<unknown ssid>", ignoreCase = true) &&
+                    WifiUtils.isDeviceSoftApSsid(ssid)
+                ) {
+                    Log.d(TAG, "Red WiFi SoftAP por SSID ($ssid): $network")
+                    return network
+                }
+            }
 
             val isValidated =
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            if (!isValidated) {
-                Log.d(TAG, "Red WiFi sin validar (candidata horno): $network")
+            val hasInternet =
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            // SoftAP del horno: casi nunca VALIDATED ni INTERNET “real”.
+            if (!isValidated || !hasInternet) {
+                Log.d(TAG, "Red WiFi candidata horno (sin validar/internet): $network")
                 kilnCandidate = network
                 if (onKilnSsid) return network
             } else {
@@ -67,6 +87,15 @@ object KilnWifiNetworkBinder {
 
         if (kilnCandidate != null) {
             return kilnCandidate
+        }
+
+        // Último recurso: única WiFi asociada (teléfono en SoftAP aunque SSID unknown).
+        if (anyWifi != null && onKilnSsid) {
+            return anyWifi
+        }
+        if (anyWifi != null && validatedWifi == null) {
+            Log.d(TAG, "Usando única WiFi no validada: $anyWifi")
+            return anyWifi
         }
 
         if (activeCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {

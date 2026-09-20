@@ -74,6 +74,55 @@ object KilnCurveBuilder {
         )
     }
 
+    /** Ejes a partir de muestras reales (DataLogger / sin programa teórico). */
+    fun buildFromSamples(
+        samples: List<com.example.mysmartkiln.ui.viewmodels.TemperatureSample>,
+        fallbackTempC: Float = DEFAULT_START_TEMP_C
+    ): ChartModel {
+        if (samples.isEmpty()) {
+            return ChartModel(
+                theoretical = emptyList(),
+                totalMinutes = 60f,
+                minTemp = 0f,
+                maxTemp = (fallbackTempC + 50f).coerceAtLeast(100f)
+            )
+        }
+        val temps = samples.map { it.temperatureC }
+        val minT = ((temps.minOrNull() ?: fallbackTempC) - 20f).coerceAtLeast(0f)
+        val maxT = (temps.maxOrNull() ?: fallbackTempC) + 20f
+        val total = samples.maxOf { it.elapsedMin }.coerceAtLeast(1f)
+        return ChartModel(
+            theoretical = emptyList(),
+            totalMinutes = total,
+            minTemp = minT,
+            maxTemp = maxT.coerceAtLeast(minT + 50f)
+        )
+    }
+
+    /**
+     * Curva histórica de horno: programa teórico + medición.
+     * Expande ejes para cubrir ambas series.
+     */
+    fun buildHistorical(
+        stages: List<ProgramStage>,
+        samples: List<com.example.mysmartkiln.ui.viewmodels.TemperatureSample>,
+        startTempC: Float = DEFAULT_START_TEMP_C
+    ): ChartModel {
+        val theoretical = buildTheoretical(stages, startTempC)
+        if (samples.isEmpty()) return theoretical
+        val measured = buildFromSamples(samples, startTempC)
+        if (theoretical.theoretical.isEmpty()) return measured
+        val allTemps = theoretical.theoretical.map { it.tempC } + samples.map { it.temperatureC }
+        val minT = ((allTemps.minOrNull() ?: startTempC) - 30f).coerceAtLeast(0f)
+        val maxT = (allTemps.maxOrNull() ?: startTempC) + 30f
+        return ChartModel(
+            theoretical = theoretical.theoretical,
+            totalMinutes = maxOf(theoretical.totalMinutes, measured.totalMinutes).coerceAtLeast(1f),
+            minTemp = minT,
+            maxTemp = maxT.coerceAtLeast(minT + 50f)
+        )
+    }
+
     fun formatAxisMinutes(minutes: Float): String {
         val total = minutes.toInt()
         val hours = total / 60

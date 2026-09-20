@@ -2,6 +2,7 @@ package com.example.mysmartkiln.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,14 +45,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager
 import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.ui.components.KilnCard
 import com.example.mysmartkiln.ui.components.KilnDiscoveryDialog
 import androidx.compose.ui.platform.LocalContext
-import com.example.mysmartkiln.ble.HybridConnectionState
+import com.example.mysmartkiln.utils.HybridConnectionState
 import com.example.mysmartkiln.utils.WifiUtils
+import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.data.auth.AuthViewModel
 
 @Composable
@@ -63,9 +65,9 @@ fun KilnsScreen(
     onKilnSelected: (String, String) -> Unit = { _, _ -> }, // Para navegar a monitoreo del horno (macAddress, kilnName)
     onNavigateToSelectProgram: (String, String) -> Unit = { _, _ -> },
     onEditKiln: (String) -> Unit = { _ -> }, // Para navegar a edición de horno (macAddress)
-    // MAC limpia, nombre, modelo y volumen sugeridos por el horno (vienen
-    // de GET /api/info al terminar la auto-conexión durante el alta).
-    onNavigateToConfigureKiln: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    // MAC limpia, nombre, modelo, volumen y tipo (KILN / DATALOGGER).
+    onNavigateToConfigureKiln: (String, String, String, String, String) -> Unit =
+        { _, _, _, _, _ -> },
     startScanningAutomatically: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -82,18 +84,22 @@ fun KilnsScreen(
     // Obtener hornos registrados
     val registeredKilns = remember { mutableStateOf<List<com.example.mysmartkiln.data.local.entity.KilnEntity>>(emptyList()) }
     
-    val isOnKilnWifi = remember { mutableStateOf(WifiUtils.isOnSmartKilnNetwork(context)) }
     LaunchedEffect(Unit) {
-        while (true) {
-            isOnKilnWifi.value = WifiUtils.isOnSmartKilnNetwork(context)
-            delay(3000)
+        // Al abrir la lista: soltar bind SoftAP residual para que Firebase funcione.
+        if (!WifiUtils.isOnSmartKilnNetwork(context)) {
+            KilnNetworkConnector.release(context)
         }
     }
     
     // Cargar hornos registrados al iniciar la pantalla
+    var deviceTypesEnsured by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         kilnRepository.getAllKilns().collect { kilns ->
             registeredKilns.value = kilns
+            if (!deviceTypesEnsured && kilns.isNotEmpty()) {
+                deviceTypesEnsured = true
+                kilnRepository.ensureDeviceInfoTypes(kilns)
+            }
         }
     }
     
@@ -180,12 +186,8 @@ fun KilnsScreen(
                             items = registeredKilns.value,
                             key = { kiln -> kiln.macAddress }
                         ) { kiln ->
-                            val cardConnectionState = if (isOnKilnWifi.value) {
-                                HybridConnectionState.WIFI_ONLINE
-                            } else {
-                                HybridConnectionState.OFFLINE
-                            }
-                            key(kiln.macAddress, isOnKilnWifi.value) {
+                            val cardConnectionState = HybridConnectionState.WIFI_ONLINE
+                            key(kiln.macAddress) {
                                 KilnCard(
                                     kiln = kiln,
                                     onClick = { onKilnSelected(kiln.macAddress, kiln.name) },
@@ -198,9 +200,6 @@ fun KilnsScreen(
                                     onLoadProgramClick = {
                                         onNavigateToSelectProgram(kiln.macAddress, kiln.name)
                                     },
-                                    bleTemperature = null,
-                                    isBleConnected = false,
-                                    bleStatus = null,
                                     connectionState = cardConnectionState,
                                     currentUserId = currentUserId,
                                     programName = null
@@ -297,7 +296,14 @@ fun KilnsScreen(
                         info.macAddress.replace(":", "").uppercase(),
                         info.name,
                         info.model,
-                        info.volume
+                        info.volume,
+                        info.type.ifBlank {
+                            if (info.model.equals("DATALOGGER", ignoreCase = true)) {
+                                "DATALOGGER"
+                            } else {
+                                "KILN"
+                            }
+                        }
                     )
                 }
             )
@@ -306,8 +312,7 @@ fun KilnsScreen(
 }
 
 /**
- * Estado vacío de Hornos (¿Listo para comenzar?).
- * Misma estructura visual ESP: header marca, ilustración, título, body muted, CTA naranja.
+ * Estado vacío de Hornos — layout ESP: marca, visual horno+WiFi, título, copy SoftAP, CTA.
  */
 @Composable
 private fun EmptyKilnsContent(
@@ -315,87 +320,95 @@ private fun EmptyKilnsContent(
     modifier: Modifier = Modifier
 ) {
     val kilnColors = LocalKilnColors.current
-    val titleText = if (kilnColors.isEsp) {
-        "¿Listo para comenzar?".uppercase()
-    } else {
-        "¿Listo para comenzar?"
-    }
 
-    Box(modifier = modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+            .padding(top = 58.dp, bottom = 200.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         EspBrandHeader(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 24.dp, end = 24.dp, top = 58.dp)
+                .fillMaxWidth()
+                .align(Alignment.Start)
         )
 
-        Image(
-            painter = painterResource(id = R.drawable.img_sin_hornos),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = (-165).dp)
-                .size(200.dp)
-        )
+        Spacer(modifier = Modifier.weight(0.35f))
+
+        EmptyKilnHeroVisual()
+
+        Spacer(modifier = Modifier.height(28.dp))
 
         Text(
-            text = titleText,
+            text = "Agregá tu primer dispositivo",
             style = MaterialTheme.typography.titleLarge.copy(
                 color = kilnColors.title,
                 fontWeight = FontWeight.Bold
             ),
             textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 400.dp)
+            modifier = Modifier.fillMaxWidth()
         )
 
-        Column(
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "Conectate al WiFi SmartKiln del equipo para vincularlo. No necesitás internet.",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                color = kilnColors.muted
+            ),
+            textAlign = TextAlign.Center,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 28.dp)
-                .padding(bottom = 341.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.weight(0.65f))
+
+        Button(
+            onClick = onComenzar,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = DialogBrand.primaryButton(),
+                contentColor = kilnColors.onAccent
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "Cuando estés listo, presioná comenzar",
-                style = MaterialTheme.typography.bodyLarge.copy(color = kilnColors.body),
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "para detectar los hornos disponibles",
-                style = MaterialTheme.typography.bodyLarge.copy(color = kilnColors.body),
-                textAlign = TextAlign.Center
+                text = "Comenzar",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold
+                )
             )
         }
+    }
+}
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 200.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Button(
-                onClick = onComenzar,
-                enabled = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DialogBrand.primaryButton(),
-                    contentColor = kilnColors.onAccent,
-                    disabledContainerColor = DialogBrand.primaryButton(),
-                    disabledContentColor = kilnColors.onAccent
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = "Comenzar",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+@Composable
+private fun EmptyKilnHeroVisual() {
+    val kilnColors = LocalKilnColors.current
+    Box(
+        modifier = Modifier
+            .size(width = 220.dp, height = 168.dp)
+            .border(1.dp, kilnColors.cardBorder, RoundedCornerShape(16.dp))
+            .background(kilnColors.cardBackground, RoundedCornerShape(16.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(id = R.drawable.logoicon),
+                contentDescription = "SmartKiln",
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Icon(
+                painter = painterResource(id = R.drawable.icon_wifi),
+                contentDescription = null,
+                tint = kilnColors.muted,
+                modifier = Modifier.size(28.dp)
+            )
         }
     }
 }

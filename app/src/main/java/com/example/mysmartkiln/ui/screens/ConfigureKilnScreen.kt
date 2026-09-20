@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
+import com.example.mysmartkiln.data.local.SoftApDeviceType
 import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
 import com.example.mysmartkiln.ui.components.WifiScanDialog
 import com.example.mysmartkiln.utils.KilnNetworkConnector
@@ -68,6 +69,7 @@ fun ConfigureKilnScreen(
     authViewModel: AuthViewModel,
     deviceModel: String = "",
     deviceVolume: String = "",
+    deviceType: String = "KILN",
     existingKiln: KilnEntity? = null, // Opcional: horno existente para modo edición
     onKilnConfigured: () -> Unit = {},
     onBack: () -> Unit = {},
@@ -78,6 +80,19 @@ fun ConfigureKilnScreen(
     onCreateProgram: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var isDataLogger by remember {
+        mutableStateOf(
+            deviceType.equals("DATALOGGER", ignoreCase = true) ||
+                deviceModel.equals("DATALOGGER", ignoreCase = true) ||
+                (existingKiln != null &&
+                    existingKiln.volume.let { it.isBlank() || it == "0" || it == "0.0" } &&
+                    existingKiln.manufacturer.uppercase().let { m ->
+                        m == "K" || m == "S" || m == "TYPE K" || m == "TYPE S" ||
+                            m == "TIPO K" || m == "TIPO S"
+                    })
+        )
+    }
+
     // Pre-cargar datos:
     //   - Si el horno ya existe en Room (modo edición), usamos esos valores.
     //   - Si no, prellenamos con lo que devolvió GET /api/info al alta
@@ -85,13 +100,37 @@ fun ConfigureKilnScreen(
     //     el "0.0" del firmware sin configurar para que el campo aparezca
     //     vacío y obligue al usuario a completarlo.
     var kilnName by remember { mutableStateOf(existingKiln?.name ?: deviceName) }
-    var manufacturer by remember { mutableStateOf(existingKiln?.manufacturer ?: deviceModel) }
+    var manufacturer by remember {
+        mutableStateOf(
+            if (isDataLogger) "" else (existingKiln?.manufacturer ?: deviceModel)
+        )
+    }
+    var thermocoupleType by remember {
+        mutableStateOf(
+            when {
+                !isDataLogger -> ""
+                existingKiln != null -> {
+                    val m = existingKiln.manufacturer.uppercase()
+                    when {
+                        m == "S" || m.contains("TIPO S") || m.contains("TYPE S") -> "S"
+                        m == "K" || m.contains("TIPO K") || m.contains("TYPE K") -> "K"
+                        else -> ""
+                    }
+                }
+                else -> ""
+            }
+        )
+    }
     var volume by remember {
         mutableStateOf(
-            existingKiln?.volume
-                ?: deviceVolume.takeIf {
-                    it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true
-                }.orEmpty()
+            if (isDataLogger) {
+                "0"
+            } else {
+                existingKiln?.volume
+                    ?: deviceVolume.takeIf {
+                        it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true
+                    }.orEmpty()
+            }
         )
     }
     var wifiSSID by remember { mutableStateOf("") }
@@ -133,8 +172,21 @@ fun ConfigureKilnScreen(
                 if (foundKiln != null) {
                     // Pre-cargar datos del horno encontrado y marcar como modo edición
                     kilnName = foundKiln.name
-                    manufacturer = foundKiln.manufacturer
-                    volume = foundKiln.volume
+                    val m = foundKiln.manufacturer.uppercase()
+                    val looksLikeLogger =
+                        (foundKiln.volume.isBlank() || foundKiln.volume == "0" ||
+                            foundKiln.volume == "0.0") &&
+                            (m == "K" || m == "S" || m == "TYPE K" || m == "TYPE S" ||
+                                m == "TIPO K" || m == "TIPO S")
+                    if (looksLikeLogger) {
+                        isDataLogger = true
+                        thermocoupleType = if (m.contains("S")) "S" else "K"
+                        manufacturer = ""
+                        volume = "0"
+                    } else {
+                        manufacturer = foundKiln.manufacturer
+                        volume = foundKiln.volume
+                    }
                     isEditMode = true // Establecer explícitamente que estamos en modo edición
                     android.util.Log.d("ConfigureKilnScreen", "✅ Horno encontrado y datos pre-cargados: ${foundKiln.name} - Modo: Edición")
                 } else {
@@ -153,19 +205,28 @@ fun ConfigureKilnScreen(
     }
     
     fun isKilnFormValid(): Boolean {
-        return kilnName.trim().isNotBlank() &&
-            manufacturer.trim().isNotBlank() &&
-            volume.trim().isNotBlank()
+        if (kilnName.trim().isBlank()) return false
+        return if (isDataLogger) {
+            thermocoupleType == "K" || thermocoupleType == "S"
+        } else {
+            manufacturer.trim().isNotBlank() && volume.trim().isNotBlank()
+        }
     }
 
     suspend fun saveKiln() {
-        sendingPhase = if (isEditMode) "Actualizando horno…" else "Configurando horno…"
+        sendingPhase = when {
+            isEditMode && isDataLogger -> "Actualizando dispositivo…"
+            isEditMode -> "Actualizando horno…"
+            isDataLogger -> "Configurando dispositivo…"
+            else -> "Configurando horno…"
+        }
         sendingDetail = "Guardando en la app…"
         isSendingToKiln = true
 
         val name = kilnName.trim()
-        val brand = manufacturer.trim()
-        val vol = volume.trim()
+        val brand = if (isDataLogger) thermocoupleType else manufacturer.trim()
+        val vol = if (isDataLogger) "0" else volume.trim()
+        val modelForEsp = if (isDataLogger) "DATALOGGER" else brand
         val currentUserId = authViewModel.getCurrentNormalizedUserId()
 
         val finalBleMacAddress = if (isEditMode && existingKiln != null) {
@@ -180,7 +241,8 @@ fun ConfigureKilnScreen(
             name = name,
             manufacturer = brand,
             volume = vol,
-            userId = currentUserId
+            userId = currentUserId,
+            deviceType = if (isDataLogger) "DATALOGGER" else "KILN"
         )
 
         val homeSsid = wifiSSID.trim()
@@ -188,11 +250,13 @@ fun ConfigureKilnScreen(
         val shouldSendHomeWifi = homeSsid.isNotBlank() && homePassword.isNotBlank()
         val kilnInfoJson = KilnInfoJsonBuilder.build(
             name = name,
-            model = brand,
+            model = modelForEsp,
             volume = vol,
             userId = currentUserId,
+            type = if (isDataLogger) "DATALOGGER" else "KILN",
             homeWifiSsid = homeSsid.takeIf { shouldSendHomeWifi },
-            homeWifiPassword = homePassword.takeIf { shouldSendHomeWifi }
+            homeWifiPassword = homePassword.takeIf { shouldSendHomeWifi },
+            thermocoupleType = thermocoupleType.takeIf { isDataLogger && it.isNotBlank() }
         )
 
         try {
@@ -205,6 +269,7 @@ fun ConfigureKilnScreen(
                 kilnMacNoColons = cleanMacAddress,
                 kilnHttpClient = kilnHttpClient,
                 kilnInfoJson = kilnInfoJson,
+                deviceType = if (isDataLogger) SoftApDeviceType.DATALOGGER else SoftApDeviceType.KILN,
                 onDetail = { sendingDetail = it }
             )
 
@@ -212,7 +277,7 @@ fun ConfigureKilnScreen(
                 onKilnConfigured()
             } else {
                 val detail = if (!KilnNetworkConnector.isSupported) {
-                    "Conéctate manualmente al WiFi del horno (SmartKiln-XXXX) y pulsa «Actualizar horno» de nuevo."
+                    "Conéctate manualmente al WiFi del horno (SmartKiln-XXXXXXXX) y pulsa «Actualizar horno» de nuevo."
                 } else if (!KilnNetworkConnector.hasRequiredPermissions(context)) {
                     "Activa el permiso de WiFi cercano en Ajustes de la app e inténtalo otra vez."
                 } else {
@@ -268,10 +333,10 @@ fun ConfigureKilnScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     item {
-                // Campo: Nombre del horno
+                // Campo: Nombre
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Nombre del horno",
+                        text = if (isDataLogger) "Nombre del dispositivo" else "Nombre del horno",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             color = kilnColors.title,
                             fontWeight = FontWeight.Medium
@@ -303,7 +368,58 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
-                    
+
+                    if (isDataLogger) {
+                    item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Tipo de termocupla",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = kilnColors.title,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        listOf("K", "S").forEach { type ->
+                            val selected = thermocoupleType == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(shape = fieldShape)
+                                    .background(
+                                        if (selected) DialogBrand.primaryButton()
+                                        else kilnColors.cardBackground
+                                    )
+                                    .border(
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (selected) DialogBrand.primaryButton()
+                                            else kilnColors.cardBorder
+                                        ),
+                                        shape = fieldShape
+                                    )
+                                    .clickable { thermocoupleType = type }
+                                    .padding(vertical = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Tipo $type",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        color = if (selected) kilnColors.onAccent
+                                        else kilnColors.title,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                    }
+                    } else {
                     item {
                 // Campo: Fabricante/Marca
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -340,7 +456,7 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
-                    
+
                     item {
                 // Campo: Volumen
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -378,11 +494,12 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
+                    }
                     
                     // Mostrar campos de WiFi siempre (tanto en creación como en edición)
                     // En modo edición, son opcionales para actualizar la configuración WiFi del horno
                     item {
-                // Red de casa (opcional): no usar la red SmartKiln del horno
+                // Red de casa (opcional): no usar la red SoftAP del dispositivo
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "Red Wifi (acceso a internet)",
@@ -393,7 +510,11 @@ fun ConfigureKilnScreen(
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                     Text(
-                        text = "Opcional. El horno funciona sin internet; solo si quieres sincronización remota.",
+                        text = if (isDataLogger) {
+                            "Opcional. El dispositivo funciona sin internet; solo si quieres sincronización remota."
+                        } else {
+                            "Opcional. El horno funciona sin internet; solo si quieres sincronización remota."
+                        },
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = kilnColors.muted
                         ),
@@ -551,7 +672,12 @@ fun ConfigureKilnScreen(
                 shape = fieldShape
             ) {
                 Text(
-                    text = if (isEditMode) "Actualizar horno" else "Agregar Horno",
+                    text = when {
+                        isEditMode && isDataLogger -> "Actualizar dispositivo"
+                        isEditMode -> "Actualizar horno"
+                        isDataLogger -> "Agregar dispositivo"
+                        else -> "Agregar Horno"
+                    },
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -622,14 +748,19 @@ fun ConfigureKilnScreen(
                 onDismissRequest = { showValidationAlert = false },
                 title = {
                     Text(
-                        text = "Datos del horno",
+                        text = if (isDataLogger) "Datos del dispositivo" else "Datos del horno",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
                 text = {
                     Text(
-                        text = "Completa nombre, fabricante/marca y volumen. " +
-                            "La red WiFi de casa es opcional (el horno funciona sin internet).",
+                        text = if (isDataLogger) {
+                            "Completa el nombre y el tipo de termocupla (K o S). " +
+                                "La red WiFi de casa es opcional (funciona sin internet)."
+                        } else {
+                            "Completa nombre, fabricante/marca y volumen. " +
+                                "La red WiFi de casa es opcional (el horno funciona sin internet)."
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },
@@ -693,7 +824,7 @@ fun ConfigureKilnScreen(
     }
 }
 
-/** Convierte MAC sin ":" (Firebase/API) a formato BLE AA:BB:CC:DD:EE:FF */
+/** Convierte MAC sin ":" (Firebase/API) a formato AA:BB:CC:DD:EE:FF */
 private fun formatBleMacAddress(mac: String): String {
     if (mac.contains(":")) return mac.uppercase()
     val clean = mac.replace(":", "").uppercase()
@@ -702,17 +833,18 @@ private fun formatBleMacAddress(mac: String): String {
 }
 
 /**
- * Envía kiln-info al ESP: ping directo o conexión automática al AP SmartKiln-*.
+ * Envía kiln-info al ESP: ping directo o conexión automática al SoftAP.
  */
 private suspend fun syncKilnInfoToEsp(
     context: android.content.Context,
     kilnMacNoColons: String,
     kilnHttpClient: KilnHttpClient,
     kilnInfoJson: String,
+    deviceType: SoftApDeviceType = SoftApDeviceType.KILN,
     onDetail: (String) -> Unit
 ): Boolean {
     suspend fun tryUpload(): Boolean {
-        onDetail("Enviando configuración al horno…")
+        onDetail("Enviando configuración al dispositivo…")
         if (!kilnHttpClient.ping()) return false
         return kilnHttpClient.uploadKilnInfo(kilnInfoJson)
             .onSuccess {
@@ -724,25 +856,31 @@ private suspend fun syncKilnInfoToEsp(
             .isSuccess
     }
 
+    var shouldMarkCooldown = false
     try {
-        onDetail("Comprobando conexión con el horno…")
-        if (tryUpload()) return true
+        onDetail("Comprobando conexión con el dispositivo…")
+        if (tryUpload()) {
+            // HTTP local: el ESP puede soltar SoftAP unos segundos.
+            shouldMarkCooldown = true
+            return true
+        }
 
         if (!KilnNetworkConnector.isSupported) return false
         if (!KilnNetworkConnector.hasRequiredPermissions(context)) return false
 
-        val ssid = KilnNetworkConnector.ssidFromMac(kilnMacNoColons) ?: return false
+        val ssid = KilnNetworkConnector.ssidFromMac(kilnMacNoColons, deviceType) ?: return false
         val pass = KilnNetworkConnector.passphraseFromMac(kilnMacNoColons) ?: return false
 
-        onDetail("Conectando al WiFi del horno…")
+        onDetail("Conectando al WiFi del dispositivo…")
         android.util.Log.d("ConfigureKilnScreen", "Auto-conexión a $ssid para kiln-info")
         if (KilnNetworkConnector.connect(context, ssid, pass) == null) {
             return false
         }
+        shouldMarkCooldown = true
         delay(500)
         return tryUpload()
     } finally {
-        KilnNetworkConnector.release(context)
+        KilnNetworkConnector.release(context, markHandoffCooldown = shouldMarkCooldown)
     }
 }
 

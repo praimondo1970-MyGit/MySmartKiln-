@@ -246,7 +246,7 @@ fun KilnProgramScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Misma altura visual que INICIAR/STOP en Estado
             Button(
@@ -254,7 +254,7 @@ fun KilnProgramScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .offset(y = (-50).dp)
+                    .offset(y = (-10).dp)
                     .padding(horizontal = 2.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DialogBrand.primaryButton(),

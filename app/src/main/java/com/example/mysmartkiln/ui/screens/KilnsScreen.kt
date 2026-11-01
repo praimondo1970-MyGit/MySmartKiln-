@@ -49,11 +49,19 @@ import com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager
 import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.ui.components.KilnCard
 import com.example.mysmartkiln.ui.components.KilnDiscoveryDialog
+import com.example.mysmartkiln.ui.components.KilnNoCloudEntryDialog
 import androidx.compose.ui.platform.LocalContext
-import com.example.mysmartkiln.utils.HybridConnectionState
-import com.example.mysmartkiln.utils.WifiUtils
+import com.example.mysmartkiln.utils.DeviceKind
+import com.example.mysmartkiln.utils.KilnConnectionState
+import com.example.mysmartkiln.utils.KilnOfflineSession
 import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.AppOperationMode
+import com.example.mysmartkiln.utils.LocalOperationModeController
 import com.example.mysmartkiln.data.auth.AuthViewModel
+import com.example.mysmartkiln.data.local.KilnHttpClient
+import com.example.mysmartkiln.data.local.KilnLocalLinkBootstrap
+import com.example.mysmartkiln.data.local.entity.KilnEntity
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun KilnsScreen(
@@ -62,7 +70,7 @@ fun KilnsScreen(
     onNavigateToActivity: () -> Unit = {},
     onCreateProgram: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onKilnSelected: (String, String) -> Unit = { _, _ -> }, // Para navegar a monitoreo del horno (macAddress, kilnName)
+    onKilnSelected: (String, String, Boolean) -> Unit = { _, _, _ -> }, // mac, name, preferLocal
     onNavigateToSelectProgram: (String, String) -> Unit = { _, _ -> },
     onEditKiln: (String) -> Unit = { _ -> }, // Para navegar a edición de horno (macAddress)
     // MAC limpia, nombre, modelo, volumen y tipo (KILN / DATALOGGER).
@@ -76,6 +84,8 @@ fun KilnsScreen(
     val coroutineScope = rememberCoroutineScope()
     val firebaseManager = remember { FirebaseRealtimeManager() }
     val kilnRepository = remember { KilnRepository(context, firebaseManager) }
+    val kilnHttpClient = remember { KilnHttpClient(context) }
+    val operationMode by LocalOperationModeController.current.mode.collectAsState()
     
     // Obtener el UID del usuario actual
     val currentUserId = authViewModel.getCurrentNormalizedUserId()
@@ -84,10 +94,21 @@ fun KilnsScreen(
     // Obtener hornos registrados
     val registeredKilns = remember { mutableStateOf<List<com.example.mysmartkiln.data.local.entity.KilnEntity>>(emptyList()) }
     
-    LaunchedEffect(Unit) {
-        // Al abrir la lista: soltar bind SoftAP residual para que Firebase funcione.
-        if (!WifiUtils.isOnSmartKilnNetwork(context)) {
-            KilnNetworkConnector.release(context)
+    LaunchedEffect(operationMode, currentUserId) {
+        if (operationMode == AppOperationMode.LOCAL) {
+            // SoftAP en background (si Ajustes ya arrancó, el bootstrap es idempotente).
+            if (KilnNetworkConnector.hasRequiredPermissions(context)) {
+                KilnLocalLinkBootstrap.startLocalMode(
+                    context = context,
+                    kilnRepository = kilnRepository,
+                    kilnHttpClient = kilnHttpClient,
+                    userId = currentUserId,
+                    pushKilnInfo = true
+                )
+            }
+        } else {
+            // ONLINE: siempre soltar SoftAP para que el chip sea REMOTO y Firebase funcione.
+            KilnLocalLinkBootstrap.onOnlineMode(context)
         }
     }
     
@@ -106,6 +127,7 @@ fun KilnsScreen(
     // Estado para controlar el menú "+"
     var isMenuOpen by remember { mutableStateOf(false) }
     var showDiscoveryDialog by remember { mutableStateOf(false) }
+    var pendingNoCloudKiln by remember { mutableStateOf<KilnEntity?>(null) }
 
     // El nuevo flujo de alta encapsula el escaneo, la auto-conexión y el GET
     // /api/info dentro de KilnDiscoveryDialog, así que ya no necesitamos el
@@ -186,11 +208,25 @@ fun KilnsScreen(
                             items = registeredKilns.value,
                             key = { kiln -> kiln.macAddress }
                         ) { kiln ->
-                            val cardConnectionState = HybridConnectionState.WIFI_ONLINE
+                            val cardConnectionState = KilnConnectionState.OFFLINE
                             key(kiln.macAddress) {
                                 KilnCard(
                                     kiln = kiln,
-                                    onClick = { onKilnSelected(kiln.macAddress, kiln.name) },
+                                    onClick = { telemetryFresh ->
+                                        val isLogger = DeviceKind.isDataLogger(kiln)
+                                        when {
+                                            isLogger ->
+                                                onKilnSelected(kiln.macAddress, kiln.name, false)
+                                            operationMode == AppOperationMode.LOCAL -> {
+                                                KilnOfflineSession.markPreferLocal(kiln.macAddress)
+                                                onKilnSelected(kiln.macAddress, kiln.name, true)
+                                            }
+                                            !telemetryFresh ->
+                                                pendingNoCloudKiln = kiln
+                                            else ->
+                                                onKilnSelected(kiln.macAddress, kiln.name, false)
+                                        }
+                                    },
                                     onEditClick = { onEditKiln(kiln.macAddress) },
                                     onDeleteClick = {
                                         coroutineScope.launch {
@@ -306,6 +342,22 @@ fun KilnsScreen(
                         }
                     )
                 }
+            )
+        }
+
+        pendingNoCloudKiln?.let { kiln ->
+            KilnNoCloudEntryDialog(
+                kilnName = kiln.name,
+                onConnectLocal = {
+                    pendingNoCloudKiln = null
+                    KilnOfflineSession.markPreferLocal(kiln.macAddress)
+                    onKilnSelected(kiln.macAddress, kiln.name, true)
+                },
+                onEnterAnyway = {
+                    pendingNoCloudKiln = null
+                    onKilnSelected(kiln.macAddress, kiln.name, false)
+                },
+                onDismiss = { pendingNoCloudKiln = null }
             )
         }
     }

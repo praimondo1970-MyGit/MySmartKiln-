@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
+import com.example.mysmartkiln.data.local.KilnEspInfoSync
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
 import com.example.mysmartkiln.data.local.SoftApDeviceType
@@ -229,15 +230,15 @@ fun ConfigureKilnScreen(
         val modelForEsp = if (isDataLogger) "DATALOGGER" else brand
         val currentUserId = authViewModel.getCurrentNormalizedUserId()
 
-        val finalBleMacAddress = if (isEditMode && existingKiln != null) {
+        val finalColonMacAddress = if (isEditMode && existingKiln != null) {
             existingKiln.bleMacAddress
         } else {
-            formatBleMacAddress(macAddress.ifBlank { cleanMacAddress })
+            formatColonMacAddress(macAddress.ifBlank { cleanMacAddress })
         }
 
         val kilnEntity = KilnEntity(
             macAddress = cleanMacAddress,
-            bleMacAddress = finalBleMacAddress,
+            bleMacAddress = finalColonMacAddress,
             name = name,
             manufacturer = brand,
             volume = vol,
@@ -264,7 +265,7 @@ fun ConfigureKilnScreen(
                 kilnRepository.saveKiln(kilnEntity)
             }
 
-            val espSynced = syncKilnInfoToEsp(
+            val espSynced = KilnEspInfoSync.upload(
                 context = context,
                 kilnMacNoColons = cleanMacAddress,
                 kilnHttpClient = kilnHttpClient,
@@ -825,63 +826,11 @@ fun ConfigureKilnScreen(
 }
 
 /** Convierte MAC sin ":" (Firebase/API) a formato AA:BB:CC:DD:EE:FF */
-private fun formatBleMacAddress(mac: String): String {
+private fun formatColonMacAddress(mac: String): String {
     if (mac.contains(":")) return mac.uppercase()
     val clean = mac.replace(":", "").uppercase()
     if (clean.length != 12) return mac
     return clean.chunked(2).joinToString(":")
-}
-
-/**
- * Envía kiln-info al ESP: ping directo o conexión automática al SoftAP.
- */
-private suspend fun syncKilnInfoToEsp(
-    context: android.content.Context,
-    kilnMacNoColons: String,
-    kilnHttpClient: KilnHttpClient,
-    kilnInfoJson: String,
-    deviceType: SoftApDeviceType = SoftApDeviceType.KILN,
-    onDetail: (String) -> Unit
-): Boolean {
-    suspend fun tryUpload(): Boolean {
-        onDetail("Enviando configuración al dispositivo…")
-        if (!kilnHttpClient.ping()) return false
-        return kilnHttpClient.uploadKilnInfo(kilnInfoJson)
-            .onSuccess {
-                android.util.Log.d("ConfigureKilnScreen", "kiln-info enviado por HTTP")
-            }
-            .onFailure {
-                android.util.Log.w("ConfigureKilnScreen", "kiln-info HTTP: ${it.message}")
-            }
-            .isSuccess
-    }
-
-    var shouldMarkCooldown = false
-    try {
-        onDetail("Comprobando conexión con el dispositivo…")
-        if (tryUpload()) {
-            // HTTP local: el ESP puede soltar SoftAP unos segundos.
-            shouldMarkCooldown = true
-            return true
-        }
-
-        if (!KilnNetworkConnector.isSupported) return false
-        if (!KilnNetworkConnector.hasRequiredPermissions(context)) return false
-
-        val ssid = KilnNetworkConnector.ssidFromMac(kilnMacNoColons, deviceType) ?: return false
-        val pass = KilnNetworkConnector.passphraseFromMac(kilnMacNoColons) ?: return false
-
-        onDetail("Conectando al WiFi del dispositivo…")
-        android.util.Log.d("ConfigureKilnScreen", "Auto-conexión a $ssid para kiln-info")
-        if (KilnNetworkConnector.connect(context, ssid, pass) == null) {
-            return false
-        }
-        shouldMarkCooldown = true
-        delay(500)
-        return tryUpload()
-    } finally {
-        KilnNetworkConnector.release(context, markHandoffCooldown = shouldMarkCooldown)
-    }
 }
 
 @Preview(showBackground = true)

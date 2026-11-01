@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "kilns")
 data class KilnEntity(
     @PrimaryKey val macAddress: String,  // MAC sin ":" para Firebase (ej: A4CF128856EA)
-    val bleMacAddress: String,  // MAC con ":" (legado de Room; mismo dispositivo que macAddress)
+    val bleMacAddress: String,  // MAC con ":" (columna Room legacy; mismo dispositivo que macAddress)
     val name: String,
     val manufacturer: String,
     val volume: String,
@@ -16,6 +16,11 @@ data class KilnEntity(
      * Para DATALOGGER, [manufacturer] suele ser el tipo de termocupla (K/S).
      */
     val deviceType: String = "",
+    /**
+     * true = Solo local en el ESP (sin WiFi de casa / Firebase).
+     * La app prioriza SoftAP al abrir.
+     */
+    val offlineOnly: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val lastSyncTimestamp: Long = 0L,
     val isPendingSync: Boolean = true

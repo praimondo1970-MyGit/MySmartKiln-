@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnApiDefaults
 import com.example.mysmartkiln.data.local.SoftApDeviceType
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -102,9 +103,23 @@ object KilnNetworkConnector {
             .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return null
 
-        // Si ya hay un request previo, lo soltamos. Cada conexión nueva debe
-        // empezar limpia para que el diálogo del sistema vuelva a aparecer
-        // si el usuario lo cerró.
+        // Reusar SoftAP ya pedido (p. ej. bootstrap LOCAL + ACTUALIZAR HORNO).
+        // release()+requestNetwork de nuevo provoca fallos intermitentes.
+        val existing = activeNetwork
+        if (existing != null) {
+            val caps = cm.getNetworkCapabilities(existing)
+            val stillWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            val currentSsid = WifiUtils.getCurrentWifiSSID(context)
+            val sameSsid = !currentSsid.isNullOrBlank() &&
+                currentSsid.equals(ssid, ignoreCase = true)
+            if (stillWifi && (sameSsid || currentSsid.isNullOrBlank())) {
+                Log.d(TAG, "Reusando SoftAP activo ($ssid): $existing")
+                return existing
+            }
+        }
+
+        // Si ya hay un request previo a otro SSID, lo soltamos. Cada conexión
+        // nueva debe empezar limpia para que el diálogo del sistema vuelva.
         release(context)
 
         val specifier = WifiNetworkSpecifier.Builder()
@@ -118,41 +133,49 @@ object KilnNetworkConnector {
             .setNetworkSpecifier(specifier)
             .build()
 
-        return suspendCancellableCoroutine { cont ->
-            val callback = object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    Log.d(TAG, "AP horno disponible: $network")
-                    activeNetwork = network
-                    if (cont.isActive) cont.resume(network)
+        // Garantizar salida: en algunos Android onUnavailable no llega si el
+        // diálogo del sistema queda tapado por un Dialog de Compose.
+        return withTimeoutOrNull(timeoutMs + 1_500L) {
+            suspendCancellableCoroutine { cont ->
+                val callback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        Log.d(TAG, "AP horno disponible: $network")
+                        activeNetwork = network
+                        if (cont.isActive) cont.resume(network)
+                    }
+
+                    override fun onUnavailable() {
+                        Log.w(TAG, "AP horno no disponible (timeout o rechazo)")
+                        activeNetwork = null
+                        if (cont.isActive) cont.resume(null)
+                    }
+
+                    override fun onLost(network: Network) {
+                        Log.w(TAG, "AP horno perdido: $network")
+                        if (activeNetwork == network) activeNetwork = null
+                    }
                 }
 
-                override fun onUnavailable() {
-                    Log.w(TAG, "AP horno no disponible (timeout o rechazo)")
-                    activeNetwork = null
+                activeCallback = callback
+
+                try {
+                    cm.requestNetwork(request, callback, timeoutMs.toInt())
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "Sin permisos para requestNetwork: ${e.message}")
+                    activeCallback = null
                     if (cont.isActive) cont.resume(null)
+                    return@suspendCancellableCoroutine
                 }
 
-                override fun onLost(network: Network) {
-                    Log.w(TAG, "AP horno perdido: $network")
-                    if (activeNetwork == network) activeNetwork = null
+                cont.invokeOnCancellation {
+                    Log.d(TAG, "connect cancelado, liberando")
+                    release(context)
                 }
             }
-
-            activeCallback = callback
-
-            try {
-                cm.requestNetwork(request, callback, timeoutMs.toInt())
-            } catch (e: SecurityException) {
-                Log.e(TAG, "Sin permisos para requestNetwork: ${e.message}")
-                activeCallback = null
-                if (cont.isActive) cont.resume(null)
-                return@suspendCancellableCoroutine
-            }
-
-            cont.invokeOnCancellation {
-                Log.d(TAG, "connect cancelado, liberando")
-                release(context)
-            }
+        } ?: run {
+            Log.w(TAG, "connect() timeout de seguridad (${timeoutMs}ms) — liberando")
+            release(context)
+            null
         }
     }
 

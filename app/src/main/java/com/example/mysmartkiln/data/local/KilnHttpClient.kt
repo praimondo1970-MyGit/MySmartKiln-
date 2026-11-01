@@ -36,15 +36,22 @@ class KilnHttpClient(
 
 
 
-    suspend fun ping(): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * @param connectTimeoutMs / readTimeoutMs más cortos en probes de arranque
+     * (fallar rápido si no hay SoftAP) sin tocar el ping de monitoreo local.
+     */
+    suspend fun ping(
+        connectTimeoutMs: Int = 1500,
+        readTimeoutMs: Int = 1500
+    ): Boolean = withContext(Dispatchers.IO) {
 
         try {
 
             val connection = openConnection("/api/status", "GET").apply {
 
-                connectTimeout = 1500
+                connectTimeout = connectTimeoutMs
 
-                readTimeout = 1500
+                readTimeout = readTimeoutMs
 
             }
 

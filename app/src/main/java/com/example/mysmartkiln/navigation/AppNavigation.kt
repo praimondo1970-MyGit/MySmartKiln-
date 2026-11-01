@@ -65,13 +65,16 @@ fun AppNavigation(
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
                 },
-                onKilnSelected = { macAddress, kilnName ->
-                    // Navegar a detalles del horno seleccionado
-                    navController.navigate("kiln_detail/$macAddress/$kilnName")
+                onKilnSelected = { macAddress, kilnName, preferLocal ->
+                    val encodedName = Uri.encode(kilnName)
+                    navController.navigate(
+                        "kiln_detail/$macAddress/$encodedName?preferLocal=$preferLocal"
+                    )
                 },
                 onNavigateToSelectProgram = { macAddress, kilnName ->
-                    navController.navigate("kiln_detail/$macAddress/$kilnName")
-                    navController.navigate("select_program/$macAddress/$kilnName")
+                    val encodedName = Uri.encode(kilnName)
+                    navController.navigate("kiln_detail/$macAddress/$encodedName")
+                    navController.navigate("select_program/$macAddress/$encodedName")
                 },
                 onEditKiln = { macAddress ->
                     // Navegar a pantalla de edición de horno
@@ -307,18 +310,25 @@ fun AppNavigation(
         
         // Pantalla de Detalles del Horno
         composable(
-            route = "kiln_detail/{macAddress}/{kilnName}",
+            route = "kiln_detail/{macAddress}/{kilnName}?preferLocal={preferLocal}",
             arguments = listOf(
                 navArgument("macAddress") {
                     type = NavType.StringType
                 },
                 navArgument("kilnName") {
                     type = NavType.StringType
+                },
+                navArgument("preferLocal") {
+                    type = NavType.BoolType
+                    defaultValue = false
                 }
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            val kilnName = Uri.decode(
+                backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            )
+            val preferLocal = backStackEntry.arguments?.getBoolean("preferLocal") ?: false
             
             // Usar el backStackEntry actual como viewModelStoreOwner
             val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel = 
@@ -331,6 +341,7 @@ fun AppNavigation(
                 navController = navController,
                 kilnName = kilnName,
                 kilnMacAddress = macAddress,
+                preferLocal = preferLocal,
                 viewModel = kilnDetailViewModel
             )
         }
@@ -348,12 +359,14 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            val kilnName = Uri.decode(
+                backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            )
             
-            // Obtener el MISMO ViewModel que KilnDetailScreen buscando en el backstack
-            val kilnDetailRoute = "kiln_detail/$macAddress/$kilnName"
-            val parentEntry = navController.getBackStackEntry(kilnDetailRoute)
-            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel = 
+            // Mismo ViewModel que el detalle (debajo en el back stack).
+            val parentEntry = navController.previousBackStackEntry
+                ?: backStackEntry
+            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel =
                 viewModel(
                     viewModelStoreOwner = parentEntry,
                     factory = ViewModelFactory(context)

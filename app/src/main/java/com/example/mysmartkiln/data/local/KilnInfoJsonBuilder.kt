@@ -14,6 +14,7 @@ object KilnInfoJsonBuilder {
         volume: String,
         userId: String,
         type: String = "KILN",
+        offlineOnly: Boolean = false,
         homeWifiSsid: String? = null,
         homeWifiPassword: String? = null,
         thermocoupleType: String? = null
@@ -29,10 +30,14 @@ object KilnInfoJsonBuilder {
                 put("volume", volume)
             }
             put("userId", userId)
+            put("offlineOnly", offlineOnly)
             if (!thermocoupleType.isNullOrBlank()) {
                 put("thermocouple", thermocoupleType.uppercase())
             }
-            if (!homeWifiSsid.isNullOrBlank() && !homeWifiPassword.isNullOrBlank()) {
+            if (!offlineOnly &&
+                !homeWifiSsid.isNullOrBlank() &&
+                !homeWifiPassword.isNullOrBlank()
+            ) {
                 put(
                     "wifi",
                     JSONObject().apply {

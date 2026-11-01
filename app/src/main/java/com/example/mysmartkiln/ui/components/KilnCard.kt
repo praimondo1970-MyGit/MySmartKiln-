@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,17 +56,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.data.local.KilnTelemetryCache
+import com.example.mysmartkiln.data.local.SoftApDeviceType
 import com.example.mysmartkiln.data.local.entity.KilnEntity
 import com.example.mysmartkiln.data.model.DeviceRealtimeSnapshot
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
-import com.example.mysmartkiln.utils.HybridConnectionState
+import com.example.mysmartkiln.utils.AppOperationMode
+import com.example.mysmartkiln.utils.KilnConnectionState
 import com.example.mysmartkiln.utils.UserIdUtils
 import com.example.mysmartkiln.utils.ConnectivityManager
 import com.example.mysmartkiln.utils.DeviceKind
+import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.KilnOfflineSession
 import com.example.mysmartkiln.utils.LinkLostFormat
+import com.example.mysmartkiln.utils.LocalOperationModeController
 import com.example.mysmartkiln.utils.ProgramStatusUtils
+import com.example.mysmartkiln.utils.WifiUtils
 
 /** Timeout sin updates del ESP → DESCONECTADO en la tarjeta (alineado al detalle). */
 private const val ESP_CARD_TELEMETRY_STALE_MS = LinkLostFormat.STALE_MS
@@ -82,14 +90,22 @@ private enum class KilnListChipKind {
     OFFLINE
 }
 
+/** Canal de enlace del horno (independiente del chip de proceso). */
+private enum class KilnLinkMode {
+    CHECKING,
+    LOCAL,
+    REMOTO
+}
+
 @Composable
 fun KilnCard(
     kiln: KilnEntity,
-    onClick: () -> Unit = {},
+    /** [telemetryFresh] = true si el ESP publica en Firebase dentro del umbral STALE_MS. */
+    onClick: (telemetryFresh: Boolean) -> Unit = {},
     onEditClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
     onLoadProgramClick: () -> Unit = {},
-    connectionState: HybridConnectionState = HybridConnectionState.OFFLINE,
+    connectionState: KilnConnectionState = KilnConnectionState.OFFLINE,
     currentUserId: String? = null,
     programName: String? = null,
     modifier: Modifier = Modifier
@@ -99,6 +115,7 @@ fun KilnCard(
     var offsetX by remember { mutableStateOf(0f) }
     
     val context = LocalContext.current
+    // Seed: solo preview (temp/nombre). Nunca marcar “conectado” hasta Firebase/SoftAP.
     val seed = remember(kiln.macAddress) { KilnTelemetryCache.get(kiln.macAddress) }
     
     // Estado para la temperatura en tiempo real y conexión
@@ -108,13 +125,7 @@ fun KilnCard(
     var firebaseProgramName by remember(kiln.macAddress) {
         mutableStateOf(seed?.programName)
     }
-    var isWifiConnected by remember(kiln.macAddress) {
-        mutableStateOf(
-            seed != null &&
-                seed.timestampMs > 0L &&
-                System.currentTimeMillis() - seed.timestampMs < LinkLostFormat.STALE_MS
-        )
-    }
+    var isWifiConnected by remember(kiln.macAddress) { mutableStateOf(false) }
     var hasProgram by remember { mutableStateOf(false) }
     var programRunningState by remember {
         mutableStateOf(ProgramStatusUtils.ProgramRunningState.UNKNOWN)
@@ -122,25 +133,27 @@ fun KilnCard(
     var firebaseStatus by remember(kiln.macAddress) {
         mutableStateOf(seed?.status?.takeIf { it.isNotBlank() })
     }
-    var lastOnlineTimestamp by remember(kiln.macAddress) {
-        mutableStateOf(seed?.timestampMs ?: 0L)
-    }
+    var lastOnlineTimestamp by remember(kiln.macAddress) { mutableStateOf(0L) }
     var temperature by remember { mutableStateOf<Float?>(null) }
     var hasReceivedFirebaseSnapshot by remember(kiln.macAddress) { mutableStateOf(false) }
     
     // Estado para el timer de verificación de conexión
     var lastDataReceived by remember(kiln.macAddress) {
-        mutableStateOf(seed?.updatedAtWallMs ?: System.currentTimeMillis())
+        mutableStateOf(System.currentTimeMillis())
     }
     var connectionCheckTicker by remember { mutableStateOf(0L) }
+    val isDataLogger = remember(kiln) { DeviceKind.isDataLogger(kiln) }
+    val operationMode by LocalOperationModeController.current.mode.collectAsState()
     
     // ConnectivityManager para validar conectividad real
     val connectivityManager = remember { ConnectivityManager(context) }
     val isConnectedToInternet by connectivityManager.isConnectedToInternet.collectAsState()
     val isFirebaseReachable by connectivityManager.isFirebaseReachable.collectAsState()
     
-    // Estado para el connectionState actualizado basado en conectividad
-    var updatedConnectionState by remember { mutableStateOf(connectionState) }
+    // Arranque pesimista: desconectado hasta que RTDB/conectividad digan lo contrario.
+    var updatedConnectionState by remember {
+        mutableStateOf(KilnConnectionState.OFFLINE)
+    }
     
     // SINCRONIZAR updatedConnectionState cuando connectionState cambia externamente
     LaunchedEffect(connectionState) {
@@ -155,11 +168,11 @@ fun KilnCard(
     }
     
     val isConnected = when (updatedConnectionState) {
-        HybridConnectionState.WIFI_ONLINE ->
+        KilnConnectionState.WIFI_ONLINE ->
             isWifiConnected && isConnectedToInternet && isFirebaseReachable
-        HybridConnectionState.WIFI_NO_INTERNET,
-        HybridConnectionState.WIFI_FIREBASE_DOWN,
-        HybridConnectionState.OFFLINE -> false
+        KilnConnectionState.WIFI_NO_INTERNET,
+        KilnConnectionState.WIFI_FIREBASE_DOWN,
+        KilnConnectionState.OFFLINE -> false
     }
     
     android.util.Log.d("KilnCard", "🔍 DEBUG CONNECTION STATE:")
@@ -171,10 +184,10 @@ fun KilnCard(
     android.util.Log.d("KilnCard", "  - isConnected: $isConnected")
     
     val connectionType = when (updatedConnectionState) {
-        HybridConnectionState.WIFI_ONLINE,
-        HybridConnectionState.WIFI_NO_INTERNET,
-        HybridConnectionState.WIFI_FIREBASE_DOWN -> "wifi"
-        HybridConnectionState.OFFLINE -> "offline"
+        KilnConnectionState.WIFI_ONLINE,
+        KilnConnectionState.WIFI_NO_INTERNET,
+        KilnConnectionState.WIFI_FIREBASE_DOWN -> "wifi"
+        KilnConnectionState.OFFLINE -> "offline"
     }
     
     val currentFirebaseProgramName = firebaseProgramName
@@ -198,9 +211,9 @@ fun KilnCard(
     
     LaunchedEffect(isConnectedToInternet, isFirebaseReachable) {
         updatedConnectionState = when {
-            !isConnectedToInternet -> HybridConnectionState.WIFI_NO_INTERNET
-            !isFirebaseReachable -> HybridConnectionState.WIFI_FIREBASE_DOWN
-            else -> HybridConnectionState.WIFI_ONLINE
+            !isConnectedToInternet -> KilnConnectionState.WIFI_NO_INTERNET
+            !isFirebaseReachable -> KilnConnectionState.WIFI_FIREBASE_DOWN
+            else -> KilnConnectionState.WIFI_ONLINE
         }
         android.util.Log.d(
             "KilnCard",
@@ -216,32 +229,44 @@ fun KilnCard(
         }
     }
     
-    // Timer separado para verificar desconexión activamente
-    LaunchedEffect(connectionCheckTicker) {
-        val connectionCheckInterval = 5000L
-        val FIREBASE_TIMEOUT_MS = 60_000L // alinear con telemetría ESP (~10 s)
-
+    // Timer: recomponer y marcar desconectado por timestamp ESP (no solo por
+    // “último evento Firebase”, que puede re-dispararse con datos viejos).
+    // Tick al cambiar modo (Local↔Online) para refrescar SSID SoftAP al toque.
+    // En LOCAL: intervalo corto para detectar SoftAP; en ONLINE también al inicio.
+    LaunchedEffect(
+        kiln.macAddress,
+        operationMode,
+        kiln.offlineOnly
+    ) {
+        val preferLocalTick =
+            !isDataLogger && (
+                operationMode == AppOperationMode.LOCAL ||
+                    kiln.offlineOnly ||
+                    KilnOfflineSession.prefersLocal(kiln.macAddress)
+            )
+        connectionCheckTicker = System.currentTimeMillis()
+        val intervalMs = if (preferLocalTick) 2_000L else 5_000L
         while (isActive) {
-            delay(connectionCheckInterval)
-            val currentTime = System.currentTimeMillis()
-            val timeSinceLastData = currentTime - lastDataReceived
-
-            android.util.Log.d("KilnCard", "⏰ Verificación de conexión: ${timeSinceLastData}ms desde último dato")
-
-            if (timeSinceLastData > FIREBASE_TIMEOUT_MS) {
-                android.util.Log.w("KilnCard", "⚠️ Sin datos por ${timeSinceLastData}ms - marcando como desconectado")
-                isWifiConnected = false
+            delay(intervalMs)
+            val now = System.currentTimeMillis()
+            connectionCheckTicker = now
+            val espTs = lastOnlineTimestamp
+            isWifiConnected = espTs > 0L && (now - espTs) < LinkLostFormat.STALE_MS
+            if (!isWifiConnected && espTs > 0L) {
+                android.util.Log.w(
+                    "KilnCard",
+                    "Telemetría stale (${now - espTs}ms) — chip SIN NUBE"
+                )
             }
-
-            connectionCheckTicker = System.currentTimeMillis()
         }
     }
     
-    // Observar temperatura y estado de conexión desde Firebase
+    // Observar temperatura y estado de conexión desde Firebase.
+    // get() inmediato + listener: una sola lectura de RealtimeData basta para
+    // decidir REMOTO vivo (timestamp ESP < STALE); no esperar solo al WebSocket.
     LaunchedEffect(kiln.macAddress, currentUserId) {
         val firebaseManager = com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager()
-        
-        // Ruta donde el ESP publica: la del horno al darlo de alta (nunca test_user_123)
+
         val userIdToUse = kiln.userId.takeIf {
             it.isNotBlank() && it != "test_user_123"
         } ?: currentUserId.orEmpty().takeIf {
@@ -252,27 +277,16 @@ fun KilnCard(
             isWifiConnected = false
             return@LaunchedEffect
         }
-        android.util.Log.d("KilnCard", "Observando temperatura - userId: $userIdToUse, mac: ${kiln.macAddress}")
-        android.util.Log.d("KilnCard", "Ruta: users/$userIdToUse/kilns/${kiln.macAddress}/realtimeData")
-        
-        try {
-            firebaseManager.observeRealtimeData(userIdToUse, kiln.macAddress).collect { data ->
-                // Actualizar timestamp de último dato recibido
-                lastDataReceived = System.currentTimeMillis()
-                hasReceivedFirebaseSnapshot = true
-                android.util.Log.d("KilnCard", "📡 Datos recibidos - actualizando timestamp de conexión")
-                android.util.Log.d("KilnCard", "📦 Datos recibidos de Firebase: $data")
-                android.util.Log.d("KilnCard", "🔍 Tipo de datos: ${data?.javaClass?.simpleName}")
-                android.util.Log.d("KilnCard", "🔍 ¿Es null? ${data == null}")
-            
+
+        fun applyRealtime(data: Map<String, Any?>?) {
+            lastDataReceived = System.currentTimeMillis()
+            hasReceivedFirebaseSnapshot = true
             if (data == null) {
-                android.util.Log.e("KilnCard", "Data NULL — sin datos en Firebase")
                 firebaseTemperature = null
                 firebaseProgramName = null
                 isWifiConnected = false
-                return@collect
+                return
             }
-
             val snap = DeviceRealtimeSnapshot.parse(
                 raw = data,
                 expectedIsDataLogger = DeviceKind.isDataLogger(kiln)
@@ -282,9 +296,8 @@ fun KilnCard(
                     "KilnCard",
                     "realtime type=${snap.type} ≠ dispositivo — ignorando"
                 )
-                return@collect
+                return
             }
-
             KilnTelemetryCache.putFromFirebase(
                 mac = kiln.macAddress,
                 status = snap.status,
@@ -293,9 +306,7 @@ fun KilnCard(
                 programName = snap.label.takeIf { it.isNotEmpty() }
             )
             val cached = KilnTelemetryCache.get(kiln.macAddress)
-
             firebaseTemperature = cached?.temperature ?: snap.temperature
-
             val timestamp = cached?.timestampMs?.takeIf { it > 0L } ?: snap.timestampMs
             if (timestamp > 0L) {
                 lastOnlineTimestamp = timestamp
@@ -303,19 +314,17 @@ fun KilnCard(
             val currentTimeMs = System.currentTimeMillis()
             isWifiConnected = lastOnlineTimestamp > 0L &&
                 (currentTimeMs - lastOnlineTimestamp) < LinkLostFormat.STALE_MS
-
+            connectionCheckTicker = currentTimeMs
             firebaseStatus = cached?.status?.takeIf { it.isNotBlank() }
                 ?: snap.status.ifBlank { null }
             firebaseProgramName = cached?.programName
                 ?: snap.label.takeIf { it.isNotEmpty() }
-
             try {
                 programRunningState = ProgramStatusUtils.determineProgramState(
                     firebaseData = data,
                     programTotalDurationMinutes = null,
                     isDataLogger = DeviceKind.isDataLogger(kiln)
                 )
-
                 hasProgram = when (programRunningState) {
                     ProgramStatusUtils.ProgramRunningState.CONFIRMED_RUNNING,
                     ProgramStatusUtils.ProgramRunningState.ESTIMATED_RUNNING -> true
@@ -330,17 +339,32 @@ fun KilnCard(
                     snap.status == "PAUSADO"
                 programRunningState = ProgramStatusUtils.ProgramRunningState.UNKNOWN
             }
-            
-            android.util.Log.d("KilnCard", "temp=${firebaseTemperature} status=${snap.status} type=${snap.type}")
+            android.util.Log.d(
+                "KilnCard",
+                "temp=${firebaseTemperature} status=${snap.status} " +
+                    "ageMs=${if (timestamp > 0L) currentTimeMs - timestamp else -1} " +
+                    "live=$isWifiConnected"
+            )
         }
+
+        // Disparo paralelo: get() no espera a que el listener “calibre”.
+        launch {
+            firebaseManager.getRealtimeData(userIdToUse, kiln.macAddress)
+                .onSuccess { applyRealtime(it) }
+                .onFailure {
+                    android.util.Log.w("KilnCard", "getRealtimeData: ${it.message}")
+                }
+        }
+
+        try {
+            firebaseManager.observeRealtimeData(userIdToUse, kiln.macAddress).collect { data ->
+                applyRealtime(data)
+            }
         } catch (e: Exception) {
             android.util.Log.e("KilnCard", "💥 ERROR en Firebase: ${e.message}")
-            android.util.Log.e("KilnCard", "💥 Stack trace: ${e.stackTraceToString()}")
             firebaseTemperature = null
             firebaseProgramName = null
             isWifiConnected = false
-        } finally {
-            // El timer de verificación se maneja en un LaunchedEffect separado
         }
     }
     
@@ -360,28 +384,53 @@ fun KilnCard(
         null -> "Inactivo"
         else -> "Inactivo"
     }
-    // Telemetría fresca del ESP. Timeout 30 s para no parpadear en la lista.
-    // connectionCheckTicker fuerza recomposición cada ~5s para evaluar el stale.
+    // Telemetría fresca solo tras confirmación de esta sesión (Firebase o SoftAP).
+    // Seed de caché NO cuenta como “conectado” al abrir la app.
     val nowMs = if (connectionCheckTicker > 0L) connectionCheckTicker else System.currentTimeMillis()
     val telemetryAgeMs = if (lastOnlineTimestamp > 0L) {
         nowMs - lastOnlineTimestamp
     } else {
         Long.MAX_VALUE
     }
-    val statusUpper = firebaseStatus?.trim()?.uppercase().orEmpty()
-    val seededProcessWhileLoading = !hasReceivedFirebaseSnapshot &&
-        KilnTelemetryCache.isWallFresh(kiln.macAddress) &&
-        statusUpper in PROCESS_CHIP_STATUSES
     val localHoldKeepsChip = KilnTelemetryCache.get(kiln.macAddress)?.let { e ->
         e.fromLocalCommand &&
             nowMs - e.updatedAtWallMs < 12_000L &&
             e.status.trim().uppercase() in PROCESS_CHIP_STATUSES
     } == true
-    val isTelemetryFresh =
-        (lastOnlineTimestamp > 0L && telemetryAgeMs < ESP_CARD_TELEMETRY_STALE_MS) ||
-            seededProcessWhileLoading ||
-            localHoldKeepsChip
-    val isDataLogger = remember(kiln) { DeviceKind.isDataLogger(kiln) }
+    val expectedSoftApSsid = remember(kiln.macAddress, isDataLogger) {
+        KilnNetworkConnector.ssidFromMac(
+            kiln.macAddress,
+            if (isDataLogger) SoftApDeviceType.DATALOGGER else SoftApDeviceType.KILN
+        )
+    }
+    val currentWifiSsid = remember(connectionCheckTicker) {
+        WifiUtils.getCurrentWifiSSID(context)
+    }
+    val onThisDeviceSoftAp =
+        !expectedSoftApSsid.isNullOrBlank() &&
+            !currentWifiSsid.isNullOrBlank() &&
+            currentWifiSsid.equals(expectedSoftApSsid, ignoreCase = true)
+    val isLocalLink = onThisDeviceSoftAp || localHoldKeepsChip
+    val firebaseLinkLive =
+        hasReceivedFirebaseSnapshot &&
+            lastOnlineTimestamp > 0L &&
+            telemetryAgeMs < ESP_CARD_TELEMETRY_STALE_MS
+    // SoftAP cuenta para temp/estado; el punto REMOTO solo mira Firebase.
+    val isTelemetryFresh = isLocalLink || firebaseLinkLive
+    // Label = política Ajustes (inmediato). No depende de SoftAP ni RTDB.
+    val linkMode = when {
+        isDataLogger -> null
+        operationMode == AppOperationMode.LOCAL -> KilnLinkMode.LOCAL
+        else -> KilnLinkMode.REMOTO
+    }
+    // LOCAL→verde: SoftAP vivo. REMOTO→verde: solo RTDB fresco (no SoftAP residual
+    // tras salir de Local, que dejaba el punto verde “como si siguiera local”).
+    val linkLive = when (linkMode) {
+        KilnLinkMode.LOCAL -> isLocalLink
+        KilnLinkMode.REMOTO -> firebaseLinkLive
+        else -> false
+    }
+    // Chip de proceso / estado del horno (como antes).
     val listChipKind = when {
         !isTelemetryFresh -> KilnListChipKind.OFFLINE
         isDataLogger -> KilnListChipKind.CONNECTED
@@ -391,6 +440,8 @@ fun KilnCard(
         activityStatusText == "Finalizado" -> KilnListChipKind.FINISHED
         else -> KilnListChipKind.CONNECTED
     }
+    // Tap: nube fresca O SoftAP local → no mostrar diálogo SIN NUBE.
+    val cloudOrLocalOk = isTelemetryFresh || isLocalLink
     val temperatureLabel = if (temperature != null) "${temperature?.toInt()}°C" else "--°C"
     val cardHeight = if (kilnColors.isEsp) 96.dp else 235.dp
     val cardCorner = if (kilnColors.isEsp) 12.dp else 16.dp
@@ -456,7 +507,7 @@ fun KilnCard(
                     if (isSwiped) {
                         isSwiped = false
                     } else {
-                        onClick()
+                        onClick(cloudOrLocalOk)
                     }
                 }
                 .padding(if (kilnColors.isEsp) 12.dp else 16.dp)
@@ -467,7 +518,9 @@ fun KilnCard(
                     kilnId = "ID: ${kiln.macAddress.takeLast(8).uppercase()}",
                     temperatureLabel = temperatureLabel,
                     chipKind = listChipKind,
-                    isDataLogger = isDataLogger
+                    isDataLogger = isDataLogger,
+                    linkMode = linkMode,
+                    linkLive = linkLive
                 )
             } else {
                 KilnCardClassicContent(
@@ -493,7 +546,9 @@ private fun KilnCardEspContent(
     kilnId: String,
     temperatureLabel: String,
     chipKind: KilnListChipKind,
-    isDataLogger: Boolean
+    isDataLogger: Boolean,
+    linkMode: KilnLinkMode? = null,
+    linkLive: Boolean = false
 ) {
     val kilnColors = LocalKilnColors.current
     // Horno: llama. Otros dispositivos (DataLogger, etc.): icono de capas (ex-Programas).
@@ -503,7 +558,9 @@ private fun KilnCardEspContent(
         R.drawable.icon_flame
     }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -560,20 +617,48 @@ private fun KilnCardEspContent(
                         maxLines = 1
                     )
                 }
-                KilnListStatusChip(
-                    kind = chipKind,
-                    isDataLogger = isDataLogger,
-                    modifier = Modifier.offset(x = 10.dp)
-                )
+                // DataLogger: chip de estado aquí (posición original).
+                // Horno: el chip va en la columna derecha alineada al chevron.
+                if (isDataLogger || linkMode == null) {
+                    KilnListStatusChip(
+                        kind = chipKind,
+                        isDataLogger = isDataLogger,
+                        modifier = Modifier.offset(x = 10.dp)
+                    )
+                }
             }
         }
 
-        Icon(
-            painter = painterResource(id = R.drawable.icon_arrow_right),
-            contentDescription = null,
-            tint = kilnColors.muted,
-            modifier = Modifier.size(18.dp)
-        )
+            if (linkMode != null) {
+                // Horno: ambas burbujas con el mismo borde derecho, justo antes del `>`.
+                Box(
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    KilnLinkModeIndicator(
+                        mode = linkMode,
+                        linkLive = linkLive,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    )
+                    KilnListStatusChip(
+                        kind = chipKind,
+                        isDataLogger = false,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
+                }
+            Icon(
+                painter = painterResource(id = R.drawable.icon_arrow_right),
+                contentDescription = null,
+                tint = kilnColors.muted,
+                modifier = Modifier.size(18.dp)
+            )
+        } else {
+            Icon(
+                painter = painterResource(id = R.drawable.icon_arrow_right),
+                contentDescription = null,
+                tint = kilnColors.muted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 
@@ -639,7 +724,7 @@ private fun KilnListStatusChip(
         KilnListChipKind.OFFLINE -> ChipStyle(
             bg = kilnColors.muted.copy(alpha = 0.22f),
             fg = kilnColors.muted,
-            label = "DESCONECTADO",
+            label = if (isDataLogger) "DESCONECTADO" else "SIN NUBE",
             showFlame = false,
             showWifi = true
         )
@@ -693,6 +778,60 @@ private fun KilnListStatusChip(
     }
 }
 
+/**
+ * Canal vigente (LOCAL / REMOTO). Círculo verde solo si el enlace está vivo;
+ * si Remoto quedó sin publishes (router off) → gris + chip SIN NUBE abajo.
+ */
+@Composable
+private fun KilnLinkModeIndicator(
+    mode: KilnLinkMode,
+    linkLive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    val activeGreen = Color(0xFF10B981)
+    val dotColor = if (linkLive) activeGreen else kilnColors.muted
+    val labelColor = if (linkLive) kilnColors.title else kilnColors.muted
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        when (mode) {
+            KilnLinkMode.CHECKING -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(10.dp),
+                    strokeWidth = 1.5.dp,
+                    color = kilnColors.accent
+                )
+                Text(
+                    text = "…",
+                    color = kilnColors.muted,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+            }
+            KilnLinkMode.LOCAL,
+            KilnLinkMode.REMOTO -> {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(dotColor, CircleShape)
+                )
+                Text(
+                    text = if (mode == KilnLinkMode.LOCAL) "LOCAL" else "REMOTO",
+                    color = labelColor,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
 private data class ChipStyle(
     val bg: Color,
     val fg: Color,
@@ -707,7 +846,7 @@ private fun KilnCardClassicContent(
     temperatureLabel: String,
     connectionType: String,
     isConnected: Boolean,
-    updatedConnectionState: HybridConnectionState,
+    updatedConnectionState: KilnConnectionState,
     lastOnlineTimestamp: Long,
     finalProgramName: String?,
     hasProgram: Boolean,
@@ -785,8 +924,8 @@ private fun KilnCardClassicContent(
             val timeSinceLastOnline = calculateTimeSinceLastOnline(lastOnlineTimestamp)
             val displayText = when {
                 connectionType == "wifi" && isConnected -> "Conectado"
-                updatedConnectionState == HybridConnectionState.WIFI_NO_INTERNET -> "Sin internet"
-                updatedConnectionState == HybridConnectionState.WIFI_FIREBASE_DOWN -> "Sin nube"
+                updatedConnectionState == KilnConnectionState.WIFI_NO_INTERNET -> "Sin internet"
+                updatedConnectionState == KilnConnectionState.WIFI_FIREBASE_DOWN -> "Sin nube"
                 connectionType == "wifi" && !isConnected && lastOnlineTimestamp > 0 ->
                     "Visto hace $timeSinceLastOnline"
                 else -> "Desconectado"
@@ -915,17 +1054,25 @@ private fun calculateTimeSinceLastOnline(timestamp: Long): String {
 @Preview(showBackground = true)
 @Composable
 fun KilnCardPreview() {
+    val context = LocalContext.current
+    val opController = remember {
+        com.example.mysmartkiln.utils.OperationModeController(context)
+    }
     MySmartKilnTheme {
-        KilnCard(
-            kiln = KilnEntity(
-                macAddress = "A4CF128856E8",
-                bleMacAddress = "A4:CF:12:88:56:E8",
-                name = "MiHorno",
-                manufacturer = "AFRA",
-                volume = "25",
-                userId = "preview_user",
-                deviceType = "KILN"
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalOperationModeController provides opController
+        ) {
+            KilnCard(
+                kiln = KilnEntity(
+                    macAddress = "A4CF128856E8",
+                    bleMacAddress = "A4:CF:12:88:56:E8",
+                    name = "MiHorno",
+                    manufacturer = "AFRA",
+                    volume = "25",
+                    userId = "preview_user",
+                    deviceType = "KILN"
+                )
             )
-        )
+        }
     }
 }

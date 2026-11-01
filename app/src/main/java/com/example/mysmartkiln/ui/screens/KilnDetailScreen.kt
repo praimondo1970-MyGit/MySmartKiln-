@@ -1,5 +1,7 @@
 package com.example.mysmartkiln.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -9,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -19,12 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.navigation.NavController
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.screens.AddMenuScreen
@@ -37,15 +34,20 @@ import com.example.mysmartkiln.ui.components.KilnCurveScreen
 import com.example.mysmartkiln.ui.components.DataLoggerStatusScreen
 import com.example.mysmartkiln.ui.components.DataLoggerDataScreen
 import com.example.mysmartkiln.ui.components.DataLoggerCurveScreen
-import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
+import com.example.mysmartkiln.ui.components.KilnCommandProgressBanner
 import com.example.mysmartkiln.ui.components.KilnInterruptedDialog
 import com.example.mysmartkiln.ui.components.KilnApReconfigWaitDialog
+import com.example.mysmartkiln.ui.components.KilnOperateOfflineDialog
 import com.example.mysmartkiln.ui.components.KilnEspStatusBadge
 import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.DialogBrand
 import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.data.local.KilnDataSource
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
+import com.example.mysmartkiln.utils.AppOperationMode
+import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.KilnOfflineSession
+import com.example.mysmartkiln.utils.LocalOperationModeController
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +56,7 @@ fun KilnDetailScreen(
     navController: NavController,
     kilnName: String,
     kilnMacAddress: String,
+    preferLocal: Boolean = false,
     viewModel: KilnDetailViewModel
 ) {
     val isDataLogger by viewModel.isDataLogger.collectAsState()
@@ -67,18 +70,64 @@ fun KilnDetailScreen(
     var isMenuOpen by remember { mutableStateOf(false) }
     val kilnStatus by viewModel.kilnStatus.collectAsState()
     val dataSource by viewModel.dataSource.collectAsState()
+    val preferLocalMode by viewModel.preferLocalMode.collectAsState()
+    val operationMode by LocalOperationModeController.current.mode.collectAsState()
     val isSendingCommand by viewModel.isSendingCommand.collectAsState()
+    val isConnectingToAp by viewModel.isConnectingToAp.collectAsState()
+    val isPreparingLocalLink by viewModel.isPreparingLocalLink.collectAsState()
     val sendingPhase by viewModel.sendingCommandPhase.collectAsState()
     val sendingDetail by viewModel.sendingCommandDetail.collectAsState()
     val showInterruptedDialog by viewModel.showInterruptedDialog.collectAsState()
     val apReconfigWaitDialog by viewModel.apReconfigWaitDialog.collectAsState()
     val localActionError by viewModel.localActionError.collectAsState()
+    val shouldShowManualWifiDialog by viewModel.shouldShowManualWifiDialog.collectAsState()
+    val needsNearbyWifiPermission by viewModel.needsNearbyWifiPermission.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
     val kilnColors = LocalKilnColors.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
 
-    LaunchedEffect(kilnMacAddress) {
-        viewModel.loadKilnData(kilnMacAddress)
+    val nearbyWifiPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.onNearbyWifiPermissionResult(granted)
+    }
+
+    LaunchedEffect(needsNearbyWifiPermission) {
+        if (!needsNearbyWifiPermission) return@LaunchedEffect
+        if (!KilnNetworkConnector.isSupported) {
+            viewModel.onNearbyWifiPermissionResult(false)
+            return@LaunchedEffect
+        }
+        if (KilnNetworkConnector.hasRequiredPermissions(context)) {
+            viewModel.onNearbyWifiPermissionResult(true)
+            return@LaunchedEffect
+        }
+        nearbyWifiPermissionLauncher.launch(
+            KilnNetworkConnector.requiredRuntimePermission()
+        )
+    }
+
+    LaunchedEffect(kilnMacAddress, preferLocal) {
+        // Pedir permiso pronto si el usuario eligió SoftAP desde la lista.
+        if (preferLocal &&
+            KilnNetworkConnector.isSupported &&
+            !KilnNetworkConnector.hasRequiredPermissions(context)
+        ) {
+            nearbyWifiPermissionLauncher.launch(
+                KilnNetworkConnector.requiredRuntimePermission()
+            )
+        }
+        viewModel.loadKilnData(kilnMacAddress, preferLocal = preferLocal)
+    }
+
+    // Ajustes Online/Local: reflejar política al instante (chip Local/Remoto).
+    LaunchedEffect(operationMode, kilnMacAddress, isDataLogger) {
+        if (isDataLogger || kilnMacAddress.isBlank()) return@LaunchedEffect
+        val prefer =
+            operationMode == AppOperationMode.LOCAL ||
+                KilnOfflineSession.prefersLocal(kilnMacAddress)
+        viewModel.onAppOperationModeChanged(preferLocal = prefer)
     }
 
     // Etapas para el círculo de duración: Firebase/HTTP suelen traer solo el
@@ -143,21 +192,37 @@ fun KilnDetailScreen(
                     }
                 }
 
-                val statusLabel = when (dataSource) {
-                    KilnDataSource.LOCAL_AP -> "Local"
-                    KilnDataSource.FIREBASE -> "Remoto"
-                    KilnDataSource.DISCONNECTED ->
-                        if (kilnStatus.currentTemperature > 0f) "Local" else "—"
+                val awaitingLocalLink = operationMode == AppOperationMode.LOCAL &&
+                    dataSource != KilnDataSource.LOCAL_AP &&
+                    (isConnectingToAp || isPreparingLocalLink || !kilnStatus.isConnected)
+                // Label = modo Ajustes; color = enlace vivo.
+                val statusLabel = when {
+                    operationMode == AppOperationMode.LOCAL &&
+                        dataSource == KilnDataSource.LOCAL_AP -> "Local"
+                    operationMode == AppOperationMode.LOCAL &&
+                        awaitingLocalLink &&
+                        (isConnectingToAp || isPreparingLocalLink) -> "Conectando…"
+                    operationMode == AppOperationMode.LOCAL -> "Local"
+                    dataSource == KilnDataSource.FIREBASE && kilnStatus.isConnected -> "Remoto"
+                    dataSource == KilnDataSource.FIREBASE &&
+                        kilnStatus.isReconnecting &&
+                        kilnStatus.lastLiveTelemetryAtMs > 0L -> "Reconectando"
+                    dataSource == KilnDataSource.FIREBASE -> "Remoto"
+                    else -> "Remoto"
                 }
-                val statusColor = when (dataSource) {
-                    KilnDataSource.LOCAL_AP -> Color(0xFF10B981)
-                    KilnDataSource.FIREBASE -> when {
-                        kilnStatus.isConnected -> Color(0xFF10B981)
-                        kilnStatus.isReconnecting -> Color(0xFFF59E0B)
-                        else -> Color(0xFF94A3B8)
-                    }
-                    KilnDataSource.DISCONNECTED ->
-                        if (kilnStatus.currentTemperature > 0f) Color(0xFF10B981) else Color(0xFF94A3B8)
+                val statusColor = when {
+                    operationMode == AppOperationMode.LOCAL &&
+                        dataSource == KilnDataSource.LOCAL_AP -> Color(0xFF10B981)
+                    operationMode == AppOperationMode.LOCAL &&
+                        awaitingLocalLink &&
+                        (isConnectingToAp || isPreparingLocalLink) -> Color(0xFFF59E0B)
+                    operationMode == AppOperationMode.LOCAL -> Color(0xFF94A3B8)
+                    dataSource == KilnDataSource.FIREBASE && kilnStatus.isConnected ->
+                        Color(0xFF10B981)
+                    dataSource == KilnDataSource.FIREBASE &&
+                        kilnStatus.isReconnecting &&
+                        kilnStatus.lastLiveTelemetryAtMs > 0L -> Color(0xFFF59E0B)
+                    else -> Color(0xFF94A3B8)
                 }
                 val loggerConnected = dataSource != KilnDataSource.DISCONNECTED &&
                     (kilnStatus.isConnected || kilnStatus.currentTemperature > 0f)
@@ -167,6 +232,8 @@ fun KilnDetailScreen(
                     // de Firebase parpadee en el handoff).
                     dataSource == KilnDataSource.LOCAL_AP ->
                         kilnStatus.espStatus.ifBlank { "IDLE" }
+                    // Preferencia SoftAP sin enlace: no Horneando de Firebase viejo.
+                    awaitingLocalLink -> "DESCONECTADO"
                     // Pausa / horneando / interrumpido: no tapar con DESCONECTADO
                     // durante el cambio SoftAP → WiFi casa (mismo bounce que el botón).
                     kilnStatus.isPaused ||
@@ -398,11 +465,26 @@ fun KilnDetailScreen(
                 .offset(x = 0.dp, y = 810.dp)
         )
 
-        // Diálogo modal con círculo girando: conectando + enviando comando.
-        if (isSendingCommand) {
-            KilnSendingCommandDialog(
-                phase = sendingPhase.ifBlank { "Enviando comando…" },
-                detail = sendingDetail.ifBlank { null }
+        // SoftAP al entrar (SIN NUBE) o tras comando: instrucciones WiFi manual.
+        // No mostrar mientras SoftAP/permiso están en curso (evita doble diálogo).
+        if (shouldShowManualWifiDialog &&
+            !isSendingCommand &&
+            !isConnectingToAp &&
+            !isPreparingLocalLink &&
+            !needsNearbyWifiPermission
+        ) {
+            KilnOperateOfflineDialog(onDismiss = { viewModel.clearManualWifiDialogRequest() })
+        }
+
+        // Un solo feedback (banner, sin Dialog): SoftAP + envío HTTP.
+        // El Dialog de Compose tapa el WiFi nativo; el banner no.
+        if (isPreparingLocalLink || isSendingCommand) {
+            KilnCommandProgressBanner(
+                phase = sendingPhase.ifBlank { "Trabajando con el horno…" },
+                detail = sendingDetail.ifBlank { null },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .zIndex(8f)
             )
         }
 
@@ -449,10 +531,14 @@ fun KilnDetailScreen(
             )
         }
 
-        // Diálogo "Programa interrumpido": el ESP detectó al boot que estaba
-        // calentando antes del corte. Si está abierto el modal de envío de
-        // comando, lo dejamos arriba (estamos justo respondiendo al usuario).
-        if (!isDataLogger && showInterruptedDialog && !isSendingCommand) {
+        // Diálogo "Programa interrumpido": no mostrarlo mientras se pide SoftAP
+        // (el Dialog de Compose tapa el diálogo nativo de Android para SmartKiln-…).
+        if (!isDataLogger &&
+            showInterruptedDialog &&
+            !isSendingCommand &&
+            !isConnectingToAp &&
+            !isPreparingLocalLink
+        ) {
             KilnInterruptedDialog(
                 programName = kilnProgram.name,
                 onResume = { viewModel.resumeKiln() },

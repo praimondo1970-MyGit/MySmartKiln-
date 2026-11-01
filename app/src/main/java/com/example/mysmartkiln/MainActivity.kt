@@ -16,6 +16,8 @@ import com.example.mysmartkiln.navigation.AppNavigation
 import com.example.mysmartkiln.ui.theme.LocalThemeController
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.ui.theme.ThemeController
+import com.example.mysmartkiln.utils.LocalOperationModeController
+import com.example.mysmartkiln.utils.OperationModeController
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,9 +25,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeController = remember { ThemeController(this) }
+            val operationModeController = remember { OperationModeController(this) }
             val themeMode by themeController.mode.collectAsState()
 
-            CompositionLocalProvider(LocalThemeController provides themeController) {
+            CompositionLocalProvider(
+                LocalThemeController provides themeController,
+                LocalOperationModeController provides operationModeController
+            ) {
                 MySmartKilnTheme(themeMode = themeMode) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),

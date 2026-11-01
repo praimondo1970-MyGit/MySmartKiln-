@@ -75,15 +75,19 @@ fun KilnStatusScreen(
     val context = LocalContext.current
     val kilnStatus by viewModel.kilnStatus.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
+    val espProfileLoaded by viewModel.espProfileLoaded.collectAsState()
     val temperatureHistory by viewModel.temperatureHistory.collectAsState()
     val isUploadingProgram by viewModel.isUploadingProgram.collectAsState()
     val isConnectingToAp by viewModel.isConnectingToAp.collectAsState()
-    val shouldShowManualWifiDialog by viewModel.shouldShowManualWifiDialog.collectAsState()
+    val isPreparingLocalLink by viewModel.isPreparingLocalLink.collectAsState()
+    val isSendingCommand by viewModel.isSendingCommand.collectAsState()
     val kilnColors = LocalKilnColors.current
 
     val nearbyWifiPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { }
+    ) { granted ->
+        viewModel.onNearbyWifiPermissionResult(granted)
+    }
 
     LaunchedEffect(kilnMacAddress) {
         if (kilnProgram.name.isEmpty()) {
@@ -99,13 +103,18 @@ fun KilnStatusScreen(
         }
     }
 
-    if (shouldShowManualWifiDialog) {
-        KilnOperateOfflineDialog(onDismiss = { viewModel.clearManualWifiDialogRequest() })
-    }
-
-    val hasProgram = kilnProgram.name.isNotEmpty()
+    // Programa en app O aún cargado en el ESP (IDLE tras STOP: Firebase limpia
+    // realtimeData.programName pero SoftAP/profileState siguen con la curva).
+    val hasProgram = kilnProgram.name.isNotEmpty() ||
+        kilnProgram.stages.isNotEmpty() ||
+        espProfileLoaded
+    val displayProgramName = kilnProgram.name.ifBlank { "Programa en horno" }
     val espStatus = kilnStatus.espStatus
-    val buttonsClickable = !isUploadingProgram && !isConnectingToAp
+    val buttonsClickable =
+        !isUploadingProgram &&
+            !isConnectingToAp &&
+            !isPreparingLocalLink &&
+            !isSendingCommand
     val canStop = kilnStatus.isRunning || kilnStatus.isPaused ||
         espStatus in setOf("CALENTANDO", "PAUSADO")
 
@@ -176,7 +185,7 @@ fun KilnStatusScreen(
                         // Con tarjeta de programa: repartir aire arriba/abajo de la card.
                         Spacer(modifier = Modifier.weight(0.45f))
                         StatusSummaryCard(
-                            programName = kilnProgram.name,
+                            programName = displayProgramName,
                             duration = kilnStatus.totalTime.ifBlank { "—" },
                             objective = "${kilnStatus.targetTemperature.toInt()}°C",
                             remaining = kilnStatus.remainingTime.ifBlank { "—" },
@@ -256,7 +265,7 @@ fun KilnStatusScreen(
                     Spacer(modifier = Modifier.height(0.dp))
                     if (hasProgram) {
                         StatusSummaryCard(
-                            programName = kilnProgram.name,
+                            programName = displayProgramName,
                             duration = kilnStatus.totalTime.ifBlank { "—" },
                             objective = "${kilnStatus.targetTemperature.toInt()}°C",
                             remaining = kilnStatus.remainingTime.ifBlank { "—" },
@@ -334,7 +343,7 @@ fun KilnStatusScreen(
 
                 if (hasProgram) {
                     StatusSummaryCard(
-                        programName = kilnProgram.name,
+                        programName = displayProgramName,
                         duration = kilnStatus.totalTime.ifBlank { "—" },
                         objective = "${kilnStatus.targetTemperature.toInt()}°C",
                         remaining = kilnStatus.remainingTime.ifBlank { "—" },

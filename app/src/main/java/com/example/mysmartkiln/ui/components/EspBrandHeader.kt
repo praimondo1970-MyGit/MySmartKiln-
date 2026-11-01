@@ -22,8 +22,8 @@ import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 
 /**
- * Marca SmartKiln para pantallas principales en tema ESP
- * (logo + nombre bicolor + leyenda), alineada al mockup.
+ * Marca MiHornitoPiola para pantallas principales en tema ESP
+ * (logo + nombre bicolor + leyenda).
  */
 @Composable
 fun EspBrandHeader(
@@ -31,18 +31,8 @@ fun EspBrandHeader(
     tagline: String = "Control de Horno IA"
 ) {
     val kilnColors = LocalKilnColors.current
-    // Mockup: "Smart" blanco + "Kiln" naranja
+    // "MiHornito" naranja + "Piola" blanco
     val brandName = buildAnnotatedString {
-        withStyle(
-            SpanStyle(
-                color = kilnColors.title,
-                fontFamily = RalewayFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
-            )
-        ) {
-            append("Smart")
-        }
         withStyle(
             SpanStyle(
                 color = kilnColors.accent,
@@ -51,7 +41,17 @@ fun EspBrandHeader(
                 fontSize = 17.sp
             )
         ) {
-            append("Kiln")
+            append("MiHornito")
+        }
+        withStyle(
+            SpanStyle(
+                color = kilnColors.title,
+                fontFamily = RalewayFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp
+            )
+        ) {
+            append("Piola")
         }
     }
     Row(
@@ -61,7 +61,7 @@ fun EspBrandHeader(
     ) {
         Image(
             painter = painterResource(id = R.drawable.logoicon),
-            contentDescription = "SmartKiln",
+            contentDescription = "MiHornitoPiola",
             modifier = Modifier.size(28.dp)
         )
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {

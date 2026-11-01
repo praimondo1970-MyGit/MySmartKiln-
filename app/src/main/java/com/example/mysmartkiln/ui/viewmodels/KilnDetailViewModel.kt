@@ -18,8 +18,11 @@ import com.example.mysmartkiln.data.local.KilnTelemetryCache
 import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.data.repository.ProgramRepository
 import com.example.mysmartkiln.data.local.SoftApDeviceType
+import com.example.mysmartkiln.utils.AppOperationMode
 import com.example.mysmartkiln.utils.DeviceKind
 import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.KilnOfflineSession
+import com.example.mysmartkiln.utils.OperationModePreferences
 import com.example.mysmartkiln.utils.ProgramStatusUtils
 import com.example.mysmartkiln.utils.UserIdUtils
 import com.example.mysmartkiln.utils.WifiUtils
@@ -138,6 +141,14 @@ class KilnDetailViewModel(
     private val _kilnProgram = MutableStateFlow(KilnProgram())
     val kilnProgram: StateFlow<KilnProgram> = _kilnProgram.asStateFlow()
 
+    /**
+     * Perfil aún en el ESP (SoftAP `profileLoaded`), aunque realtimeData.programName
+     * en Firebase esté vacío tras STOP/IDLE. Evita mostrar «Cargar Programa» cuando
+     * el horno sigue Idle con curva cargada.
+     */
+    private val _espProfileLoaded = MutableStateFlow(false)
+    val espProfileLoaded: StateFlow<Boolean> = _espProfileLoaded.asStateFlow()
+
     private val _temperatureHistory = MutableStateFlow<List<TemperatureSample>>(emptyList())
     val temperatureHistory: StateFlow<List<TemperatureSample>> = _temperatureHistory.asStateFlow()
 
@@ -190,6 +201,22 @@ class KilnDetailViewModel(
     val isConnectingToAp: StateFlow<Boolean> = _isConnectingToAp.asStateFlow()
 
     /**
+     * Feedback inmediato al tocar un comando, **antes** del SoftAP nativo.
+     * No usa Dialog de Compose (no tapa el WiFi del sistema). La UI muestra
+     * [KilnCommandProgressBanner]. Al pasar a HTTP se limpia y se usa
+     * [_isSendingCommand] (modal).
+     */
+    private val _isPreparingLocalLink = MutableStateFlow(false)
+    val isPreparingLocalLink: StateFlow<Boolean> = _isPreparingLocalLink.asStateFlow()
+
+    /**
+     * SoftAP requiere NEARBY_WIFI_DEVICES / FINE_LOCATION. Si falta, la UI
+     * pide el permiso y llama [retryPreferLocalSoftAp] al concederlo.
+     */
+    private val _needsNearbyWifiPermission = MutableStateFlow(false)
+    val needsNearbyWifiPermission: StateFlow<Boolean> = _needsNearbyWifiPermission.asStateFlow()
+
+    /**
      * Flag que cubre TODO el ciclo de envío de un comando local
      * (Iniciar / Pausa / Stop / cargar programa): conexión al AP, hand-off TLS,
      * envío HTTP y respuesta. Lo usa la UI para mostrar el diálogo modal con
@@ -233,9 +260,15 @@ class KilnDetailViewModel(
     /**
      * El usuario ya eligió Reanudar/Cancelar en este episodio de interrupción.
      * Evita que un snapshot Firebase viejo con INTERRUMPIDO reabra el diálogo
-     * tras un RESUME exitoso. Se limpia al salir de INTERRUMPIDO.
+     * tras un RESUME exitoso.
      */
     private var interruptedDialogAcked = false
+    /**
+     * Tras RESUME/STOP OK, no reabrir el diálogo aunque llegue INTERRUMPIDO
+     * stale de RTDB. También evita limpiar [interruptedDialogAcked] al pasar
+     * por CALENTANDO demasiado pronto (antes del publish en Firebase).
+     */
+    private var interruptedDialogSuppressUntilMs = 0L
 
     /**
      * Tras START/PAUSE/STOP/RESUME por SoftAP, Firebase puede seguir unos segundos
@@ -243,8 +276,29 @@ class KilnDetailViewModel(
      */
     private var heldCommandStatus: String? = null
     private var heldCommandUntilMs: Long = 0L
+    /**
+     * START/RESUME/PAUSE: ignorar por completo el status de RTDB durante ~35 s
+     * (ciclo SoftAP → STA → publish Firebase). Sin esto, SoftAP confirma
+     * CALENTANDO, se suelta el hold, y un IDLE viejo en Firebase pinta INICIAR.
+     */
+    private var heldCommandHardIgnoreRemote = false
+
+    /** Ventana fija post-comando SoftAP antes de volver a confiar en RTDB. */
+    private val COMMAND_HARD_HOLD_MS = 35_000L
 
     private var pendingProgramUploadId: String? = null
+
+    /**
+     * Usuario eligió SoftAP (SIN NUBE) o hay recuerdo de sesión: priorizar local
+     * hasta que Firebase vuelva fresco (< CONNECTION_TIMEOUT_MS).
+     */
+    private var preferLocalUntilCloudFresh = false
+    /** Evita re-disparar SoftAP en el mismo load; sí en resume / preferLocal nuevo. */
+    private var preferLocalConnectAttempted = false
+
+    private val _preferLocalMode = MutableStateFlow(false)
+    /** UI: esperando SoftAP / sin nube preferida (no mostrar Horneando de Firebase viejo). */
+    val preferLocalMode: StateFlow<Boolean> = _preferLocalMode.asStateFlow()
 
     private val firebaseManager = FirebaseRealtimeManager()
     private val kilnHttpClient = KilnHttpClient(appContext)
@@ -305,15 +359,32 @@ class KilnDetailViewModel(
         private const val CONNECTION_TIMEOUT_MS = 30_000L
         private const val LOCAL_POLL_INTERVAL_MS = 1_500L
         // Perfil B (equilibrado). Revertir perfil A: PROBE=6, HANDOFF_FAILURES=2, COOLDOWN=0
-        private const val LOCAL_PROBE_ATTEMPTS = 3
-        private const val LOCAL_PROBE_DELAY_MS = 350L
-        /** Handoff a Firebase tras N pings fallidos (perfil A: 2). */
-        private const val LOCAL_HANDOFF_PING_FAILURES = 1
+        private const val LOCAL_PROBE_ATTEMPTS = 2
+        private const val LOCAL_PROBE_DELAY_MS = 200L
+        /** Con preferLocal: un solo probe corto; si falla, SoftAP al momento. */
+        private const val LOCAL_PROBE_ATTEMPTS_PREFER = 1
+        private const val LOCAL_PROBE_PING_MS = 800
+        private const val LOCAL_PROBE_PING_MS_PREFER = 500
+        /** SoftAP: timeout de unión y reintentos HTTP post-asociación. */
+        private const val SOFTAP_CONNECT_TIMEOUT_MS = 12_000L
+        private const val SOFTAP_HTTP_SETTLE_MS = 200L
+        private const val SOFTAP_HTTP_RETRY = 4
+        private const val SOFTAP_HTTP_RETRY_DELAY_MS = 250L
+        /** Handoff a Firebase tras N pings fallidos (evita salto falso si SoftAP sticky parpadea). */
+        private const val LOCAL_HANDOFF_PING_FAILURES = 2
         /**
          * Tras soltar el AP del horno: ventana en la que el ESP apaga/restaura
          * SoftAP (perfil C: gracia~0,3 s + off~8 s). Bloquea connect() y aviso UI.
          */
         private const val KILN_AP_RECONFIG_WAIT_MS = 10_000L
+        /**
+         * ESP perfil C: gracia 300 ms + forzar AP off ≤1000 ms.
+         * La app debe esperar esto antes de declarar SoftAP sticky; si sondea a 0–300 ms
+         * el AP aún responde y se queda en Local aunque Firebase esté OK y el ESP
+         * vaya a liberar SoftAP.
+         */
+        private const val SOFTAP_RELEASE_DETECT_MS = 2_200L
+        private const val SOFTAP_RELEASE_POLL_MS = 250L
         /** Poll RTDB en modo remoto por si el listener no dispara (p. ej. tras reinicio del ESP). */
         private const val FIREBASE_STATUS_POLL_MS = 5_000L
         private const val FIREBASE_FAST_POLL_MS = 2_000L
@@ -346,7 +417,7 @@ class KilnDetailViewModel(
         super.onCleared()
     }
 
-    fun loadKilnData(macAddress: String) {
+    fun loadKilnData(macAddress: String, preferLocal: Boolean = false) {
         val macNorm = normalizeMac(macAddress)
         if (normalizeMac(currentMacAddress) != macNorm) {
             stopMonitoring()
@@ -354,10 +425,23 @@ class KilnDetailViewModel(
             _activeRecording.value = null
             _recordingMessage.value = null
             interruptedDialogAcked = false
+            interruptedDialogSuppressUntilMs = 0L
             _showInterruptedDialog.value = false
             clearCommandStatusHold()
+            preferLocalConnectAttempted = false
+            _espProfileLoaded.value = false
+            _kilnProgram.value = KilnProgram()
         }
         currentMacAddress = macAddress
+        if (preferLocal) {
+            KilnOfflineSession.markPreferLocal(macAddress)
+            preferLocalConnectAttempted = false
+        }
+        preferLocalUntilCloudFresh =
+            preferLocal ||
+                KilnOfflineSession.prefersLocal(macAddress) ||
+                isAppLocalPolicy()
+        _preferLocalMode.value = preferLocalUntilCloudFresh
         viewModelScope.launch {
             _isLoading.value = true
             try {
@@ -380,10 +464,19 @@ class KilnDetailViewModel(
                     )
                 }
                 checkRunningProgram()
-                syncFirebaseStatusOnce()
-                syncProfileStateOnce()
                 ensureProgramStagesLoaded()
-                detectAndStartMonitoring()
+                if (preferLocalUntilCloudFresh && !_isDataLogger.value) {
+                    // SoftAP primero: en SoftAP sin internet Firebase cuelga y retrasa Local.
+                    detectAndStartMonitoring()
+                    launch {
+                        syncFirebaseStatusOnce()
+                        syncProfileStateOnce()
+                    }
+                } else {
+                    syncFirebaseStatusOnce()
+                    syncProfileStateOnce()
+                    detectAndStartMonitoring()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading kiln data: ${e.message}", e)
             } finally {
@@ -447,9 +540,71 @@ class KilnDetailViewModel(
         Log.d(TAG, "Stub de grabación activa ${stub.id} (ESP GRABANDO)")
     }
 
+    /**
+     * Ajustes cambió Online/Local: la UI refleja la política al instante;
+     * SoftAP/Firebase validan el enlace en segundo plano.
+     */
+    fun onAppOperationModeChanged(preferLocal: Boolean) {
+        if (currentMacAddress.isEmpty() || _isDataLogger.value) return
+        if (preferLocal == preferLocalUntilCloudFresh &&
+            _preferLocalMode.value == preferLocal
+        ) {
+            return
+        }
+        val wasPrefer = preferLocalUntilCloudFresh
+        preferLocalUntilCloudFresh = preferLocal
+        _preferLocalMode.value = preferLocal
+        if (preferLocal) {
+            KilnOfflineSession.markPreferLocal(currentMacAddress)
+            if (!wasPrefer || !_canControlLocally.value) {
+                preferLocalConnectAttempted = false
+                viewModelScope.launch {
+                    if (!_canControlLocally.value) {
+                        connectPreferLocalSoftAp(showManualOnFailure = true)
+                    }
+                }
+            }
+        } else {
+            KilnOfflineSession.clearPreferLocal(currentMacAddress)
+            viewModelScope.launch {
+                // Política Online: soltar preferencia SoftAP y dejar que la nube mande.
+                if (_dataSource.value == KilnDataSource.LOCAL_AP) {
+                    maybePromoteLocalToFirebaseIfSoftApGone()
+                }
+                syncFirebaseStatusOnce()
+                if (_dataSource.value != KilnDataSource.LOCAL_AP) {
+                    _dataSource.value = KilnDataSource.FIREBASE
+                }
+            }
+        }
+    }
+
+    private fun isAppLocalPolicy(): Boolean =
+        OperationModePreferences.read(appContext) == AppOperationMode.LOCAL
+
     /** Re-evalúa WiFi del horno al volver a la pantalla (p. ej. tras conectar en Ajustes). */
     fun refreshConnection() {
         viewModelScope.launch {
+            // No interrumpir SoftAP en curso: ON_RESUME al mostrar el diálogo
+            // nativo de WiFi reentraba acá, hacía release() y abortaba la unión.
+            if (_isPreparingLocalLink.value || _isConnectingToAp.value || _isSendingCommand.value) {
+                Log.d(TAG, "refreshConnection omitido: SoftAP/comando en curso")
+                return@launch
+            }
+            // SoftAP primero: si el usuario se unió a SmartKiln-… en Ajustes,
+            // no quedarnos en Remoto naranja por telemetría Firebase vieja.
+            if (tryEstablishLocalFirst()) {
+                return@launch
+            }
+            // Preferencia SIN NUBE: reintentar SoftAP en cada resume hasta Local.
+            if (preferLocalUntilCloudFresh &&
+                !_isDataLogger.value &&
+                !_canControlLocally.value
+            ) {
+                Log.d(TAG, "SIN NUBE resume: reintentando SoftAP")
+                connectPreferLocalSoftAp(showManualOnFailure = true)
+                if (_canControlLocally.value) return@launch
+            }
             syncFirebaseStatusOnce()
             syncProfileStateOnce()
             detectAndStartMonitoring()
@@ -457,6 +612,27 @@ class KilnDetailViewModel(
                 healFirebaseConnection("resume-refresh")
             }
         }
+    }
+
+    /** Tras conceder permiso nearby/location: reintentar SoftAP preferido. */
+    fun onNearbyWifiPermissionResult(granted: Boolean) {
+        _needsNearbyWifiPermission.value = false
+        if (!granted) {
+            if (preferLocalUntilCloudFresh && !_canControlLocally.value) {
+                _shouldShowManualWifiDialog.value = true
+            }
+            return
+        }
+        if (preferLocalUntilCloudFresh && !_canControlLocally.value) {
+            viewModelScope.launch {
+                preferLocalConnectAttempted = false
+                connectPreferLocalSoftAp(showManualOnFailure = true)
+            }
+        }
+    }
+
+    fun clearNeedsNearbyWifiPermission() {
+        _needsNearbyWifiPermission.value = false
     }
 
     fun clearConnectionMessage() {
@@ -468,11 +644,7 @@ class KilnDetailViewModel(
             _isVerifyingConnection.value = true
             _connectionMessage.value = ""
             try {
-                if (isLocalHttpForCurrentDevice()) {
-                    startLocalMonitoring()
-                    kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-                    refreshApInfo()
-                    _canControlLocally.value = true
+                if (promoteToLocalAfterHttpOk()) {
                     _connectionMessage.value = "Conexión local establecida."
                 } else {
                     _canControlLocally.value = false
@@ -496,6 +668,60 @@ class KilnDetailViewModel(
         }
     }
 
+    /**
+     * Local solo si ping + MAC + getStatus OK. Evita marcar LOCAL_AP sin telemetría real.
+     */
+    private suspend fun promoteToLocalAfterHttpOk(): Boolean {
+        if (!isLocalHttpForCurrentDevice()) return false
+        val status = kilnHttpClient.getStatus().getOrNull() ?: return false
+        startLocalMonitoring()
+        applyLocalStatus(status)
+        refreshApInfo()
+        _canControlLocally.value = true
+        return true
+    }
+
+    /**
+     * Preferir SoftAP si el teléfono ya puede hablar con 192.168.4.1.
+     * Con preferencia SIN NUBE: pedir SoftAP al abrir / resume (sin modal Compose,
+     * para no tapar el diálogo nativo de WiFi). Sin preferencia: SoftAP solo al
+     * cargar programa / comando ([ensureLocalConnection]).
+     */
+    private suspend fun tryEstablishLocalFirst(): Boolean {
+        // Ya en el SoftAP de este MAC: promover sin multi-probe lento.
+        if (isAlreadyOnExpectedSoftApSsid()) {
+            if (promoteToLocalAfterHttpOk()) return true
+            delay(SOFTAP_HTTP_SETTLE_MS)
+            return promoteToLocalAfterHttpOk()
+        }
+        val prefer = preferLocalUntilCloudFresh
+        val attempts = if (prefer) LOCAL_PROBE_ATTEMPTS_PREFER else LOCAL_PROBE_ATTEMPTS
+        val pingMs = if (prefer) LOCAL_PROBE_PING_MS_PREFER else LOCAL_PROBE_PING_MS
+        repeat(attempts) { i ->
+            // Pre-filtro corto: en WiFi de casa no esperar 1.5s×N antes de SoftAP.
+            if (!kilnHttpClient.ping(pingMs, pingMs)) {
+                if (i < attempts - 1) delay(LOCAL_PROBE_DELAY_MS)
+                return@repeat
+            }
+            if (promoteToLocalAfterHttpOk()) return true
+            if (i < attempts - 1) delay(LOCAL_PROBE_DELAY_MS)
+        }
+        return false
+    }
+
+    private fun isAlreadyOnExpectedSoftApSsid(): Boolean {
+        val mac = currentMacAddress
+        if (mac.isBlank()) return false
+        val deviceType = if (_isDataLogger.value) {
+            SoftApDeviceType.DATALOGGER
+        } else {
+            SoftApDeviceType.KILN
+        }
+        val expected = KilnNetworkConnector.ssidFromMac(mac, deviceType) ?: return false
+        val current = WifiUtils.getCurrentWifiSSID(appContext) ?: return false
+        return current.equals(expected, ignoreCase = true)
+    }
+
     private suspend fun detectAndStartMonitoring() {
         // Mantener el listener Firebase enganchado siempre que conozcamos el horno.
         // Es idempotente: si ya está activo no se reinicia. Esto evita que la
@@ -504,23 +730,56 @@ class KilnDetailViewModel(
         if (currentMacAddress.isNotEmpty()) {
             startFirebaseMonitoring(currentMacAddress)
         }
-        tryEstablishLocalFirst()
+        if (tryEstablishLocalFirst()) return
+        if (preferLocalUntilCloudFresh &&
+            !_isDataLogger.value &&
+            !preferLocalConnectAttempted
+        ) {
+            preferLocalConnectAttempted = true
+            connectPreferLocalSoftAp(showManualOnFailure = true)
+        }
     }
 
     /**
-     * Intenta HTTP local antes que Firebase para evitar parpadeo "Sin señal" al entrar en el AP.
+     * Entrada «Conectar en red local» / resume SIN NUBE: banner + SoftAP.
+     * No muestra «Conéctate al horno» si solo faltan permisos (la UI los pide).
      */
-    private suspend fun tryEstablishLocalFirst(): Boolean {
-        repeat(LOCAL_PROBE_ATTEMPTS) {
-            if (isLocalHttpForCurrentDevice()) {
-                startLocalMonitoring()
-                kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-                refreshApInfo()
-                return true
-            }
-            delay(LOCAL_PROBE_DELAY_MS)
+    private suspend fun connectPreferLocalSoftAp(showManualOnFailure: Boolean) {
+        if (_canControlLocally.value && isLocalHttpForCurrentDevice()) {
+            kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
+            return
         }
-        return false
+        _shouldShowManualWifiDialog.value = false
+        _sendingCommandPhase.value = "Conectando al horno…"
+        _sendingCommandDetail.value = "Uniendo a la red local SoftAP…"
+        _isPreparingLocalLink.value = true
+        try {
+            if (!KilnNetworkConnector.isSupported) {
+                if (showManualOnFailure) _shouldShowManualWifiDialog.value = true
+                return
+            }
+            if (!KilnNetworkConnector.hasRequiredPermissions(appContext)) {
+                Log.w(TAG, "SIN NUBE SoftAP: falta permiso nearby/location")
+                _needsNearbyWifiPermission.value = true
+                // No marcar intento agotado: al conceder permiso reintentamos.
+                preferLocalConnectAttempted = false
+                return
+            }
+            val ok = ensureLocalConnection(suppressManualWifiDialog = true)
+            if (ok) {
+                _connectionMessage.value = "Conexión local establecida."
+                _shouldShowManualWifiDialog.value = false
+            } else if (showManualOnFailure) {
+                _shouldShowManualWifiDialog.value = true
+                _connectionMessage.value = ""
+            }
+        } finally {
+            if (!_isSendingCommand.value) {
+                _isPreparingLocalLink.value = false
+                _sendingCommandPhase.value = ""
+                _sendingCommandDetail.value = ""
+            }
+        }
     }
 
     /**
@@ -681,23 +940,26 @@ class KilnDetailViewModel(
                 return@launch
             }
 
-            _sendingCommandPhase.value = "Iniciando grabación…"
-            _sendingCommandDetail.value = "Conectando al DataLogger…"
-            _isSendingCommand.value = true
             _recordingMessage.value = null
             try {
+                // Banner no-modal durante SoftAP; modal solo al enviar HTTP.
+                _sendingCommandPhase.value = "Iniciando grabación…"
+                _sendingCommandDetail.value = "Conectando al WiFi del dispositivo…"
+                _isPreparingLocalLink.value = true
+
                 if (!ensureLocalConnection()) {
                     _recordingMessage.value =
                         "Acercate al DataLogger y conectate a su SoftAP (SmartLink-…) para grabar."
                     return@launch
                 }
 
+                // Mismo banner: solo cambia el detalle (sin modal Dialog).
+                _sendingCommandDetail.value = "Enviando GRABAR…"
+                _isSendingCommand.value = true
+
                 // Optimista: marcar UI en "grabando" antes del HTTP.
-                // Si el ESP suelta SoftAP al responder, el socket puede fallar
-                // aunque START_LOG ya se haya ejecutado.
                 activateLoggerSession(session)
 
-                _sendingCommandDetail.value = "Enviando GRABAR…"
                 val cmd = kilnHttpClient.sendLoggerCommand(
                     cmd = "START_LOG",
                     name = trimmed,
@@ -730,6 +992,7 @@ class KilnDetailViewModel(
 
                 handOffToHomeWifiAfterLocalSession("START_LOG")
             } finally {
+                _isPreparingLocalLink.value = false
                 _isSendingCommand.value = false
                 _sendingCommandPhase.value = ""
                 _sendingCommandDetail.value = ""
@@ -810,6 +1073,7 @@ class KilnDetailViewModel(
 
             _sendingCommandPhase.value = "Guardando grabación…"
             _sendingCommandDetail.value = "Buscando datos…"
+            _isPreparingLocalLink.value = true
             _isSendingCommand.value = true
             _recordingMessage.value = null
             val uid = resolveFirebaseUserId()
@@ -871,6 +1135,7 @@ class KilnDetailViewModel(
                 _recordingMessage.value =
                     "$why Acercate al SoftAP (SmartLink-…) para GUARDAR."
             } finally {
+                _isPreparingLocalLink.value = false
                 _isSendingCommand.value = false
                 _sendingCommandPhase.value = ""
                 _sendingCommandDetail.value = ""
@@ -1549,14 +1814,12 @@ class KilnDetailViewModel(
                 }
                 else -> statusRaw
             }
-            statusRaw == "INTERRUMPIDO" -> "IDLE"
-            // No bajar GRABANDO a IDLE: la UI de GUARDAR depende de este estado.
+            // Sin enlace vivo: conservar estado de proceso (enlace ≠ proceso).
+            statusRaw == "INTERRUMPIDO" -> "INTERRUMPIDO"
             statusRaw == "GRABANDO" -> "GRABANDO"
-            // PAUSADO es decisión del usuario: conservarlo aunque el enlace
-            // Firebase esté momentáneamente caído tras SoftAP/handoff.
             statusRaw == "PAUSADO" -> "PAUSADO"
-            // CALENTANDO sin telemetría fresca no se muestra como activo.
-            statusRaw == "CALENTANDO" -> "IDLE"
+            statusRaw == "CALENTANDO" -> "CALENTANDO"
+            statusRaw == "FINALIZADO" -> "FINALIZADO"
             else -> statusRaw.ifEmpty { "IDLE" }
         }
     }
@@ -1585,7 +1848,14 @@ class KilnDetailViewModel(
         firebaseSyncJob = viewModelScope.launch {
             while (isActive && currentMacAddress.isNotEmpty()) {
                 if (_dataSource.value != KilnDataSource.LOCAL_AP) {
-                    syncFirebaseStatusOnce()
+                    // Usuario se unió a SoftAP desde Ajustes: reclamar Local.
+                    if (isLocalHttpForCurrentDevice()) {
+                        startLocalMonitoring()
+                        kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
+                        refreshApInfo()
+                    } else {
+                        syncFirebaseStatusOnce()
+                    }
                 }
                 val pollMs = when {
                     awaitingKilnReconnect -> FIREBASE_FAST_POLL_MS
@@ -1617,21 +1887,34 @@ class KilnDetailViewModel(
                     consecutivePingFailures++
                     _canControlLocally.value = false
 
-                    // Perfil B: handoff al primer ping fallido aunque el SSID
-                    // siga reportando SoftAP del dispositivo (perfil A: >= 2 fallos).
+                    // SoftAP SSID residual no debe bloquear Remoto si Firebase ya está vivo
+                    // y el HTTP local no responde (caso típico post-release + SoftAP restaurado
+                    // en el aire pero el teléfono ya en WiFi de casa / bind suelto).
+                    val onSoftApSsid = WifiUtils.isOnSmartKilnNetwork(appContext)
+                    if (onSoftApSsid && !isFirebaseFreshlyLive()) {
+                        consecutivePingFailures = 0
+                        delay(LOCAL_POLL_INTERVAL_MS)
+                        continue
+                    }
+
                     val shouldHandOff =
                         consecutivePingFailures >= LOCAL_HANDOFF_PING_FAILURES &&
                             !_isSendingCommand.value &&
                             !_isUploadingProgram.value
                     if (shouldHandOff) {
-                        if (_dataSource.value == KilnDataSource.LOCAL_AP) {
-                            _dataSource.value = KilnDataSource.FIREBASE
+                        // Sin nube + preferencia SoftAP: no saltar a Firebase stale
+                        // (Sin nube + Horneando fantasma). Quedamos desconectados
+                        // hasta resume / nuevo SoftAP.
+                        if (preferLocalUntilCloudFresh && !isFirebaseFreshlyLive()) {
+                            Log.d(
+                                TAG,
+                                "SoftAP caído con preferLocal sin nube — no handoff Firebase"
+                            )
+                            _canControlLocally.value = false
+                            _dataSource.value = KilnDataSource.DISCONNECTED
+                            break
                         }
-                        // Soltamos la red pedida por WifiNetworkSpecifier para
-                        // que Android vuelva solo a la WiFi de casa. Si nunca
-                        // se pidió (API <29) es no-op.
-                        KilnNetworkConnector.release(appContext, markHandoffCooldown = true)
-                        // Firebase ya está enganchado: rompemos el bucle.
+                        switchToFirebaseAfterLocalSession("local-poll-unreachable")
                         break
                     }
                     delay(LOCAL_POLL_INTERVAL_MS)
@@ -1644,11 +1927,7 @@ class KilnDetailViewModel(
                     pollsSinceIdentityCheck = 0
                     if (!isLocalHttpForCurrentDevice()) {
                         Log.w(TAG, "HTTP local dejó de coincidir con este dispositivo — handoff")
-                        if (_dataSource.value == KilnDataSource.LOCAL_AP) {
-                            _dataSource.value = KilnDataSource.FIREBASE
-                        }
-                        KilnNetworkConnector.release(appContext, markHandoffCooldown = true)
-                        _canControlLocally.value = false
+                        switchToFirebaseAfterLocalSession("local-identity-mismatch")
                         break
                     }
                 }
@@ -1688,7 +1967,10 @@ class KilnDetailViewModel(
         firebaseListenerUserId = uid
 
         if (_dataSource.value == KilnDataSource.DISCONNECTED) {
-            _dataSource.value = KilnDataSource.FIREBASE
+            // Preferencia SoftAP: no fingir Remoto con telemetría Firebase vieja.
+            if (!preferLocalUntilCloudFresh) {
+                _dataSource.value = KilnDataSource.FIREBASE
+            }
         }
 
         Log.d(TAG, "Firebase listen: users/$uid/kilns/$macAddress/realtimeData")
@@ -1758,14 +2040,43 @@ class KilnDetailViewModel(
         if (data == null) return
         val remoteName = (data["programName"] as? String)?.trim().orEmpty()
         val remoteUpdatedAt = UserIdUtils.parseFirebaseTimestamp(data["programUpdatedAt"])
-        if (remoteName.isEmpty() || remoteUpdatedAt <= 0L) return
+        if (remoteName.isEmpty()) return
 
+        // profileState persiste el programa en el ESP aunque realtimeData limpie
+        // programName en IDLE/STOP — restaurar UI si quedó vacía.
+        if (_kilnProgram.value.name.isBlank()) {
+            _kilnProgram.value = _kilnProgram.value.copy(name = remoteName)
+            _espProfileLoaded.value = true
+            ensureProgramStagesLoaded()
+        }
+
+        if (remoteUpdatedAt <= 0L) return
         viewModelScope.launch {
             val program = resolveProgramForProfileSync(remoteName) ?: return@launch
             if (!remoteName.equals(program.name, ignoreCase = true)) return@launch
             if (remoteUpdatedAt >= program.updatedAt) {
                 markProgramSyncedWithKiln(program.id, program.updatedAt)
             }
+        }
+    }
+
+    /** Restaura nombre/etapas desde SoftAP o profileState tras IDLE sin label RTDB. */
+    private fun adoptEspProgramMetadata(programName: String, profileLoaded: Boolean) {
+        _espProfileLoaded.value = profileLoaded
+        val name = programName.trim()
+        if (name.isNotEmpty()) {
+            if (!name.equals(_kilnProgram.value.name, ignoreCase = true)) {
+                _kilnProgram.value = _kilnProgram.value.copy(name = name)
+            }
+            noteRemoteProgramNameSeen(name)
+            if (_kilnProgram.value.stages.isEmpty()) {
+                ensureProgramStagesLoaded()
+            }
+            return
+        }
+        if (profileLoaded && _kilnProgram.value.name.isBlank()) {
+            // SoftAP confirma perfil pero sin nombre en JSON: pedir profileState.
+            viewModelScope.launch { syncProfileStateOnce() }
         }
     }
 
@@ -1937,14 +2248,32 @@ class KilnDetailViewModel(
             timestamp > 0L && (currentTimeMs - timestamp) < CONNECTION_TIMEOUT_MS
         if (isConnected) {
             lastFirebaseLiveDataMs = currentTimeMs
+            clearPreferLocalIfCloudFresh()
+            // Firebase vivo + UI en Local sin SoftAP real → corregir a Remoto
+            // (evita quedarse en Local tras release cuando el ESP sigue publicando RTDB).
+            maybePromoteLocalToFirebaseIfSoftApGone()
+        }
+
+        // Esperando SoftAP (SIN NUBE): no pintar CALENTANDO/Horneando de RTDB viejo.
+        val awaitingSoftAp = preferLocalUntilCloudFresh &&
+            !isLocalAuthoritative &&
+            !_canControlLocally.value &&
+            _dataSource.value != KilnDataSource.LOCAL_AP
+        if (awaitingSoftAp && !isConnected) {
+            _kilnStatus.value = _kilnStatus.value.copy(
+                isConnected = false,
+                isReconnecting = false
+            )
+            return
         }
 
         updateReconnectGrace(statusRaw, isConnected)
         var statusForUi = resolveStatusForUi(statusRaw, isConnected)
         statusForUi = applyCommandStatusHold(statusForUi)
         val isReconnecting = inReconnectGrace() && !isConnected
+        // Usar statusForUi (post-hold): no guardar INTERRUMPIDO stale en lastKnown.
         val lastKnown = when {
-            isConnected && statusRaw.uppercase() in PROCESS_STATUSES -> statusRaw.uppercase()
+            isConnected && statusForUi.uppercase() in PROCESS_STATUSES -> statusForUi.uppercase()
             isConnected && statusForUi.isNotBlank() -> statusForUi.uppercase()
             else -> _kilnStatus.value.lastKnownEspStatus
         }
@@ -1999,16 +2328,16 @@ class KilnDetailViewModel(
         }
 
         if (!shouldPreferLocalProgramMetadata(programName, statusForUi)) {
-            if (isConnected && programName.isNotEmpty() &&
-                programName != _kilnProgram.value.name
+            if (isConnected && programName.isNotEmpty()) {
+                adoptEspProgramMetadata(programName, profileLoaded = true)
+            } else if (
+                isConnected &&
+                programName.isEmpty() &&
+                statusForUi in setOf("IDLE", "DETENIDO", "FINALIZADO") &&
+                _kilnProgram.value.name.isBlank()
             ) {
-                _kilnProgram.value = _kilnProgram.value.copy(name = programName)
-            }
-            noteRemoteProgramNameSeen(programName)
-            if (_kilnProgram.value.name.isNotEmpty() &&
-                _kilnProgram.value.stages.isEmpty()
-            ) {
-                ensureProgramStagesLoaded()
+                // STOP limpia realtimeData.programName; el perfil sigue en profileState.
+                viewModelScope.launch { syncProfileStateOnce() }
             }
         }
 
@@ -2029,6 +2358,7 @@ class KilnDetailViewModel(
                 temperature = temperature,
                 timestampMs = timestamp,
                 programName = programName.takeIf { it.isNotBlank() }
+                    ?: _kilnProgram.value.name.takeIf { it.isNotBlank() }
             )
         }
 
@@ -2067,7 +2397,10 @@ class KilnDetailViewModel(
             )
             return
         }
-        val status = dto.status.trim().uppercase()
+        val statusRaw = dto.status.trim().uppercase()
+        // Hold post-comando antes del diálogo: un SoftAP/Firebase desfasado no
+        // debe reabrir REANUDAR/CANCELAR tras RESUME.
+        val status = applyCommandStatusHold(statusRaw).trim().uppercase()
         val programName = dto.programName.trim()
         val hasActiveProgram = programName.isNotEmpty() || dto.profileLoaded
         val isPaused = status == "PAUSADO"
@@ -2081,25 +2414,16 @@ class KilnDetailViewModel(
 
         val preferLocalProgram = shouldPreferLocalProgramMetadata(programName, status)
 
+        // SoftAP: fuente de verdad del perfil en el ESP (IDLE tras STOP incluido).
         if (!preferLocalProgram) {
-            if (programName.isNotEmpty() && programName != _kilnProgram.value.name) {
-                _kilnProgram.value = _kilnProgram.value.copy(name = programName)
-            }
-            noteRemoteProgramNameSeen(programName)
-            if (_kilnProgram.value.name.isNotEmpty() &&
-                _kilnProgram.value.stages.isEmpty()
-            ) {
-                ensureProgramStagesLoaded()
-            }
+            adoptEspProgramMetadata(programName, dto.profileLoaded)
+        } else {
+            _espProfileLoaded.value = dto.profileLoaded || _espProfileLoaded.value
         }
 
         awaitingKilnReconnect = false
         reconnectDeadlineMs = 0L
         lastFirebaseLiveDataMs = System.currentTimeMillis()
-        // SoftAP es fuente de verdad: si coincide el hold, lo liberamos.
-        if (status.isNotBlank()) {
-            applyCommandStatusHold(status)
-        }
         _kilnStatus.value = _kilnStatus.value.copy(
             isConnected = true,
             isReconnecting = false,
@@ -2116,7 +2440,7 @@ class KilnDetailViewModel(
             totalStages = if (preferLocalProgram) {
                 _kilnProgram.value.stages.size.coerceAtLeast(dto.numStages)
             } else {
-                dto.numStages
+                dto.numStages.coerceAtLeast(_kilnProgram.value.stages.size)
             }
         )
         if (currentMacAddress.isNotEmpty() && status.isNotBlank()) {
@@ -2125,6 +2449,7 @@ class KilnDetailViewModel(
                 status = status,
                 temperature = dto.temperature,
                 programName = dto.programName.takeIf { it.isNotBlank() }
+                    ?: _kilnProgram.value.name.takeIf { it.isNotBlank() }
             )
         }
 
@@ -2193,19 +2518,22 @@ class KilnDetailViewModel(
         return "${hours}h ${String.format("%02d", mins)}m"
     }
 
-    private suspend fun ensureLocalConnection(): Boolean {
-        if (_canControlLocally.value) return true
-        if (_dataSource.value == KilnDataSource.LOCAL_AP && isLocalHttpForCurrentDevice()) {
+    private suspend fun ensureLocalConnection(
+        suppressManualWifiDialog: Boolean = false
+    ): Boolean {
+        if (_canControlLocally.value &&
+            _dataSource.value == KilnDataSource.LOCAL_AP &&
+            isLocalHttpForCurrentDevice()
+        ) {
             kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-            _canControlLocally.value = true
             return true
         }
-        if (isLocalHttpForCurrentDevice()) {
-            startLocalMonitoring()
-            refreshApInfo()
-            kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-            _canControlLocally.value = true
-            return true
+        if (promoteToLocalAfterHttpOk()) return true
+
+        // Ya hay un SoftAP en vuelo (p. ej. resume durante el diálogo nativo).
+        if (_isConnectingToAp.value) {
+            Log.d(TAG, "ensureLocalConnection: SoftAP ya en curso — no reentrar")
+            return false
         }
 
         // Auto-conexión vía WifiNetworkSpecifier (Android 10+). Android muestra
@@ -2213,10 +2541,20 @@ class KilnDetailViewModel(
         // la aprobación). NO sobrescribimos _sendingCommandPhase para que el
         // título del diálogo modal del comando (Iniciando/Pausando/...) se
         // mantenga estable durante toda la operación.
+        //
+        // Sin internet en el ESP el SoftAP debe permanecer; no bloquear por
+        // cooldown de handoff Remoto si el AP ya responde otra vez.
+        val inCooldown = KilnNetworkConnector.isInPostHandoffCooldown(KILN_AP_RECONFIG_WAIT_MS)
         if (KilnNetworkConnector.isSupported &&
             currentMacAddress.isNotEmpty() &&
-            !KilnNetworkConnector.isInPostHandoffCooldown(KILN_AP_RECONFIG_WAIT_MS)
+            (!inCooldown || kilnHttpClient.ping())
         ) {
+            if (!KilnNetworkConnector.hasRequiredPermissions(appContext)) {
+                Log.w(TAG, "ensureLocalConnection: sin permiso SoftAP")
+                _needsNearbyWifiPermission.value = true
+                _canControlLocally.value = false
+                return false
+            }
             val deviceType = if (_isDataLogger.value) {
                 SoftApDeviceType.DATALOGGER
             } else {
@@ -2226,20 +2564,23 @@ class KilnDetailViewModel(
             val pass = KilnNetworkConnector.passphraseFromMac(currentMacAddress)
             if (ssid != null && pass != null) {
                 _isConnectingToAp.value = true
-                _sendingCommandDetail.value = "Conectando al WiFi del dispositivo…"
+                if (_sendingCommandDetail.value.isBlank()) {
+                    _sendingCommandDetail.value = "Conectando al WiFi del dispositivo…"
+                }
                 try {
-                    val network = KilnNetworkConnector.connect(appContext, ssid, pass)
+                    // Offline SoftAP: no esperar 30 s si el AP no aparece.
+                    val network = KilnNetworkConnector.connect(
+                        appContext,
+                        ssid,
+                        pass,
+                        timeoutMs = SOFTAP_CONNECT_TIMEOUT_MS
+                    )
                     if (network != null) {
-                        // El AP recién aceptó la asociación; dejamos margen para
-                        // que el ESP termine de enrutar antes del primer ping.
-                        delay(500)
-                        if (isLocalHttpForCurrentDevice()) {
-                            startLocalMonitoring()
-                            refreshApInfo()
-                            kilnHttpClient.getStatus()
-                                .onSuccess { applyLocalStatus(it) }
-                            _canControlLocally.value = true
-                            return true
+                        // Asociación aceptada: reintentar HTTP (ESP + DHCP).
+                        delay(SOFTAP_HTTP_SETTLE_MS)
+                        repeat(SOFTAP_HTTP_RETRY) {
+                            if (promoteToLocalAfterHttpOk()) return true
+                            delay(SOFTAP_HTTP_RETRY_DELAY_MS)
                         }
                         Log.w(TAG, "Network disponible pero no es este dispositivo / ping falló")
                         KilnNetworkConnector.release(appContext)
@@ -2253,6 +2594,9 @@ class KilnDetailViewModel(
         _canControlLocally.value = false
         // Durante la ventana de reconfiguración del AP, no confundir con WiFi manual.
         if (remainingApReconfigSeconds() != null) {
+            return false
+        }
+        if (suppressManualWifiDialog) {
             return false
         }
         // Solo pedimos abrir Settings si el atajo automático no es viable
@@ -2293,23 +2637,125 @@ class KilnDetailViewModel(
         return true
     }
 
+    private fun isFirebaseFreshlyLive(): Boolean {
+        if (lastFirebaseLiveDataMs <= 0L) return false
+        return System.currentTimeMillis() - lastFirebaseLiveDataMs < CONNECTION_TIMEOUT_MS
+    }
+
+    /** Nube usable otra vez: soltar recuerdo SoftAP de esta sesión (solo si Ajustes no pide LOCAL). */
+    private fun clearPreferLocalIfCloudFresh() {
+        if (!preferLocalUntilCloudFresh) return
+        // Política global LOCAL: el chip sigue en Local aunque Firebase esté vivo.
+        if (isAppLocalPolicy()) return
+        preferLocalUntilCloudFresh = false
+        _preferLocalMode.value = false
+        KilnOfflineSession.clearPreferLocal(currentMacAddress)
+        Log.d(TAG, "Nube fresca: limpiando preferencia SoftAP")
+    }
+
     /**
-     * Tras transferir datos al ESP por HTTP local: suelta WifiNetworkSpecifier
-     * para que Android vuelva a la WiFi de casa, y pasa la UI a Firebase.
-     * El ESP apaga SoftAP en paralelo (~8–10 s perfil C) por si el usuario entró a mano.
+     * Si RTDB está fresco pero la UI sigue en Local sin SoftAP alcanzable,
+     * pasar a Remoto (caso: release SoftAP ya ocurrió y Firebase sigue publicando).
      */
-    private fun handOffToHomeWifiAfterLocalSession(reason: String) {
+    private fun maybePromoteLocalToFirebaseIfSoftApGone() {
+        if (_dataSource.value != KilnDataSource.LOCAL_AP) return
+        if (_isSendingCommand.value || _isUploadingProgram.value) return
+        if (!isFirebaseFreshlyLive()) return
+        viewModelScope.launch {
+            if (_dataSource.value != KilnDataSource.LOCAL_AP) return@launch
+            if (_isSendingCommand.value || _isUploadingProgram.value) return@launch
+            val softApUp = try {
+                kilnHttpClient.ping()
+            } catch (_: Exception) {
+                false
+            }
+            if (!softApUp) {
+                switchToFirebaseAfterLocalSession("firebase-live-softap-gone")
+            }
+        }
+    }
+
+    private fun switchToFirebaseAfterLocalSession(reason: String) {
+        // No soltar SoftAP ni marcar Remoto si el teléfono sigue en SmartKiln-…
+        // y el HTTP local responde (falso handoff → Remoto naranja).
+        if (WifiUtils.isOnSmartKilnNetwork(appContext)) {
+            viewModelScope.launch {
+                if (promoteToLocalAfterHttpOk()) {
+                    Log.d(TAG, "Omitido handoff a Firebase ($reason): SoftAP activo")
+                    return@launch
+                }
+                doSwitchToFirebaseAfterLocalSession(reason)
+            }
+            return
+        }
+        doSwitchToFirebaseAfterLocalSession(reason)
+    }
+
+    private fun doSwitchToFirebaseAfterLocalSession(reason: String) {
         localPollJob?.cancel()
         localPollJob = null
         _canControlLocally.value = false
-        if (_dataSource.value == KilnDataSource.LOCAL_AP) {
-            _dataSource.value = KilnDataSource.FIREBASE
+        // Preferencia SoftAP sin nube: no fingir canal Remoto con datos viejos.
+        _dataSource.value = if (preferLocalUntilCloudFresh && !isFirebaseFreshlyLive()) {
+            KilnDataSource.DISCONNECTED
+        } else {
+            KilnDataSource.FIREBASE
         }
         KilnNetworkConnector.release(appContext, markHandoffCooldown = true)
         if (currentMacAddress.isNotEmpty()) {
             startFirebaseMonitoring(currentMacAddress)
         }
-        Log.d(TAG, "Hand-off tras sesión local ($reason) → Firebase / WiFi casa")
+        Log.d(TAG, "Hand-off tras sesión local ($reason) → ${_dataSource.value}")
+    }
+
+    /**
+     * Tras sesión HTTP local:
+     * - Si el ESP libera SoftAP (Firebase OK): SoftAP cae ≤~1 s → Remoto.
+     * - Si SoftAP sigue arriba pasado el force-release → sticky Local (sin nube).
+     * No bloquear el diálogo de progreso: el caller debe limpiar UI antes.
+     */
+    private suspend fun handOffToHomeWifiAfterLocalSession(reason: String) {
+        _dataSource.value = KilnDataSource.LOCAL_AP
+        _canControlLocally.value = true
+
+        val started = System.currentTimeMillis()
+        val deadline = started + SOFTAP_RELEASE_DETECT_MS
+        var sawSoftApDown = false
+        var consecutiveUpAfterForce = 0
+
+        while (System.currentTimeMillis() < deadline) {
+            val up = try {
+                isLocalHttpForCurrentDevice()
+            } catch (e: Exception) {
+                Log.w(TAG, "Probe SoftAP post-sesión: ${e.message}")
+                false
+            }
+            if (!up) {
+                sawSoftApDown = true
+                break
+            }
+            // Perfil C fuerza AP off ~1 s. Si a >1,2 s SoftAP sigue respondiendo,
+            // no va a soltarse → sticky ya (no esperar 2,2 s con la UI colgada).
+            val elapsed = System.currentTimeMillis() - started
+            if (elapsed >= 1_200L) {
+                consecutiveUpAfterForce++
+                if (consecutiveUpAfterForce >= 2) break
+            }
+            delay(SOFTAP_RELEASE_POLL_MS)
+        }
+
+        if (sawSoftApDown) {
+            switchToFirebaseAfterLocalSession(reason)
+            return
+        }
+
+        if (localPollJob?.isActive != true) {
+            startLocalMonitoring()
+        }
+        if (currentMacAddress.isNotEmpty()) {
+            startFirebaseMonitoring(currentMacAddress)
+        }
+        Log.d(TAG, "Sesión local ($reason): SoftAP sticky — se queda en Local")
     }
 
     private suspend fun sendLocalCommand(cmd: String): Boolean {
@@ -2317,10 +2763,6 @@ class KilnDetailViewModel(
             return false
         }
 
-        // El diálogo modal con el círculo girando se muestra durante TODO el
-        // proceso (conexión al AP + envío HTTP + lectura de status). El título
-        // (phase) se queda fijo durante toda la operación; solo el subtítulo
-        // (detail) cambia para informar de la sub-fase.
         val title = when (cmd) {
             "START" -> "Iniciando horno…"
             "RESUME" -> "Reanudando horno…"
@@ -2328,33 +2770,40 @@ class KilnDetailViewModel(
             "STOP" -> "Deteniendo horno…"
             else -> "Enviando comando…"
         }
-        _sendingCommandPhase.value = title
-        _sendingCommandDetail.value = "Conectando al horno…"
-        _isSendingCommand.value = true
+        // Fase 1 (banner, sin Dialog): SoftAP nativo libre.
+        // Fase 2 (modal): solo el HTTP, cuando el enlace local ya está OK.
+        var commandOk = false
         try {
+            _sendingCommandPhase.value = title
+            _sendingCommandDetail.value = "Conectando al WiFi del horno…"
+            _isPreparingLocalLink.value = true
+
             if (!ensureLocalConnection()) return false
 
+            // Mismo banner: solo cambia el detalle (sin modal Dialog).
             _sendingCommandDetail.value = "Enviando comando…"
+            _isSendingCommand.value = true
 
-            return kilnHttpClient.sendCommand(cmd)
+            commandOk = kilnHttpClient.sendCommand(cmd)
                 .onSuccess {
                     Log.d(TAG, "Command $cmd OK")
-                    // Update optimista: anticipamos el estado del horno antes
-                    // de que llegue la confirmación del HTTP/Firebase, así el
-                    // botón en pantalla cambia en cuanto cierra el diálogo.
                     applyOptimisticCommandState(cmd)
                     holdCommandStatusAfterLocalSuccess(cmd)
                     delay(400)
                     kilnHttpClient.getStatus().onSuccess { applyLocalStatus(it) }
-                    handOffToHomeWifiAfterLocalSession(cmd)
                 }
                 .onFailure { Log.e(TAG, "Command $cmd failed: ${it.message}") }
                 .isSuccess
         } finally {
+            _isPreparingLocalLink.value = false
             _isSendingCommand.value = false
             _sendingCommandPhase.value = ""
             _sendingCommandDetail.value = ""
         }
+        if (commandOk) {
+            handOffToHomeWifiAfterLocalSession(cmd)
+        }
+        return commandOk
     }
 
     /**
@@ -2479,7 +2928,10 @@ class KilnDetailViewModel(
             _showInterruptedDialog.value = false
             val ok = sendLocalCommand("RESUME")
             interruptedDialogAcked = ok
-            if (!ok) {
+            if (ok) {
+                interruptedDialogSuppressUntilMs =
+                    System.currentTimeMillis() + COMMAND_HARD_HOLD_MS
+            } else {
                 Log.w(TAG, "RESUME falló — se podrá reabrir el diálogo de interrupción")
             }
         }
@@ -2494,7 +2946,9 @@ class KilnDetailViewModel(
             _showInterruptedDialog.value = false
             val ok = sendLocalCommand("STOP")
             interruptedDialogAcked = ok
-            if (!ok) {
+            if (ok) {
+                interruptedDialogSuppressUntilMs = System.currentTimeMillis() + 15_000L
+            } else {
                 Log.w(TAG, "STOP (cancel interrupción) falló — se podrá reabrir el diálogo")
             }
         }
@@ -2510,12 +2964,17 @@ class KilnDetailViewModel(
             return
         }
         val interrupted = status.equals("INTERRUMPIDO", ignoreCase = true)
+        val suppressActive = System.currentTimeMillis() < interruptedDialogSuppressUntilMs
         if (!interrupted) {
-            interruptedDialogAcked = false
+            // No limpiar el ack dentro de la ventana post-comando: si no, un
+            // CALENTANDO local seguido de INTERRUMPIDO viejo en Firebase reabre el diálogo.
+            if (!suppressActive) {
+                interruptedDialogAcked = false
+            }
             _showInterruptedDialog.value = false
             return
         }
-        if (interruptedDialogAcked || !liveLink) {
+        if (interruptedDialogAcked || suppressActive || !liveLink) {
             _showInterruptedDialog.value = false
             return
         }
@@ -2530,23 +2989,42 @@ class KilnDetailViewModel(
             else -> return
         }
         heldCommandStatus = status
-        // Cubre handoff SoftAP + publish Firebase (perfil C ~8–10 s) con margen.
-        heldCommandUntilMs = System.currentTimeMillis() + 12_000L
-        Log.d(TAG, "Hold status local '$status' hasta que Firebase coincida")
+        // START/RESUME/PAUSE: ~35 s SoftAP→STA→Firebase; no confiar en RTDB.
+        // STOP: hold corto hasta coincidencia (IDLE suele llegar antes).
+        heldCommandHardIgnoreRemote =
+            (cmd == "START" || cmd == "RESUME" || cmd == "PAUSE")
+        heldCommandUntilMs = System.currentTimeMillis() + when (cmd) {
+            "START", "RESUME", "PAUSE" -> COMMAND_HARD_HOLD_MS
+            else -> 12_000L
+        }
+        Log.d(
+            TAG,
+            "Hold status local '$status' ($cmd)" +
+                if (heldCommandHardIgnoreRemote) {
+                    " (ignora RTDB ${COMMAND_HARD_HOLD_MS / 1000}s)"
+                } else {
+                    ""
+                }
+        )
     }
 
     private fun clearCommandStatusHold() {
         heldCommandStatus = null
         heldCommandUntilMs = 0L
+        heldCommandHardIgnoreRemote = false
     }
 
     /**
-     * Evita que un snapshot RTDB viejo (p. ej. CALENTANDO tras PAUSE) pise la UI
-     * hasta que el ESP publique el nuevo status o expire el hold.
+     * Evita que un snapshot RTDB viejo pise la UI tras comando SoftAP.
+     * START/RESUME/PAUSE: ventana fija ~35 s ignorando Firebase por completo.
      */
     private fun applyCommandStatusHold(statusForUi: String): String {
         val held = heldCommandStatus ?: return statusForUi
-        if (System.currentTimeMillis() >= heldCommandUntilMs) {
+        val now = System.currentTimeMillis()
+        if (heldCommandHardIgnoreRemote) {
+            if (now < heldCommandUntilMs) {
+                return held
+            }
             clearCommandStatusHold()
             return statusForUi
         }
@@ -2554,6 +3032,23 @@ class KilnDetailViewModel(
         if (remote == held) {
             clearCommandStatusHold()
             return statusForUi
+        }
+        if (now >= heldCommandUntilMs) {
+            clearCommandStatusHold()
+            return statusForUi
+        }
+        // PAUSE/STOP/START: mantener hold hasta coincidencia o timeout.
+        if (held == "PAUSADO" && remote == "CALENTANDO") {
+            Log.d(TAG, "Hold activo: UI='$held' (Firebase aún '$remote')")
+            return held
+        }
+        if (held == "IDLE" && remote in setOf("CALENTANDO", "PAUSADO", "INTERRUMPIDO")) {
+            Log.d(TAG, "Hold activo: UI='$held' (Firebase aún '$remote')")
+            return held
+        }
+        if (held == "CALENTANDO" && remote == "INTERRUMPIDO") {
+            Log.d(TAG, "Hold START: ignorando INTERRUMPIDO stale de Firebase")
+            return held
         }
         Log.d(TAG, "Hold activo: UI='$held' (Firebase aún '$remote')")
         return held
@@ -2751,20 +3246,28 @@ class KilnDetailViewModel(
             return
         }
 
-        _sendingCommandPhase.value = "Cargando «$programName»…"
-        _sendingCommandDetail.value = "Conectando al horno…"
-        _isSendingCommand.value = true
+        // SoftAP ANTES del modal "Cargando…": el Dialog de Compose tapa el
+        // diálogo nativo de Android para unirse a SmartKiln-… (cuelga en Cargando).
+        // Banner no-modal da feedback inmediato durante SoftAP.
         _isUploadingProgram.value = true
+        var handOffAfterSuccess = false
         try {
+            _sendingCommandPhase.value = "Cargando «$programName»…"
+            _sendingCommandDetail.value = "Conectando al WiFi del horno…"
+            _isPreparingLocalLink.value = true
+
             if (!ensureLocalConnection()) {
-                // ensureLocalConnection ya gestionó el manualWifiDialog si hizo falta.
                 Log.w(TAG, "Upload pospuesto: sin conexión local")
                 _localActionError.value =
-                    "No se pudo conectar al horno para cargar «$programName». Acercate al SoftAP e intentá de nuevo."
+                    "No se pudo conectar al horno para cargar «$programName». " +
+                        "Sin internet el control es solo por SoftAP: aceptá el diálogo de WiFi " +
+                        "«SmartKiln-…» (o unite a mano) e intentá de nuevo."
                 return
             }
 
+            // Mismo banner: solo cambia el detalle (sin modal Dialog).
             _sendingCommandDetail.value = "Enviando programa al horno…"
+            _isSendingCommand.value = true
 
             KilnProgramUploader.uploadProgram(
                 appContext,
@@ -2794,7 +3297,7 @@ class KilnDetailViewModel(
                         markProgramSyncedWithKiln(programId, prog.updatedAt)
                     }
                     status?.let { applyLocalStatus(it) }
-                    handOffToHomeWifiAfterLocalSession("profile")
+                    handOffAfterSuccess = true
                     Log.d(TAG, "Profile uploaded for $programId ($programName)")
                 }
                 .onFailure {
@@ -2804,9 +3307,13 @@ class KilnDetailViewModel(
                 }
         } finally {
             _isUploadingProgram.value = false
+            _isPreparingLocalLink.value = false
             _isSendingCommand.value = false
             _sendingCommandPhase.value = ""
             _sendingCommandDetail.value = ""
+        }
+        if (handOffAfterSuccess) {
+            handOffToHomeWifiAfterLocalSession("profile")
         }
     }
 

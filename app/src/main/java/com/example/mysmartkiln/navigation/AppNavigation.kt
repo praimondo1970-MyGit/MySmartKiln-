@@ -2,14 +2,9 @@ package com.example.mysmartkiln.navigation
 
 import android.app.Activity
 import android.content.Intent
-import android.app.Application
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -19,28 +14,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mysmartkiln.LoginActivity
-import com.example.mysmartkiln.ble.BleViewModel
-import com.example.mysmartkiln.ble.BleViewModelFactory
-import com.example.mysmartkiln.data.local.KilnProgramUploader
-import com.example.mysmartkiln.data.local.database.BakingDatabase
-import com.example.mysmartkiln.data.repository.ProgramRepository
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.screens.ActivityScreen
-import com.example.mysmartkiln.ui.screens.AddStageScreen
-import com.example.mysmartkiln.ui.screens.BleMonitoringScreen
 import com.example.mysmartkiln.ui.screens.ConfigureKilnScreen
 import com.example.mysmartkiln.ui.screens.CreateProgramScreen
-import com.example.mysmartkiln.ui.screens.DevicesFoundScreen
-import com.example.mysmartkiln.ui.screens.ConnectKilnScreen
 import com.example.mysmartkiln.ui.screens.KilnDetailScreen
 import com.example.mysmartkiln.ui.screens.KilnsScreen
 import com.example.mysmartkiln.ui.screens.ProgramsScreen
-import com.example.mysmartkiln.ui.screens.ScanKilnScreen
 import com.example.mysmartkiln.ui.screens.SettingsScreen
 
 /**
@@ -52,9 +33,6 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
-    val bleViewModel: BleViewModel = viewModel(
-        factory = BleViewModelFactory(context.applicationContext as Application)
-    )
     val authViewModel: AuthViewModel = viewModel()
     
     NavHost(
@@ -74,12 +52,7 @@ fun AppNavigation(
             val startScanning = backStackEntry.arguments?.getBoolean("startScanning") ?: false
             
             KilnsScreen(
-                bleViewModel = bleViewModel,
                 authViewModel = authViewModel,
-                onDevicesFound = {
-                    // Navegar a pantalla de dispositivos encontrados
-                    navController.navigate("devices_found")
-                },
                 onNavigateToPrograms = {
                     navController.navigate(Screen.Programs.route)
                 },
@@ -92,27 +65,32 @@ fun AppNavigation(
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
                 },
-                onKilnSelected = { macAddress, kilnName ->
-                    // Navegar a detalles del horno seleccionado
-                    navController.navigate("kiln_detail/$macAddress/$kilnName")
+                onKilnSelected = { macAddress, kilnName, preferLocal ->
+                    val encodedName = Uri.encode(kilnName)
+                    navController.navigate(
+                        "kiln_detail/$macAddress/$encodedName?preferLocal=$preferLocal"
+                    )
                 },
                 onNavigateToSelectProgram = { macAddress, kilnName ->
-                    navController.navigate("kiln_detail/$macAddress/$kilnName")
-                    navController.navigate("select_program/$macAddress/$kilnName")
+                    val encodedName = Uri.encode(kilnName)
+                    navController.navigate("kiln_detail/$macAddress/$encodedName")
+                    navController.navigate("select_program/$macAddress/$encodedName")
                 },
                 onEditKiln = { macAddress ->
                     // Navegar a pantalla de edición de horno
                     navController.navigate("configure_kiln/$macAddress")
                 },
-                onNavigateToConfigureKiln = { macAddress, deviceName, deviceModel, deviceVolume ->
+                onNavigateToConfigureKiln = { macAddress, deviceName, deviceModel, deviceVolume, deviceType ->
                     val encodedName = Uri.encode(deviceName)
                     val encodedModel = Uri.encode(deviceModel)
                     val encodedVolume = Uri.encode(deviceVolume)
+                    val encodedType = Uri.encode(deviceType.ifBlank { "KILN" })
                     navController.navigate(
                         "configure_kiln/$macAddress" +
                             "?deviceName=$encodedName" +
                             "&deviceModel=$encodedModel" +
-                            "&deviceVolume=$encodedVolume"
+                            "&deviceVolume=$encodedVolume" +
+                            "&deviceType=$encodedType"
                     ) {
                         popUpTo("kilns") { inclusive = false }
                     }
@@ -222,9 +200,6 @@ fun AppNavigation(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onNavigateToAddStage = {
-                    navController.navigate(Screen.AddStage.route)
-                },
                 onNavigateToKilns = {
                     navController.navigate(Screen.Kilns.createRoute())
                 },
@@ -243,44 +218,9 @@ fun AppNavigation(
             )
         }
         
-        // Pantalla de Agregar Etapa
-        composable(Screen.AddStage.route) {
-            AddStageScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        // Pantalla de Dispositivos Encontrados
-        composable("devices_found") {
-            DevicesFoundScreen(
-                bleViewModel = bleViewModel,
-                onDeviceSelected = { macAddress ->
-                    // Navegar a configuración del horno
-                    navController.navigate("configure_kiln/$macAddress")
-                },
-                onNavigateToKilns = {
-                    navController.popBackStack(Screen.Kilns.route, false)
-                },
-                onNavigateToPrograms = {
-                    navController.navigate(Screen.Programs.route)
-                },
-                onNavigateToActivity = {
-                    navController.navigate(Screen.Activity.route)
-                },
-                onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route)
-                },
-                onCreateProgram = {
-                    navController.navigate(Screen.CreateProgram.createRoute())
-                }
-            )
-        }
-        
         // Pantalla de Configuración del Horno
         composable(
-            route = "configure_kiln/{macAddress}?deviceName={deviceName}&deviceModel={deviceModel}&deviceVolume={deviceVolume}",
+            route = "configure_kiln/{macAddress}?deviceName={deviceName}&deviceModel={deviceModel}&deviceVolume={deviceVolume}&deviceType={deviceType}",
             arguments = listOf(
                 navArgument("macAddress") {
                     type = NavType.StringType
@@ -299,34 +239,35 @@ fun AppNavigation(
                     type = NavType.StringType
                     defaultValue = ""
                     nullable = true
+                },
+                navArgument("deviceType") {
+                    type = NavType.StringType
+                    defaultValue = "KILN"
+                    nullable = true
                 }
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            // Sugerencia de nombre: primero lo que vino del horno (HTTP info),
-            // luego el nombre BLE del scan (compatibilidad con flujo legacy),
-            // por último vacío para que el usuario lo complete.
-            val deviceNameFromWifi = backStackEntry.arguments?.getString("deviceName")
+            // Sugerencia de nombre desde GET /api/info (WiFi SoftAP); vacío si no viene.
+            val deviceName = backStackEntry.arguments?.getString("deviceName")
                 ?.takeIf { it.isNotBlank() && it != "Mi Kiln Cerámico" }
-            val deviceName = deviceNameFromWifi
-                ?: bleViewModel.scannedDevices.value.find {
-                    it.address.equals(macAddress, ignoreCase = true) ||
-                        it.address.replace(":", "").equals(macAddress, ignoreCase = true)
-                }?.name
-                ?: ""
+                .orEmpty()
             val deviceModel = backStackEntry.arguments?.getString("deviceModel")
                 ?.takeIf { it.isNotBlank() }
                 .orEmpty()
             val deviceVolume = backStackEntry.arguments?.getString("deviceVolume")
                 ?.takeIf { it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true }
                 .orEmpty()
+            val deviceType = backStackEntry.arguments?.getString("deviceType")
+                ?.takeIf { it.isNotBlank() }
+                ?: "KILN"
 
             ConfigureKilnScreen(
                 macAddress = macAddress,
                 deviceName = deviceName,
                 deviceModel = deviceModel,
                 deviceVolume = deviceVolume,
-                bleViewModel = bleViewModel,
+                deviceType = deviceType,
                 authViewModel = authViewModel,
                 existingKiln = null, // Se buscará automáticamente si existe
                 onKilnConfigured = {
@@ -369,18 +310,25 @@ fun AppNavigation(
         
         // Pantalla de Detalles del Horno
         composable(
-            route = "kiln_detail/{macAddress}/{kilnName}",
+            route = "kiln_detail/{macAddress}/{kilnName}?preferLocal={preferLocal}",
             arguments = listOf(
                 navArgument("macAddress") {
                     type = NavType.StringType
                 },
                 navArgument("kilnName") {
                     type = NavType.StringType
+                },
+                navArgument("preferLocal") {
+                    type = NavType.BoolType
+                    defaultValue = false
                 }
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            val kilnName = Uri.decode(
+                backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            )
+            val preferLocal = backStackEntry.arguments?.getBoolean("preferLocal") ?: false
             
             // Usar el backStackEntry actual como viewModelStoreOwner
             val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel = 
@@ -393,53 +341,8 @@ fun AppNavigation(
                 navController = navController,
                 kilnName = kilnName,
                 kilnMacAddress = macAddress,
+                preferLocal = preferLocal,
                 viewModel = kilnDetailViewModel
-            )
-        }
-
-        composable(
-            route = "connect_kiln/{macAddress}/{kilnName}",
-            arguments = listOf(
-                navArgument("macAddress") { type = NavType.StringType },
-                navArgument("kilnName") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
-            val kilnDetailRoute = "kiln_detail/$macAddress/$kilnName"
-            val parentEntry = navController.getBackStackEntry(kilnDetailRoute)
-            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel =
-                viewModel(
-                    viewModelStoreOwner = parentEntry,
-                    factory = ViewModelFactory(context)
-                )
-            ConnectKilnScreen(
-                kilnName = kilnName,
-                viewModel = kilnDetailViewModel,
-                onBack = { navController.popBackStack() }
-            )
-        }
-        
-        // Pantalla de Monitoreo BLE (modo continuo)
-        composable(
-            route = "ble_monitoring/{macAddress}",
-            arguments = listOf(
-                navArgument("macAddress") {
-                    type = NavType.StringType
-                }
-            )
-        ) { backStackEntry ->
-            val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            
-            BleMonitoringScreen(
-                macAddress = macAddress,
-                bleViewModel = bleViewModel,
-                onProgramFinished = {
-                    navController.popBackStack()
-                },
-                onBack = {
-                    navController.popBackStack()
-                }
             )
         }
         
@@ -456,12 +359,14 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val macAddress = backStackEntry.arguments?.getString("macAddress") ?: ""
-            val kilnName = backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            val kilnName = Uri.decode(
+                backStackEntry.arguments?.getString("kilnName") ?: "Mi Horno"
+            )
             
-            // Obtener el MISMO ViewModel que KilnDetailScreen buscando en el backstack
-            val kilnDetailRoute = "kiln_detail/$macAddress/$kilnName"
-            val parentEntry = navController.getBackStackEntry(kilnDetailRoute)
-            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel = 
+            // Mismo ViewModel que el detalle (debajo en el back stack).
+            val parentEntry = navController.previousBackStackEntry
+                ?: backStackEntry
+            val kilnDetailViewModel: com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel =
                 viewModel(
                     viewModelStoreOwner = parentEntry,
                     factory = ViewModelFactory(context)

@@ -10,59 +10,57 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 /**
- * Botón circular de cerrar (X) con fondo azul
- * Se muestra cuando el menú flotante está abierto
+ * Botón circular de cerrar (X).
+ * Se muestra cuando el menú flotante está abierto.
  */
 @Composable
 fun CloseBtnCircle(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val kilnColors = LocalKilnColors.current
+
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .requiredSize(size = 53.dp)
+            .requiredSize(size = 50.dp)
     ) {
         Box(
             modifier = Modifier
-                .requiredSize(size = 53.dp)
+                .requiredSize(size = 50.dp)
         ) {
-            // Fondo circular azul
             Box(
                 modifier = Modifier
-                    .requiredSize(size = 53.dp)
+                    .requiredSize(size = 50.dp)
                     .clip(shape = CircleShape)
-                    .background(color = AppColors.Primary300) // Azul claro
+                    .background(color = kilnColors.muted)
             )
-            
-            // Icono X (cerrar)
+
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.close_icon),
                 contentDescription = "close-icon",
-                tint = Color.White,
+                tint = kilnColors.onFab,
                 modifier = Modifier
                     .align(alignment = Alignment.Center)
-                    .requiredSize(size = 26.dp)
+                    .requiredSize(size = 24.dp)
             )
         }
     }
 }
 
-@Preview(widthDp = 53, heightDp = 53)
+@Preview(widthDp = 50, heightDp = 50)
 @Composable
 private fun CloseBtnCirclePreview() {
     MySmartKilnTheme {
-        CloseBtnCircle(Modifier)
+        CloseBtnCircle()
     }
 }
-

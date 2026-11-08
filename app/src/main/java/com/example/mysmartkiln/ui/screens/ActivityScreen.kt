@@ -3,6 +3,7 @@ package com.example.mysmartkiln.ui.screens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -25,9 +26,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,25 +53,46 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.mysmartkiln.R
+import com.example.mysmartkiln.ui.components.ActivityLoggerCurveScreen
+import com.example.mysmartkiln.ui.components.EspBrandHeader
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.OrangeHexagon
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
-import com.example.mysmartkiln.ui.components.ScrollGradient
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
+import com.example.mysmartkiln.ui.viewmodels.ActivityUiItem
+import com.example.mysmartkiln.ui.viewmodels.ActivityViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 
-// Estructura de datos para las actividades de horneado
+// UI de tarjeta (compatible con layout existente)
 data class ActivityItem(
     val id: String,
-    val kilnBrand: String,        // "AFRA"
-    val kilnVolume: String,       // "45Lt" 
-    val kilnName: String,         // "AFRA 45Lt" (combinado)
-    val executionDate: String,    // "26/09/2025"
-    val programName: String,      // "Esmalte de Gres"
-    val maxTemperature: String,   // "1120"
-    val duration: String,         // "6h 30min"
-    val timestamp: Long = System.currentTimeMillis() // Para ordenamiento
+    val kilnBrand: String,
+    val kilnVolume: String,
+    val kilnName: String,
+    val executionDate: String,
+    val programName: String,
+    val maxTemperature: String,
+    val duration: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val outcomeLabel: String? = null
+)
+
+private fun ActivityUiItem.toActivityItem() = ActivityItem(
+    id = id,
+    kilnBrand = kilnBrand,
+    kilnVolume = kilnVolume,
+    kilnName = kilnName,
+    executionDate = executionDate,
+    programName = programName,
+    maxTemperature = maxTemperature,
+    duration = duration,
+    timestamp = timestamp,
+    outcomeLabel = outcomeLabel
 )
 
 @Composable
@@ -78,118 +102,236 @@ fun ActivityScreen(
     onNavigateToSettings: () -> Unit = {},
     onCreateProgram: () -> Unit = {},
     onNavigateToKilnsWithScan: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: ActivityViewModel = viewModel()
 ) {
-    // Estado para controlar el menú "+"
     var isMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    
-    // Datos de ejemplo basados en la imagen
-    val activities = listOf(
-        ActivityItem(
-            id = "1",
-            kilnBrand = "AFRA",
-            kilnVolume = "45Lt",
-            kilnName = "AFRA 45Lt",
-            executionDate = "26/09/2025",
-            programName = "Esmalte de Gres",
-            maxTemperature = "1120",
-            duration = "6h 30min"
-        ),
-        ActivityItem(
-            id = "2",
-            kilnBrand = "SIMSIC",
-            kilnVolume = "E40",
-            kilnName = "SIMSIC E40",
-            executionDate = "24/09/2025",
-            programName = "Biscoho para baja temperatura",
-            maxTemperature = "800",
-            duration = "10h 30min"
-        ),
-        ActivityItem(
-            id = "3",
-            kilnBrand = "BAIRES",
-            kilnVolume = "256",
-            kilnName = "BAIRES 256",
-            executionDate = "15/09/2025",
-            programName = "Gres media temperatura",
-            maxTemperature = "1080",
-            duration = "6h 30min"
-        )
-    )
+    var pendingDelete by remember { mutableStateOf<ActivityUiItem?>(null) }
+    val activitiesRaw by viewModel.activities.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val curveDetail by viewModel.curveDetail.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
+
+    if (curveDetail != null) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(color = LocalKilnColors.current.screenBackground)
+        ) {
+            ActivityLoggerCurveScreen(
+                detail = curveDetail!!,
+                onBack = { viewModel.closeCurveDetail() },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            if (isMenuOpen) {
+                AddMenuScreen(
+                    onNewKilnClick = {
+                        isMenuOpen = false
+                        onNavigateToKilnsWithScan()
+                    },
+                    onNewProgramClick = {
+                        isMenuOpen = false
+                        onCreateProgram()
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(1f)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(alignment = Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .requiredHeight(height = 200.dp)
+                    .zIndex(2f)
+            ) {
+                BottomNavBarBackground(
+                    modifier = Modifier
+                        .align(alignment = Alignment.TopStart)
+                        .offset(x = 0.dp, y = 60.dp)
+                )
+                ResponsiveBottomNavigation(
+                    onKilnsClick = onNavigateToKilns,
+                    onProgramsClick = onNavigateToPrograms,
+                    onActivityClick = { viewModel.closeCurveDetail() },
+                    onSettingsClick = onNavigateToSettings,
+                    onPlusClick = { isMenuOpen = !isMenuOpen },
+                    isKilnsActive = false,
+                    isProgramsActive = false,
+                    isActivityActive = true,
+                    isSettingsActive = false,
+                    showFab = true,
+                    isMenuOpen = isMenuOpen,
+                    modifier = Modifier.align(alignment = Alignment.BottomStart)
+                )
+            }
+        }
+        return
+    }
+
+    val filtered = remember(activitiesRaw, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) activitiesRaw
+        else activitiesRaw.filter {
+            it.programName.contains(q, ignoreCase = true) ||
+                it.kilnName.contains(q, ignoreCase = true) ||
+                it.kilnBrand.contains(q, ignoreCase = true)
+        }
+    }
+    val grouped = remember(filtered) {
+        filtered.groupBy { it.monthLabel }
+    }
     
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
-        // Contenido principal
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 10.dp)
         ) {
-            // Título
-            Text(
-                text = "Actividad",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
-            )
+            val kilnColors = LocalKilnColors.current
+
+            if (kilnColors.isEsp) {
+                EspBrandHeader(
+                    modifier = Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 48.dp,
+                        bottom = 8.dp
+                    )
+                )
+                Text(
+                    text = "Actividad",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 8.dp,
+                        bottom = 16.dp
+                    )
+                )
+            } else {
+                Text(
+                    text = "Actividad",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
+                )
+            }
             
-            // SearchBar
             SearchBar(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
-                onSearchClick = { /* Solo funciona como filtro */ },
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
-            )
-            
-            // Separador de fecha
-            Text(
-                text = "Septiembre 2025",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    color = AppColors.Primary800,
-                    fontWeight = FontWeight.Medium
-                ),
+                placeholder = "Buscar...",
+                onSearchClick = { },
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
             )
-            
-            // Lista de actividades con gradiente
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 29.dp, end = 24.dp)
-            ) {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(activities) { activity ->
-                        ActivityCard(
-                            activity = activity,
-                            onDelete = { /* TODO: Implementar eliminación */ }
-                        )
+
+            when {
+                isLoading && filtered.isEmpty() -> {
+                    Text(
+                        text = "Cargando…",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = LocalKilnColors.current.title
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(24.dp)
+                    )
+                }
+                error != null && filtered.isEmpty() -> {
+                    Text(
+                        text = error.orEmpty(),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = LocalKilnColors.current.title
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(24.dp)
+                    )
+                }
+                filtered.isEmpty() -> {
+                    Text(
+                        text = "Todavía no hay actividad.\nLas grabaciones del DataLogger y las cocciones finalizadas aparecerán acá.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = LocalKilnColors.current.title
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(24.dp)
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 29.dp, end = 24.dp)
+                    ) {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            grouped.forEach { (month, monthItems) ->
+                                item(key = "header_$month") {
+                                    Text(
+                                        text = month,
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            color = LocalKilnColors.current.title,
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)
+                                    )
+                                }
+                                items(monthItems, key = { it.id }) { ui ->
+                                    ActivityCard(
+                                        activity = ui.toActivityItem(),
+                                        onClick = {
+                                            if (ui.canOpenCurve) {
+                                                viewModel.openActivity(ui)
+                                            }
+                                        },
+                                        onDelete = { pendingDelete = ui }
+                                    )
+                                }
+                            }
+                            item {
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
                     }
-                    
-                    // Espacio adicional al final para el gradiente
-                    item {
-                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = AppColors.Primary100,
-                modifier = Modifier.align(Alignment.BottomCenter)
+        
+            Spacer(
+                modifier = Modifier.height(if (kilnColors.isEsp) 110.dp else 160.dp)
             )
         }
-        
-        // Bottom spacing for navigation
-        Spacer(modifier = Modifier.height(160.dp))
+
+        pendingDelete?.let { target ->
+            DeleteActivityConfirmDialog(
+                activityName = target.programName.ifBlank { "esta actividad" },
+                hasCloudCurve = target.isDataLogger || !target.recordingId.isNullOrBlank(),
+                onDismiss = { pendingDelete = null },
+                onConfirm = {
+                    pendingDelete = null
+                    viewModel.deleteActivity(target)
+                }
+            )
         }
         
         // Overlay del menú de agregar
@@ -218,59 +360,10 @@ fun ActivityScreen(
                 .zIndex(2f)
         ) {
             // Navigation Bar Background
-            Box(
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = Color(0xFF003D99),
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    val densityValue = density.density
-                                    
-                                    val startY = 34f * densityValue
-                                    moveTo(0f, startY)
-                                    lineTo(width * (147f/390f), startY)
-                                    cubicTo(
-                                        width * (158.046f/390f), startY,
-                                        width * (166.586f/390f), startY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (178.915f/390f), startY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), startY + (30f * densityValue),
-                                        width * (197f/390f), startY + (30f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (206.565f/390f), startY + (30f * densityValue),
-                                        width * (215.085f/390f), startY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (227.414f/390f), startY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), startY,
-                                        width * (247f/390f), startY
-                                    )
-                                    lineTo(width, startY)
-                                    lineTo(width, startY + (20f * densityValue))
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    lineTo(0f, startY + (20f * densityValue))
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
             
             // Responsive Bottom Navigation Bar
@@ -303,6 +396,7 @@ fun ActivityScreen(
 @Composable
 private fun ActivityCard(
     activity: ActivityItem,
+    onClick: () -> Unit = {},
     onDelete: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -339,9 +433,15 @@ private fun ActivityCard(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = LocalKilnColors.current.cardBackground,
                     shape = RoundedCornerShape(12.dp)
                 )
+                .border(
+                    width = 1.dp,
+                    color = LocalKilnColors.current.cardBorder,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .clickable(enabled = !isOpen) { onClick() }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragStart = {
@@ -388,7 +488,7 @@ private fun ActivityCard(
                     Text(
                         text = activity.kilnName,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -397,22 +497,54 @@ private fun ActivityCard(
                     Text(
                         text = activity.executionDate,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            color = AppColors.Primary800,
+                            color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
                     )
                 }
                 
-                // Segunda línea: Nombre del programa
-                Text(
-                    text = activity.programName,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = AppColors.Primary600,
-                        fontSize = 14.sp
-                    ),
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // Segunda línea: programa + chip Finalizado / Interrumpida
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = activity.programName,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = LocalKilnColors.current.body,
+                            fontSize = 14.sp
+                        ),
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    activity.outcomeLabel?.let { label ->
+                        val interrupted = label.equals("Interrumpida", ignoreCase = true)
+                        val kilnColors = LocalKilnColors.current
+                        val bg = if (interrupted) {
+                            kilnColors.danger.copy(alpha = 0.18f)
+                        } else {
+                            kilnColors.success.copy(alpha = 0.18f)
+                        }
+                        val fg = if (interrupted) kilnColors.danger else kilnColors.success
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(bg)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = label.uppercase(),
+                                color = fg,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.sp,
+                                lineHeight = 12.sp
+                            )
+                        }
+                    }
+                }
                 
                 // Tercera línea: Detalles (temperatura y duración)
                 Row(
@@ -456,14 +588,14 @@ private fun ActivityDetailItem(
             modifier = Modifier
                 .requiredSize(35.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
+                .background(color = LocalKilnColors.current.screenBackground)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = LocalKilnColors.current.body,
                 modifier = Modifier.requiredSize(24.dp)
             )
         }
@@ -473,7 +605,7 @@ private fun ActivityDetailItem(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.accent,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -481,7 +613,7 @@ private fun ActivityDetailItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = AppColors.Primary700,
+                    color = LocalKilnColors.current.accent,
                     fontSize = 12.sp
                 )
             )
@@ -495,49 +627,110 @@ private fun ActivitySwipeActions(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = modifier
             .width(80.dp)
-            .requiredHeight(height = 130.dp)
+            .requiredHeight(height = 130.dp),
+        contentAlignment = Alignment.CenterEnd
     ) {
-        // Botón de Borrar (azul) - mismo estilo que ProgramSwipeActions
-        Box(
-            modifier = Modifier
-                .align(alignment = Alignment.CenterEnd)
-                .requiredSize(size = 64.dp)
-                .clip(shape = RoundedCornerShape(12.dp))
-                .background(color = AppColors.Primary400) // Mismo color que ProgramSwipeActions
-                .clickable { onDelete() }
-        ) {
-            Box(
+        val shape = RoundedCornerShape(12.dp)
+        if (kilnColors.isEsp) {
+            val tint = kilnColors.title.copy(alpha = 0.72f)
+            Column(
                 modifier = Modifier
-                    .align(alignment = Alignment.Center)
-                    .offset(y = 4.dp)
-                    .requiredWidth(width = 36.dp)
-                    .requiredHeight(height = 48.dp)
+                    .requiredSize(width = 62.dp, height = 72.dp)
+                    .border(1.dp, tint, shape)
+                    .clip(shape)
+                    .clickable(onClick = onDelete),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.typedeletesize16colorblack),
-                    contentDescription = "Delete",
-                    modifier = Modifier
-                        .align(alignment = Alignment.TopCenter)
-                        .requiredWidth(width = 25.dp)
-                        .requiredHeight(height = 24.dp)
+                    contentDescription = "BORRAR",
+                    tint = tint,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = "BORRAR",
+                    color = tint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .requiredSize(64.dp)
+                    .clip(shape)
+                    .background(AppColors.Primary400)
+                    .clickable(onClick = onDelete),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.typedeletesize16colorblack),
+                    contentDescription = "borrar",
+                    tint = AppColors.White,
+                    modifier = Modifier.size(22.dp)
                 )
                 Text(
                     text = "borrar",
                     color = AppColors.White,
-                    lineHeight = 1.em,
-                    style = TextStyle(fontSize = 10.sp),
-                    modifier = Modifier
-                        .align(alignment = Alignment.BottomCenter)
-                        .offset(x = 6.dp, y = 2.dp)
-                        .requiredWidth(width = 36.dp)
-                        .requiredHeight(height = 23.dp)
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
             }
         }
     }
+}
+
+@Composable
+private fun DeleteActivityConfirmDialog(
+    activityName: String,
+    hasCloudCurve: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val kilnColors = LocalKilnColors.current
+    val body = if (hasCloudCurve) {
+        "Vas a eliminar «$activityName».\n\n" +
+            "También se borrará de la nube (Firebase) y de este teléfono, " +
+            "incluida la curva de temperatura. Esta acción no se puede deshacer."
+    } else {
+        "Vas a eliminar «$activityName».\n\n" +
+            "También se borrará de la nube. Esta acción no se puede deshacer."
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "¿Eliminar actividad?",
+                fontWeight = FontWeight.Bold,
+                color = kilnColors.title
+            )
+        },
+        text = {
+            Text(
+                text = body,
+                color = kilnColors.muted,
+                fontSize = 14.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Eliminar", color = AppColors.Primary400, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = kilnColors.muted)
+            }
+        }
+    )
 }
 
 @Preview(showBackground = true)
@@ -565,7 +758,7 @@ fun ActivityCardPreview() {
                     executionDate = "26/09/2025",
                     programName = "Esmalte de Gres",
                     maxTemperature = "1120",
-                    duration = "6h 30min"
+                    duration = "6h 30m"
                 ),
                 onDelete = { /* Delete action */ }
             )

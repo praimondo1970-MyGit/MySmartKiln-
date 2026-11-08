@@ -30,12 +30,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ble.BleViewModel
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.screens.AddMenuScreen
-import com.example.mysmartkiln.ui.theme.AppColors
 import com.example.mysmartkiln.ui.theme.AppTypes
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.data.repository.KilnRepository
 import com.example.mysmartkiln.data.local.entity.KilnEntity
@@ -46,9 +47,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
-import com.example.mysmartkiln.ui.components.ScrollGradient
+import com.example.mysmartkiln.data.local.KilnEspInfoSync
 import com.example.mysmartkiln.data.local.KilnHttpClient
 import com.example.mysmartkiln.data.local.KilnInfoJsonBuilder
+import com.example.mysmartkiln.data.local.SoftApDeviceType
+import com.example.mysmartkiln.ui.components.KilnSendingCommandDialog
 import com.example.mysmartkiln.ui.components.WifiScanDialog
 import com.example.mysmartkiln.utils.KilnNetworkConnector
 import com.example.mysmartkiln.utils.WifiUtils
@@ -56,6 +59,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -63,10 +67,10 @@ import kotlinx.coroutines.withContext
 fun ConfigureKilnScreen(
     macAddress: String,
     deviceName: String,
-    bleViewModel: BleViewModel,
     authViewModel: AuthViewModel,
     deviceModel: String = "",
     deviceVolume: String = "",
+    deviceType: String = "KILN",
     existingKiln: KilnEntity? = null, // Opcional: horno existente para modo edición
     onKilnConfigured: () -> Unit = {},
     onBack: () -> Unit = {},
@@ -77,6 +81,19 @@ fun ConfigureKilnScreen(
     onCreateProgram: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var isDataLogger by remember {
+        mutableStateOf(
+            deviceType.equals("DATALOGGER", ignoreCase = true) ||
+                deviceModel.equals("DATALOGGER", ignoreCase = true) ||
+                (existingKiln != null &&
+                    existingKiln.volume.let { it.isBlank() || it == "0" || it == "0.0" } &&
+                    existingKiln.manufacturer.uppercase().let { m ->
+                        m == "K" || m == "S" || m == "TYPE K" || m == "TYPE S" ||
+                            m == "TIPO K" || m == "TIPO S"
+                    })
+        )
+    }
+
     // Pre-cargar datos:
     //   - Si el horno ya existe en Room (modo edición), usamos esos valores.
     //   - Si no, prellenamos con lo que devolvió GET /api/info al alta
@@ -84,18 +101,44 @@ fun ConfigureKilnScreen(
     //     el "0.0" del firmware sin configurar para que el campo aparezca
     //     vacío y obligue al usuario a completarlo.
     var kilnName by remember { mutableStateOf(existingKiln?.name ?: deviceName) }
-    var manufacturer by remember { mutableStateOf(existingKiln?.manufacturer ?: deviceModel) }
+    var manufacturer by remember {
+        mutableStateOf(
+            if (isDataLogger) "" else (existingKiln?.manufacturer ?: deviceModel)
+        )
+    }
+    var thermocoupleType by remember {
+        mutableStateOf(
+            when {
+                !isDataLogger -> ""
+                existingKiln != null -> {
+                    val m = existingKiln.manufacturer.uppercase()
+                    when {
+                        m == "S" || m.contains("TIPO S") || m.contains("TYPE S") -> "S"
+                        m == "K" || m.contains("TIPO K") || m.contains("TYPE K") -> "K"
+                        else -> ""
+                    }
+                }
+                else -> ""
+            }
+        )
+    }
     var volume by remember {
         mutableStateOf(
-            existingKiln?.volume
-                ?: deviceVolume.takeIf {
-                    it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true
-                }.orEmpty()
+            if (isDataLogger) {
+                "0"
+            } else {
+                existingKiln?.volume
+                    ?: deviceVolume.takeIf {
+                        it.isNotBlank() && it.toFloatOrNull()?.let { v -> v > 0f } == true
+                    }.orEmpty()
+            }
         )
     }
     var wifiSSID by remember { mutableStateOf("") }
     var wifiPassword by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
+    var isSendingToKiln by remember { mutableStateOf(false) }
+    var sendingPhase by remember { mutableStateOf("") }
+    var sendingDetail by remember { mutableStateOf("") }
     var isMenuOpen by remember { mutableStateOf(false) }
     var showValidationAlert by remember { mutableStateOf(false) }
     var showSaveErrorAlert by remember { mutableStateOf(false) }
@@ -108,6 +151,8 @@ fun ConfigureKilnScreen(
     
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    val kilnColors = LocalKilnColors.current
+    val fieldShape = RoundedCornerShape(12.dp)
     
     // Repository para manejo de datos
     val firebaseManager = remember { FirebaseRealtimeManager() }
@@ -128,8 +173,21 @@ fun ConfigureKilnScreen(
                 if (foundKiln != null) {
                     // Pre-cargar datos del horno encontrado y marcar como modo edición
                     kilnName = foundKiln.name
-                    manufacturer = foundKiln.manufacturer
-                    volume = foundKiln.volume
+                    val m = foundKiln.manufacturer.uppercase()
+                    val looksLikeLogger =
+                        (foundKiln.volume.isBlank() || foundKiln.volume == "0" ||
+                            foundKiln.volume == "0.0") &&
+                            (m == "K" || m == "S" || m == "TYPE K" || m == "TYPE S" ||
+                                m == "TIPO K" || m == "TIPO S")
+                    if (looksLikeLogger) {
+                        isDataLogger = true
+                        thermocoupleType = if (m.contains("S")) "S" else "K"
+                        manufacturer = ""
+                        volume = "0"
+                    } else {
+                        manufacturer = foundKiln.manufacturer
+                        volume = foundKiln.volume
+                    }
                     isEditMode = true // Establecer explícitamente que estamos en modo edición
                     android.util.Log.d("ConfigureKilnScreen", "✅ Horno encontrado y datos pre-cargados: ${foundKiln.name} - Modo: Edición")
                 } else {
@@ -148,30 +206,44 @@ fun ConfigureKilnScreen(
     }
     
     fun isKilnFormValid(): Boolean {
-        return kilnName.trim().isNotBlank() &&
-            manufacturer.trim().isNotBlank() &&
-            volume.trim().isNotBlank()
+        if (kilnName.trim().isBlank()) return false
+        return if (isDataLogger) {
+            thermocoupleType == "K" || thermocoupleType == "S"
+        } else {
+            manufacturer.trim().isNotBlank() && volume.trim().isNotBlank()
+        }
     }
 
     suspend fun saveKiln() {
+        sendingPhase = when {
+            isEditMode && isDataLogger -> "Actualizando dispositivo…"
+            isEditMode -> "Actualizando horno…"
+            isDataLogger -> "Configurando dispositivo…"
+            else -> "Configurando horno…"
+        }
+        sendingDetail = "Guardando en la app…"
+        isSendingToKiln = true
+
         val name = kilnName.trim()
-        val brand = manufacturer.trim()
-        val vol = volume.trim()
+        val brand = if (isDataLogger) thermocoupleType else manufacturer.trim()
+        val vol = if (isDataLogger) "0" else volume.trim()
+        val modelForEsp = if (isDataLogger) "DATALOGGER" else brand
         val currentUserId = authViewModel.getCurrentNormalizedUserId()
 
-        val finalBleMacAddress = if (isEditMode && existingKiln != null) {
+        val finalColonMacAddress = if (isEditMode && existingKiln != null) {
             existingKiln.bleMacAddress
         } else {
-            formatBleMacAddress(macAddress.ifBlank { cleanMacAddress })
+            formatColonMacAddress(macAddress.ifBlank { cleanMacAddress })
         }
 
         val kilnEntity = KilnEntity(
             macAddress = cleanMacAddress,
-            bleMacAddress = finalBleMacAddress,
+            bleMacAddress = finalColonMacAddress,
             name = name,
             manufacturer = brand,
             volume = vol,
-            userId = currentUserId
+            userId = currentUserId,
+            deviceType = if (isDataLogger) "DATALOGGER" else "KILN"
         )
 
         val homeSsid = wifiSSID.trim()
@@ -179,56 +251,55 @@ fun ConfigureKilnScreen(
         val shouldSendHomeWifi = homeSsid.isNotBlank() && homePassword.isNotBlank()
         val kilnInfoJson = KilnInfoJsonBuilder.build(
             name = name,
-            model = brand,
+            model = modelForEsp,
             volume = vol,
             userId = currentUserId,
+            type = if (isDataLogger) "DATALOGGER" else "KILN",
             homeWifiSsid = homeSsid.takeIf { shouldSendHomeWifi },
-            homeWifiPassword = homePassword.takeIf { shouldSendHomeWifi }
+            homeWifiPassword = homePassword.takeIf { shouldSendHomeWifi },
+            thermocoupleType = thermocoupleType.takeIf { isDataLogger && it.isNotBlank() }
         )
 
-        withContext(Dispatchers.IO) {
-            kilnRepository.saveKiln(kilnEntity)
-        }
-
-        // Intentamos POST /api/kiln-info ANTES de salir de la pantalla, para
-        // que el ESP reciba el userId y los datos correctos. Tras la auto-
-        // conexión del KilnDiscoveryDialog la red del horno sigue bound vía
-        // WifiNetworkSpecifier, así que un ping responde aunque el sistema
-        // operativo siga reportando la WiFi de casa como red activa
-        // (esto invalidaba el viejo check WifiUtils.isOnSmartKilnNetwork).
-        val httpReachable = withContext(Dispatchers.IO) { kilnHttpClient.ping() }
-        if (httpReachable) {
+        try {
             withContext(Dispatchers.IO) {
-                kilnHttpClient.uploadKilnInfo(kilnInfoJson)
-                    .onSuccess {
-                        android.util.Log.d("ConfigureKilnScreen", "✅ kiln-info enviado por HTTP")
-                    }
-                    .onFailure {
-                        android.util.Log.w(
-                            "ConfigureKilnScreen",
-                            "⚠️ kiln-info HTTP: ${it.message}"
-                        )
-                    }
+                kilnRepository.saveKiln(kilnEntity)
             }
-        } else {
-            android.util.Log.w(
-                "ConfigureKilnScreen",
-                "⚠️ Sin conexión local al horno: kiln-info no se envió. " +
-                    "El ESP conserva el userId anterior hasta el próximo alta."
+
+            val espSynced = KilnEspInfoSync.upload(
+                context = context,
+                kilnMacNoColons = cleanMacAddress,
+                kilnHttpClient = kilnHttpClient,
+                kilnInfoJson = kilnInfoJson,
+                deviceType = if (isDataLogger) SoftApDeviceType.DATALOGGER else SoftApDeviceType.KILN,
+                onDetail = { sendingDetail = it }
             )
+
+            if (espSynced) {
+                onKilnConfigured()
+            } else {
+                val detail = if (!KilnNetworkConnector.isSupported) {
+                    "Conéctate manualmente al WiFi del horno (SmartKiln-XXXXXXXX) y pulsa «Actualizar horno» de nuevo."
+                } else if (!KilnNetworkConnector.hasRequiredPermissions(context)) {
+                    "Activa el permiso de WiFi cercano en Ajustes de la app e inténtalo otra vez."
+                } else {
+                    "Acepta el diálogo de Android para unirte al AP del horno e inténtalo otra vez."
+                }
+                saveErrorMessage =
+                    "Los datos quedaron guardados en la app, pero no se enviaron al ESP.\n\n$detail"
+                showSaveErrorAlert = true
+                android.util.Log.w("ConfigureKilnScreen", "kiln-info no enviado al ESP")
+            }
+        } finally {
+            isSendingToKiln = false
+            sendingPhase = ""
+            sendingDetail = ""
         }
-
-        // Soltamos la red del horno (la app vuelve a usar la WiFi de casa con
-        // internet validada) antes de navegar de regreso.
-        KilnNetworkConnector.release(context)
-
-        onKilnConfigured()
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = kilnColors.screenBackground)
             .pointerInput(Unit) {
                 detectTapGestures {
                     focusManager.clearFocus()
@@ -245,7 +316,7 @@ fun ConfigureKilnScreen(
             Text(
                 text = "Por favor completa la siguiente información",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = Color(0xFF1E3A8A),
+                    color = kilnColors.title,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 32.dp),
@@ -263,12 +334,12 @@ fun ConfigureKilnScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     item {
-                // Campo: Nombre del horno
+                // Campo: Nombre
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Nombre del horno",
+                        text = if (isDataLogger) "Nombre del dispositivo" else "Nombre del horno",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -276,11 +347,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -288,24 +359,75 @@ fun ConfigureKilnScreen(
                             value = kilnName,
                             onValueChange = { kilnName = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
                     }
                 }
                     }
-                    
+
+                    if (isDataLogger) {
+                    item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Tipo de termocupla",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = kilnColors.title,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        listOf("K", "S").forEach { type ->
+                            val selected = thermocoupleType == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(shape = fieldShape)
+                                    .background(
+                                        if (selected) DialogBrand.primaryButton()
+                                        else kilnColors.cardBackground
+                                    )
+                                    .border(
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (selected) DialogBrand.primaryButton()
+                                            else kilnColors.cardBorder
+                                        ),
+                                        shape = fieldShape
+                                    )
+                                    .clickable { thermocoupleType = type }
+                                    .padding(vertical = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Tipo $type",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        color = if (selected) kilnColors.onAccent
+                                        else kilnColors.title,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                    }
+                    } else {
                     item {
                 // Campo: Fabricante/Marca
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "Fabricante/Marca",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -313,11 +435,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -325,24 +447,24 @@ fun ConfigureKilnScreen(
                             value = manufacturer,
                             onValueChange = { manufacturer = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
                     }
                 }
                     }
-                    
+
                     item {
                 // Campo: Volumen
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "Volumen (lts)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -350,11 +472,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -362,10 +484,10 @@ fun ConfigureKilnScreen(
                             value = volume,
                             onValueChange = { volume = it },
                             textStyle = TextStyle(
-                                color = Color(0xFF1E3A8A),
+                                color = kilnColors.title,
                                 fontSize = 18.sp
                             ),
-                            cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                            cursorBrush = SolidColor(kilnColors.title),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -373,35 +495,40 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
+                    }
                     
                     // Mostrar campos de WiFi siempre (tanto en creación como en edición)
                     // En modo edición, son opcionales para actualizar la configuración WiFi del horno
                     item {
-                // Red de casa (opcional): no usar la red SmartKiln del horno
+                // Red de casa (opcional): no usar la red SoftAP del dispositivo
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "Red Wifi (acceso a internet)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                     Text(
-                        text = "Opcional. El horno funciona sin internet; solo si quieres sincronización remota.",
+                        text = if (isDataLogger) {
+                            "Opcional. El dispositivo funciona sin internet; solo si quieres sincronización remota."
+                        } else {
+                            "Opcional. El horno funciona sin internet; solo si quieres sincronización remota."
+                        },
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF64748B)
+                            color = kilnColors.muted
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -413,10 +540,10 @@ fun ConfigureKilnScreen(
                                 value = wifiSSID,
                                 onValueChange = { wifiSSID = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = kilnColors.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(kilnColors.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 decorationBox = { innerTextField ->
@@ -425,7 +552,7 @@ fun ConfigureKilnScreen(
                                             Text(
                                                 text = "Selecciona o escribe tu red de casa",
                                                 style = TextStyle(
-                                                    color = Color(0xFF94A3B8),
+                                                    color = kilnColors.muted,
                                                     fontSize = 14.sp
                                                 )
                                             )
@@ -441,7 +568,7 @@ fun ConfigureKilnScreen(
                                 Icon(
                                     painter = painterResource(R.drawable.icon_wifi),
                                     contentDescription = "Seleccionar red WiFi",
-                                    tint = Color(0xFF1E3A8A),
+                                    tint = kilnColors.title,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -456,7 +583,7 @@ fun ConfigureKilnScreen(
                     Text(
                         text = "Contraseña WiFi (opcional)",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A),
+                            color = kilnColors.title,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -464,11 +591,11 @@ fun ConfigureKilnScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape = RoundedCornerShape(12.dp))
-                            .background(color = Color.White)
+                            .clip(shape = fieldShape)
+                            .background(color = kilnColors.cardBackground)
                             .border(
-                                border = BorderStroke(1.dp, AppColors.Primary100),
-                                shape = RoundedCornerShape(12.dp)
+                                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                                shape = fieldShape
                             )
                             .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
@@ -479,7 +606,7 @@ fun ConfigureKilnScreen(
                             Icon(
                                 painter = painterResource(R.drawable.icon_lock),
                                 contentDescription = "Contraseña",
-                                tint = Color(0xFF1E3A8A),
+                                tint = kilnColors.title,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -487,10 +614,10 @@ fun ConfigureKilnScreen(
                                 value = wifiPassword,
                                 onValueChange = { wifiPassword = it },
                                 textStyle = TextStyle(
-                                    color = Color(0xFF1E3A8A),
+                                    color = kilnColors.title,
                                     fontSize = 18.sp
                                 ),
-                                cursorBrush = SolidColor(Color(0xFF1E3A8A)),
+                                cursorBrush = SolidColor(kilnColors.title),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
@@ -500,19 +627,12 @@ fun ConfigureKilnScreen(
                     }
                 }
                     }
-                    
-                    // Espacio adicional al final para el gradiente
+
+                    // Espacio adicional al final
                     item {
                         Spacer(modifier = Modifier.height(40.dp))
                     }
                 }
-                
-                // Gradiente en la parte inferior
-                ScrollGradient(
-                    height = 40.dp,
-                    backgroundColor = AppColors.Primary100,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
             }
             
             // Espacio antes del botón
@@ -526,17 +646,17 @@ fun ConfigureKilnScreen(
                         showValidationAlert = true
                         return@Button
                     }
-                    if (isLoading) return@Button
-                    isLoading = true
+                    if (isSendingToKiln) return@Button
                     coroutineScope.launch {
                         try {
                             saveKiln()
                         } catch (e: Exception) {
+                            isSendingToKiln = false
+                            sendingPhase = ""
+                            sendingDetail = ""
                             android.util.Log.e("ConfigureKilnScreen", "💥 Error al guardar: ${e.message}", e)
                             saveErrorMessage = e.message ?: "Error desconocido"
                             showSaveErrorAlert = true
-                        } finally {
-                            isLoading = false
                         }
                     }
                 },
@@ -546,24 +666,21 @@ fun ConfigureKilnScreen(
                     .height(48.dp)
                     .padding(horizontal = 24.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
-                    contentColor = Color.White
+                    containerColor = DialogBrand.primaryButton(),
+                    contentColor = kilnColors.onAccent
                     // Removidos los colores de disabled para mantener siempre el mismo aspecto
                 ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                shape = fieldShape
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = if (isEditMode) "Actualizar horno" else "Agregar Horno",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+                Text(
+                    text = when {
+                        isEditMode && isDataLogger -> "Actualizar dispositivo"
+                        isEditMode -> "Actualizar horno"
+                        isDataLogger -> "Agregar dispositivo"
+                        else -> "Agregar Horno"
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
             
             // Bottom spacing for navigation
@@ -597,59 +714,10 @@ fun ConfigureKilnScreen(
                 .zIndex(2f)
         ) {
             // Navigation Bar Background
-            Box(
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = Color(0xFF003D99),
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    val densityValue = density.density
-                                    
-                                    val startY = 34f * densityValue
-                                    moveTo(0f, startY)
-                                    lineTo(width * (147f/390f), startY)
-                                    cubicTo(
-                                        width * (158.046f/390f), startY,
-                                        width * (166.586f/390f), startY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (178.915f/390f), startY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), startY + (30f * densityValue),
-                                        width * (197f/390f), startY + (30f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (206.565f/390f), startY + (30f * densityValue),
-                                        width * (215.085f/390f), startY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), startY + (18.5508f * densityValue)
-                                    )
-                                    cubicTo(
-                                        width * (227.414f/390f), startY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), startY,
-                                        width * (247f/390f), startY
-                                    )
-                                    lineTo(width, startY)
-                                    lineTo(width, startY + (20f * densityValue))
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    lineTo(0f, startY + (20f * densityValue))
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
             
             // Responsive Bottom Navigation Bar
@@ -681,14 +749,19 @@ fun ConfigureKilnScreen(
                 onDismissRequest = { showValidationAlert = false },
                 title = {
                     Text(
-                        text = "Datos del horno",
+                        text = if (isDataLogger) "Datos del dispositivo" else "Datos del horno",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
                 text = {
                     Text(
-                        text = "Completa nombre, fabricante/marca y volumen. " +
-                            "La red WiFi de casa es opcional (el horno funciona sin internet).",
+                        text = if (isDataLogger) {
+                            "Completa el nombre y el tipo de termocupla (K o S). " +
+                                "La red WiFi de casa es opcional (funciona sin internet)."
+                        } else {
+                            "Completa nombre, fabricante/marca y volumen. " +
+                                "La red WiFi de casa es opcional (el horno funciona sin internet)."
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },
@@ -705,7 +778,7 @@ fun ConfigureKilnScreen(
                 onDismissRequest = { showSaveErrorAlert = false },
                 title = {
                     Text(
-                        text = "No se pudo guardar",
+                        text = "Horno no sincronizado",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -736,6 +809,13 @@ fun ConfigureKilnScreen(
             )
         }
 
+        if (isSendingToKiln) {
+            KilnSendingCommandDialog(
+                phase = sendingPhase.ifBlank { "Enviando al horno…" },
+                detail = sendingDetail.ifBlank { null }
+            )
+        }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -745,8 +825,8 @@ fun ConfigureKilnScreen(
     }
 }
 
-/** Convierte MAC sin ":" (Firebase/API) a formato BLE AA:BB:CC:DD:EE:FF */
-private fun formatBleMacAddress(mac: String): String {
+/** Convierte MAC sin ":" (Firebase/API) a formato AA:BB:CC:DD:EE:FF */
+private fun formatColonMacAddress(mac: String): String {
     if (mac.contains(":")) return mac.uppercase()
     val clean = mac.replace(":", "").uppercase()
     if (clean.length != 12) return mac
@@ -760,7 +840,6 @@ fun ConfigureKilnScreenPreview() {
         ConfigureKilnScreen(
             macAddress = "A4:CF:12:88:56:E8",
             deviceName = "SmartKiln - Ceramica",
-            bleViewModel = null as BleViewModel? ?: return@MySmartKilnTheme,
             authViewModel = null as AuthViewModel? ?: return@MySmartKilnTheme
         )
     }

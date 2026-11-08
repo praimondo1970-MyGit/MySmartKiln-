@@ -1,215 +1,277 @@
 package com.example.mysmartkiln.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
+import com.example.mysmartkiln.ui.viewmodels.ProgramStage
+import java.util.Locale
+import kotlinx.coroutines.launch
+
+private fun displayOrDash(value: String): String = value.trim().ifEmpty { "—" }
+
+private fun ProgramStage.toStageData(): StageData {
+    val tempText = if (targetTemp == targetTemp.toLong().toFloat()) {
+        targetTemp.toLong().toString()
+    } else {
+        String.format(Locale.getDefault(), "%.0f", targetTemp)
+    }
+    val speedText = if (rampRate == rampRate.toLong().toFloat()) {
+        rampRate.toLong().toString()
+    } else {
+        String.format(Locale.getDefault(), "%.1f", rampRate).trimEnd('0').trimEnd('.')
+    }
+    return StageData(
+        stageNumber = stageNumber,
+        temperature = tempText,
+        speed = speedText,
+        maintenance = maintenanceMinutes.toString()
+    )
+}
 
 @Composable
 fun KilnProgramScreen(
     kilnMacAddress: String,
     viewModel: KilnDetailViewModel,
-    onChangeProgram: () -> Unit = {}
+    onChangeProgram: () -> Unit = {},
+    onEditCurrentProgram: (programId: String) -> Unit = {}
 ) {
+    val kilnColors = LocalKilnColors.current
     val kilnProgram by viewModel.kilnProgram.collectAsState()
+    val kilnStatus by viewModel.kilnStatus.collectAsState()
+    val loadedProgramId by viewModel.loadedProgramId.collectAsState()
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(kilnMacAddress) {
         viewModel.loadKilnData(kilnMacAddress)
     }
 
-    Card(
+    LaunchedEffect(kilnMacAddress, kilnProgram.name) {
+        viewModel.ensureProgramStagesLoaded()
+    }
+
+    val subtitle = when {
+        kilnProgram.name.isBlank() -> "Sin programa cargado"
+        kilnProgram.stages.isEmpty() -> "Cargando etapas…"
+        kilnStatus.isRunning || kilnStatus.isPaused -> "Horneado en curso"
+        kilnStatus.espStatus == "INTERRUMPIDO" -> "Programa interrumpido"
+        else -> "${kilnProgram.stages.size} etapas · listo para iniciar"
+    }
+
+    val currentStageNumber = kilnStatus.currentStage.coerceAtLeast(0)
+    val isActiveRun = kilnStatus.isRunning || kilnStatus.isPaused ||
+        kilnStatus.espStatus in setOf("CALENTANDO", "PAUSADO", "INTERRUMPIDO")
+
+    fun openEditCurrentProgram() {
+        scope.launch {
+            val programId = loadedProgramId ?: viewModel.resolveCurrentProgramIdForEdit()
+            if (programId != null) {
+                onEditCurrentProgram(programId)
+            } else {
+                onChangeProgram()
+            }
+        }
+    }
+
+    // Misma lógica de clearance que Estado (INICIAR/STOP): resto FAB/nav.
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(450.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .fillMaxHeight()
     ) {
+        val fabClearance = 112.dp
+        val layoutHeight = (maxHeight - fabClearance).coerceAtLeast(280.dp)
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .height(layoutHeight)
+                .padding(horizontal = 2.dp)
         ) {
-            // Header with program name and edit button
+            // Cabecera fuera del marco gris: nombre, subtítulo, duración, editar
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = kilnProgram.name,
-                        color = AppColors.Primary700,
+                        text = displayOrDash(kilnProgram.name),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
                     Text(
-                        text = "Last update was 15 min ago",
-                        color = AppColors.Primary400,
+                        text = subtitle,
+                        color = kilnColors.muted,
                         fontSize = 12.sp
                     )
+                    if (kilnProgram.duration.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Duración total: ${kilnProgram.duration}",
+                            color = kilnColors.body,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
-                // Edit button
                 FloatingActionButton(
-                    onClick = onChangeProgram,
+                    onClick = {
+                        if (kilnProgram.name.isBlank()) {
+                            onChangeProgram()
+                        } else {
+                            openEditCurrentProgram()
+                        }
+                    },
                     modifier = Modifier.size(40.dp),
-                    containerColor = Color(0xFFFF6F00),
-                    contentColor = Color.White
+                    containerColor = kilnColors.fab,
+                    contentColor = kilnColors.onFab
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.icon_edit),
-                        contentDescription = "Edit",
+                        contentDescription = if (kilnProgram.name.isBlank()) {
+                            "Seleccionar programa"
+                        } else {
+                            "Editar programa actual"
+                        },
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Program parameters grid
-            ProgramParametersGrid(kilnProgram = kilnProgram)
+            // Marco gris solo para las etapas
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
+                border = BorderStroke(1.dp, kilnColors.cardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                if (kilnProgram.stages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (kilnProgram.name.isBlank()) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "No hay programa seleccionado",
+                                    color = kilnColors.body,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Pulsa el lápiz o «Seleccionar programa»",
+                                    color = kilnColors.muted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = kilnColors.accent,
+                                strokeWidth = 3.dp
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .verticalScroll(scrollState),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        kilnProgram.stages.forEach { stage ->
+                            val isCurrent = isActiveRun && currentStageNumber > 0 &&
+                                stage.stageNumber == currentStageNumber
+                            val isCompleted = isActiveRun && currentStageNumber > 0 &&
+                                stage.stageNumber < currentStageNumber
 
-            Spacer(modifier = Modifier.height(24.dp))
+                            ReadOnlyStageCard(
+                                stageData = stage.toStageData(),
+                                isCurrentStage = isCurrent,
+                                isCompleted = isCompleted
+                            )
+                        }
+                    }
+                }
+            }
 
-            // Modify program button
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Misma altura visual que INICIAR/STOP en Estado
             Button(
-                onClick = { viewModel.modifyProgram() },
+                onClick = onChangeProgram,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(48.dp)
+                    .offset(y = (-10).dp)
+                    .padding(horizontal = 2.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700
+                    containerColor = DialogBrand.primaryButton(),
+                    contentColor = kilnColors.onAccent
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Modificar programa",
-                    color = Color.White,
+                    text = if (kilnProgram.name.isBlank()) {
+                        "Seleccionar programa"
+                    } else {
+                        "Cambiar programa"
+                    },
+                    color = kilnColors.onAccent,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
     }
 }
-
-@Composable
-fun ProgramParametersGrid(kilnProgram: com.example.mysmartkiln.ui.viewmodels.KilnProgram) {
-    val parameters = listOf(
-        ProgramParameter(
-            icon = R.drawable.icon_calendar,
-            value = kilnProgram.startDate,
-            label = "Start date"
-        ),
-        ProgramParameter(
-            icon = R.drawable.icon_clock,
-            value = kilnProgram.startTime,
-            label = "Start time"
-        ),
-        ProgramParameter(
-            icon = R.drawable.icon_duration,
-            value = kilnProgram.duration,
-            label = "Duration"
-        ),
-        ProgramParameter(
-            icon = R.drawable.icon_remaining,
-            value = kilnProgram.remaining,
-            label = "Remaining"
-        ),
-        ProgramParameter(
-            icon = R.drawable.icon_elapsed,
-            value = kilnProgram.elapsed,
-            label = "Elapse"
-        ),
-        ProgramParameter(
-            icon = R.drawable.icon_stage,
-            value = kilnProgram.stage,
-            label = "Stage"
-        )
-    )
-
-    // 2 columns grid
-    for (i in parameters.indices step 2) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // First column
-            ProgramParameterCard(
-                parameter = parameters[i],
-                modifier = Modifier.weight(1f)
-            )
-            
-            // Second column (if exists)
-            if (i + 1 < parameters.size) {
-                ProgramParameterCard(
-                    parameter = parameters[i + 1],
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-        
-        if (i + 2 < parameters.size) {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-fun ProgramParameterCard(
-    parameter: ProgramParameter,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = AppColors.Primary50),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                painter = painterResource(id = parameter.icon),
-                contentDescription = parameter.label,
-                tint = AppColors.Primary700,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = parameter.value,
-                color = AppColors.Primary700,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            Text(
-                text = parameter.label,
-                color = AppColors.Primary400,
-                fontSize = 10.sp
-            )
-        }
-    }
-}
-
-data class ProgramParameter(
-    val icon: Int,
-    val value: String,
-    val label: String
-)

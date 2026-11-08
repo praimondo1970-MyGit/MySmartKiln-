@@ -19,8 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ui.theme.AppColors
-import com.example.mysmartkiln.data.local.KilnApiDefaults
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.utils.WifiUtils
 import kotlinx.coroutines.delay
 
@@ -30,6 +30,7 @@ fun WifiScanDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val kilnColors = LocalKilnColors.current
     var networks by remember { mutableStateOf<List<String>>(emptyList()) }
     var isScanning by remember { mutableStateOf(true) }
     
@@ -37,9 +38,7 @@ fun WifiScanDialog(
     LaunchedEffect(Unit) {
         delay(500) // Pequeño delay para iniciar el escaneo
         networks = WifiUtils.getAvailableNetworks(context)
-            .filter { ssid ->
-                !ssid.startsWith(KilnApiDefaults.SMART_KILN_SSID_PREFIX, ignoreCase = true)
-            }
+            .filter { ssid -> !WifiUtils.isDeviceSoftApSsid(ssid) }
         isScanning = false
     }
     
@@ -50,7 +49,7 @@ fun WifiScanDialog(
                 .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color.White
+                containerColor = kilnColors.cardBackground
             )
         ) {
             Column(
@@ -62,7 +61,7 @@ fun WifiScanDialog(
                 Text(
                     text = "Red con acceso a internet",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -83,14 +82,14 @@ fun WifiScanDialog(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 CircularProgressIndicator(
-                                    color = AppColors.Primary700,
+                                    color = DialogBrand.primaryButton(),
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Escaneando redes WiFi...",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = Color(0xFF1E3A8A)
+                                        color = kilnColors.title
                                     )
                                 )
                             }
@@ -106,14 +105,14 @@ fun WifiScanDialog(
                                 Icon(
                                     painter = painterResource(R.drawable.icon_search),
                                     contentDescription = "No hay redes",
-                                    tint = Color(0xFF1E3A8A),
+                                    tint = kilnColors.title,
                                     modifier = Modifier.size(64.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "No se encontraron redes WiFi",
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = Color(0xFF1E3A8A),
+                                        color = kilnColors.title,
                                         textAlign = TextAlign.Center
                                     )
                                 )
@@ -154,8 +153,8 @@ fun WifiScanDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE5E7EB),
-                        contentColor = Color(0xFF1E3A8A)
+                        containerColor = kilnColors.cardBorder,
+                        contentColor = kilnColors.title
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -174,11 +173,12 @@ private fun NetworkItem(
     ssid: String,
     onClick: () -> Unit
 ) {
+    val kilnColors = LocalKilnColors.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = Color(0xFFF3F4F6),
+                color = kilnColors.track,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
@@ -196,14 +196,14 @@ private fun NetworkItem(
                 Icon(
                     painter = painterResource(R.drawable.icon_wifi),
                     contentDescription = "WiFi",
-                    tint = Color(0xFF1E3A8A),
+                    tint = kilnColors.title,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = ssid,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Medium
                     )
                 )
@@ -211,7 +211,7 @@ private fun NetworkItem(
             Icon(
                 painter = painterResource(R.drawable.icon_arrow_right),
                 contentDescription = "Seleccionar",
-                tint = Color(0xFF1E3A8A),
+                tint = kilnColors.title,
                 modifier = Modifier.size(20.dp)
             )
         }

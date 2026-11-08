@@ -61,6 +61,8 @@ import com.example.mysmartkiln.R
 import com.example.mysmartkiln.data.auth.AuthState
 import com.example.mysmartkiln.data.auth.AuthViewModel
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 import com.example.mysmartkiln.ui.theme.RalewayFontFamily
 
@@ -82,6 +84,10 @@ fun SignInScreen(
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
+    val kilnColors = LocalKilnColors.current
+    val authBg = if (kilnColors.isEsp) kilnColors.screenBackground else AppColors.Primary800
+    val fieldBg = if (kilnColors.isEsp) kilnColors.cardBackground else AppColors.Primary800
+    val onAuth = if (kilnColors.isEsp) kilnColors.title else Color.White
     
     // Manejar estado de autenticación
     LaunchedEffect(authState) {
@@ -108,7 +114,7 @@ fun SignInScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary800)
+            .background(color = authBg)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = {
                     focusManager.clearFocus()
@@ -147,7 +153,7 @@ fun SignInScreen(
                 // SmartKiln text
                 Text(
                     text = "SmartKiln",
-                    color = Color.White,
+                    color = onAuth,
                     style = TextStyle(
                         fontSize = 48.sp,
                         fontWeight = FontWeight.Bold,
@@ -165,7 +171,7 @@ fun SignInScreen(
                 label = {
                     Text(
                         text = "Correo electrónico",
-                        color = Color.White,
+                        color = onAuth,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -182,15 +188,15 @@ fun SignInScreen(
                     onDone = { /* Handle done action */ }
                 ),
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
-                    focusedIndicatorColor = Color.White,
-                    unfocusedIndicatorColor = Color.White,
-                    cursorColor = Color.White,
-                    focusedContainerColor = AppColors.Primary800,
-                    unfocusedContainerColor = AppColors.Primary800
+                    focusedTextColor = onAuth,
+                    unfocusedTextColor = onAuth,
+                    focusedLabelColor = onAuth,
+                    unfocusedLabelColor = onAuth,
+                    focusedIndicatorColor = onAuth,
+                    unfocusedIndicatorColor = onAuth,
+                    cursorColor = onAuth,
+                    focusedContainerColor = fieldBg,
+                    unfocusedContainerColor = fieldBg
                 ),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(
@@ -202,7 +208,7 @@ fun SignInScreen(
                     Icon(
                         painter = painterResource(id = R.drawable.mail),
                         contentDescription = "Email Icon",
-                        tint = Color.White,
+                        tint = onAuth,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -217,7 +223,7 @@ fun SignInScreen(
                 label = {
                     Text(
                         text = "Contraseña",
-                        color = Color.White,
+                        color = onAuth,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -232,15 +238,15 @@ fun SignInScreen(
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
-                    focusedIndicatorColor = Color.White,
-                    unfocusedIndicatorColor = Color.White,
-                    cursorColor = Color.White,
-                    focusedContainerColor = AppColors.Primary800,
-                    unfocusedContainerColor = AppColors.Primary800
+                    focusedTextColor = onAuth,
+                    unfocusedTextColor = onAuth,
+                    focusedLabelColor = onAuth,
+                    unfocusedLabelColor = onAuth,
+                    focusedIndicatorColor = onAuth,
+                    unfocusedIndicatorColor = onAuth,
+                    cursorColor = onAuth,
+                    focusedContainerColor = fieldBg,
+                    unfocusedContainerColor = fieldBg
                 ),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(
@@ -252,7 +258,7 @@ fun SignInScreen(
                     Icon(
                         painter = painterResource(id = R.drawable.lock),
                         contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                        tint = Color.White,
+                        tint = onAuth,
                         modifier = Modifier
                             .size(20.dp)
                             .clickable { passwordVisible = !passwordVisible }
@@ -269,7 +275,7 @@ fun SignInScreen(
                 label = {
                     Text(
                         text = "Confirmar contraseña",
-                        color = Color.White,
+                        color = onAuth,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -284,15 +290,15 @@ fun SignInScreen(
                 visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
-                    focusedIndicatorColor = Color.White,
-                    unfocusedIndicatorColor = Color.White,
-                    cursorColor = Color.White,
-                    focusedContainerColor = AppColors.Primary800,
-                    unfocusedContainerColor = AppColors.Primary800
+                    focusedTextColor = onAuth,
+                    unfocusedTextColor = onAuth,
+                    focusedLabelColor = onAuth,
+                    unfocusedLabelColor = onAuth,
+                    focusedIndicatorColor = onAuth,
+                    unfocusedIndicatorColor = onAuth,
+                    cursorColor = onAuth,
+                    focusedContainerColor = fieldBg,
+                    unfocusedContainerColor = fieldBg
                 ),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(
@@ -304,7 +310,7 @@ fun SignInScreen(
                     Icon(
                         painter = painterResource(id = R.drawable.lock),
                         contentDescription = if (confirmPasswordVisible) "Ocultar confirmación" else "Mostrar confirmación",
-                        tint = Color.White,
+                        tint = onAuth,
                         modifier = Modifier
                             .size(20.dp)
                             .clickable { confirmPasswordVisible = !confirmPasswordVisible }
@@ -326,19 +332,19 @@ fun SignInScreen(
                     .fillMaxWidth()
                     .height(49.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3385FF)
+                    containerColor = DialogBrand.primaryButton()
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = kilnColors.onAccent,
                         modifier = Modifier.size(24.dp)
                     )
                 } else {
                     Text(
                         text = "Registrarse",
-                        color = Color.White,
+                        color = kilnColors.onAccent,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
@@ -354,13 +360,13 @@ fun SignInScreen(
             Text(
                 text = buildAnnotatedString {
                     withStyle(style = SpanStyle(
-                        color = Color.White,
+                        color = onAuth,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = RalewayFontFamily
                     )) { append("¿Tenes una cuenta? ") }
                     withStyle(style = SpanStyle(
-                        color = Color.White,
+                        color = onAuth,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = RalewayFontFamily,
@@ -385,7 +391,7 @@ fun SignInScreen(
                         .fillMaxWidth()
                         .height(4.dp)
                         .background(
-                            color = Color.White,
+                            color = onAuth,
                             shape = RoundedCornerShape(2.dp)
                         )
                         .align(Alignment.Center)

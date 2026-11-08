@@ -81,7 +81,7 @@ class ProgramsListViewModel(
                                 id = program.id,
                                 name = program.name,
                                 maxTemperature = "0",
-                                duration = "0min",
+                                duration = "0m",
                                 stageCount = 0
                             )
                         }
@@ -159,10 +159,10 @@ class ProgramsListViewModel(
         val minutes = totalMinutes % 60
         
         return when {
-            hours > 0 && minutes > 0 -> "${hours}h ${minutes}min"
+            hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
             hours > 0 -> "${hours}h"
-            minutes > 0 -> "${minutes}min"
-            else -> "0min"
+            minutes > 0 -> "${minutes}m"
+            else -> "0m"
         }
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 /**
  * Componente de navegación inferior responsive que se adapta automáticamente
@@ -124,81 +125,136 @@ fun ResponsiveBottomNavigation(
                 .background(color = Color.Transparent) // Transparente
         )
         
-        // Left side icons (Kilns, Programs)
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 15.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Kilns Tab
-            NavigationTab(
-                icon = R.drawable.nav_hornos,
-                text = "Hornos",
-                isActive = isKilnsActive,
-                onClick = onKilnsClick,
-                enabled = !isMenuOpen // Desactivar cuando el menú está abierto
-            )
-            
-            // Programs Tab
-            NavigationTab(
-                icon = R.drawable.nav_programas,
-                text = "Programas",
-                isActive = isProgramsActive,
-                onClick = onProgramsClick,
-                enabled = !isMenuOpen // Desactivar cuando el menú está abierto
-            )
-        }
-        
-        // Center Button - Alterna entre Plus (+) y Close (X)
-        if (showFab) {
-            if (isMenuOpen) {
-                // Botón X (cerrar) con fondo azul
-                CloseBtnCircle(
-                    onClick = onPlusClick,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .size(56.dp)
-                        .offset(y = (-40).dp)
+        val kilnColors = LocalKilnColors.current
+
+        if (kilnColors.isEsp) {
+            // ESP: una sola fila; el + a la misma altura visual que los tabs (como mockup).
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                NavigationTab(
+                    icon = R.drawable.nav_hornos,
+                    text = "Hornos",
+                    isActive = isKilnsActive,
+                    onClick = onKilnsClick,
+                    enabled = !isMenuOpen,
+                    modifier = Modifier.weight(1f)
                 )
-            } else {
-                // Botón + (abrir) con fondo naranja
-                Plusbtn(
-                    onClick = onPlusClick,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .size(56.dp)
-                        .offset(y = (-40).dp)
+                NavigationTab(
+                    icon = R.drawable.nav_programas,
+                    text = "Programas",
+                    isActive = isProgramsActive,
+                    onClick = onProgramsClick,
+                    enabled = !isMenuOpen,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (showFab) {
+                        if (isMenuOpen) {
+                            CloseBtnCircle(
+                                onClick = onPlusClick,
+                                modifier = Modifier.offset(y = (-5).dp)
+                            )
+                        } else {
+                            Plusbtn(
+                                onClick = onPlusClick,
+                                modifier = Modifier.offset(y = (-5).dp)
+                            )
+                        }
+                    }
+                }
+                NavigationTab(
+                    icon = R.drawable.nav_actividad,
+                    text = "Actividad",
+                    isActive = isActivityActive,
+                    onClick = onActivityClick,
+                    enabled = !isMenuOpen,
+                    modifier = Modifier.weight(1f)
+                )
+                NavigationTab(
+                    icon = R.drawable.nav_ajustes,
+                    text = "Ajustes",
+                    isActive = isSettingsActive,
+                    onClick = onSettingsClick,
+                    enabled = !isMenuOpen,
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-        
-        // Right side icons (Activity, Settings)
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 16.dp, top = 15.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Activity Tab
-            NavigationTab(
-                icon = R.drawable.nav_actividad,
-                text = "Actividad",
-                isActive = isActivityActive,
-                onClick = onActivityClick,
-                enabled = !isMenuOpen // Desactivar cuando el menú está abierto
-            )
-            
-            // Settings Tab
-            NavigationTab(
-                icon = R.drawable.nav_ajustes,
-                text = "Ajustes",
-                isActive = isSettingsActive,
-                onClick = onSettingsClick,
-                enabled = !isMenuOpen // Desactivar cuando el menú está abierto
-            )
+        } else {
+            // Clásico: FAB elevado sobre el notch.
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = 15.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavigationTab(
+                    icon = R.drawable.nav_hornos,
+                    text = "Hornos",
+                    isActive = isKilnsActive,
+                    onClick = onKilnsClick,
+                    enabled = !isMenuOpen
+                )
+                NavigationTab(
+                    icon = R.drawable.nav_programas,
+                    text = "Programas",
+                    isActive = isProgramsActive,
+                    onClick = onProgramsClick,
+                    enabled = !isMenuOpen
+                )
+            }
+
+            if (showFab) {
+                if (isMenuOpen) {
+                    CloseBtnCircle(
+                        onClick = onPlusClick,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(56.dp)
+                            .offset(y = (-40).dp)
+                    )
+                } else {
+                    Plusbtn(
+                        onClick = onPlusClick,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(56.dp)
+                            .offset(y = (-40).dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 16.dp, top = 15.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavigationTab(
+                    icon = R.drawable.nav_actividad,
+                    text = "Actividad",
+                    isActive = isActivityActive,
+                    onClick = onActivityClick,
+                    enabled = !isMenuOpen
+                )
+                NavigationTab(
+                    icon = R.drawable.nav_ajustes,
+                    text = "Ajustes",
+                    isActive = isSettingsActive,
+                    onClick = onSettingsClick,
+                    enabled = !isMenuOpen
+                )
+            }
         }
     }
 }
@@ -215,6 +271,11 @@ private fun NavigationTab(
     modifier: Modifier = Modifier,
     enabled: Boolean = true // Nuevo parámetro para habilitar/deshabilitar el botón
 ) {
+    val kilnColors = LocalKilnColors.current
+    val activeColor = if (kilnColors.isEsp) kilnColors.accent else kilnColors.onAccent
+    val inactiveColor = if (kilnColors.isEsp) kilnColors.muted else kilnColors.onAccent.copy(alpha = 0.85f)
+    val contentColor = if (isActive) activeColor else inactiveColor
+
     Column(
         modifier = modifier
             .clickable(enabled = enabled) { onClick() } // Solo responde a clicks si está habilitado
@@ -226,14 +287,14 @@ private fun NavigationTab(
         Icon(
             painter = painterResource(id = icon),
             contentDescription = "$text-icon",
-            tint = Color.White,
+            tint = contentColor,
             modifier = Modifier.size(24.dp)
         )
         
         // Text
         Text(
             text = text,
-            color = Color.White,
+            color = contentColor,
             style = TextStyle(
                 fontSize = 12.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
@@ -247,7 +308,7 @@ private fun NavigationTab(
                     .width(20.dp)
                     .height(3.dp)
                     .background(
-                        color = Color.White,
+                        color = activeColor,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
                     )
             )

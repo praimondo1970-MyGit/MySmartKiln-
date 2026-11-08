@@ -15,6 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -32,7 +33,7 @@ fun StageLabels(
         Text(
             text = "Temperatura",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = Color(0xFF1E3A8A),
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium,
                 fontSize = 16.sp
             ),
@@ -43,7 +44,7 @@ fun StageLabels(
         Text(
             text = "Velocidad",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = Color(0xFF1E3A8A),
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium,
                 fontSize = 16.sp
             )
@@ -53,7 +54,7 @@ fun StageLabels(
         Text(
             text = "Meseta",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = Color(0xFF1E3A8A),
+                color = LocalKilnColors.current.title,
                 fontWeight = FontWeight.Medium,
                 fontSize = 16.sp
             ),

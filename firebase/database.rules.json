@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "kilns": {
+          "$mac": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        "activity": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "programs": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "kilns_realtime": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

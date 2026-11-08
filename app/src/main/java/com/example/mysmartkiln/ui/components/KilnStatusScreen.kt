@@ -2,62 +2,98 @@ package com.example.mysmartkiln.ui.components
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
-import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.viewmodels.KilnDetailViewModel
-import com.example.mysmartkiln.ui.viewmodels.ProgramStage
+import com.example.mysmartkiln.ui.viewmodels.TemperatureSample
+import com.example.mysmartkiln.utils.KilnEspStatusLabels
 import com.example.mysmartkiln.utils.KilnNetworkConnector
+import com.example.mysmartkiln.utils.LinkLostFormat
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
+/**
+ * Pestaña Estado — Fase B: layout cercano al mockup ESP
+ * (herradura por temperatura, velocidad real, tiles + avance de ciclo).
+ */
 @Composable
 fun KilnStatusScreen(
     kilnMacAddress: String,
     viewModel: KilnDetailViewModel,
-    onLoadProgram: () -> Unit = {},
-    onConnectToKiln: () -> Unit = {}
+    onLoadProgram: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val kilnStatus by viewModel.kilnStatus.collectAsState()
     val kilnProgram by viewModel.kilnProgram.collectAsState()
+    val espProfileLoaded by viewModel.espProfileLoaded.collectAsState()
+    val temperatureHistory by viewModel.temperatureHistory.collectAsState()
     val isUploadingProgram by viewModel.isUploadingProgram.collectAsState()
     val isConnectingToAp by viewModel.isConnectingToAp.collectAsState()
-    val shouldShowManualWifiDialog by viewModel.shouldShowManualWifiDialog.collectAsState()
+    val isPreparingLocalLink by viewModel.isPreparingLocalLink.collectAsState()
+    val isSendingCommand by viewModel.isSendingCommand.collectAsState()
+    val kilnColors = LocalKilnColors.current
 
-    // Pedimos el permiso runtime que necesita WifiNetworkSpecifier
-    // (NEARBY_WIFI_DEVICES en Android 13+, ACCESS_FINE_LOCATION antes). Sin
-    // este permiso, requestNetwork() lanza SecurityException y no podemos
-    // hacer la auto-conexión al AP del horno.
     val nearbyWifiPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { /* Resultado se consulta vía hasRequiredPermissions cuando haga falta */ }
+    ) { granted ->
+        viewModel.onNearbyWifiPermissionResult(granted)
+    }
 
     LaunchedEffect(kilnMacAddress) {
         if (kilnProgram.name.isEmpty()) {
             viewModel.loadKilnData(kilnMacAddress)
         }
+        viewModel.ensureProgramStagesLoaded()
         if (KilnNetworkConnector.isSupported &&
             !KilnNetworkConnector.hasRequiredPermissions(context)
         ) {
@@ -67,647 +103,968 @@ fun KilnStatusScreen(
         }
     }
 
-    if (shouldShowManualWifiDialog) {
-        KilnOperateOfflineDialog(onDismiss = { viewModel.clearManualWifiDialogRequest() })
+    // Programa en app O aún cargado en el ESP (IDLE tras STOP: Firebase limpia
+    // realtimeData.programName pero SoftAP/profileState siguen con la curva).
+    val hasProgram = kilnProgram.name.isNotEmpty() ||
+        kilnProgram.stages.isNotEmpty() ||
+        espProfileLoaded
+    val displayProgramName = kilnProgram.name.ifBlank { "Programa en horno" }
+    val espStatus = kilnStatus.espStatus
+    val buttonsClickable =
+        !isUploadingProgram &&
+            !isConnectingToAp &&
+            !isPreparingLocalLink &&
+            !isSendingCommand
+    val canStop = kilnStatus.isRunning || kilnStatus.isPaused ||
+        espStatus in setOf("CALENTANDO", "PAUSADO")
+
+    val totalMinutes = programTotalMinutes(
+        stagesSum = kilnProgram.stages.sumOf { it.durationMinutes },
+        formattedTotal = kilnStatus.totalTime
+    )
+    val cycleProgress = if (totalMinutes > 0) {
+        (kilnStatus.elapsedMinutes.toFloat() / totalMinutes.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val ascentRate = rememberAscentRateCPerMin(temperatureHistory)
+    val scaleMax = tempScaleMax(kilnStatus.targetTemperature)
+
+    val stageLabel = when {
+        kilnStatus.totalStages > 0 && kilnStatus.currentStage > 0 ->
+            "${kilnStatus.currentStage}/${kilnStatus.totalStages}"
+        kilnProgram.stage.isNotBlank() && kilnProgram.stage != "0/0" -> kilnProgram.stage
+        kilnProgram.stages.isNotEmpty() -> "0/${kilnProgram.stages.size}"
+        else -> "—"
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(450.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
+    // ESP layout model:
+    // 1) El pager llega detrás del nav/FAB → hay que RESTAR ese clearance.
+    // 2) fillMaxHeight+scroll+paddingBottom creaba “hueco muerto” bajo botones
+    //    y apilaba herradura/tarjeta/botones arriba.
+    // 3) weight sin restar FAB empujaba botones dentro del cradle.
+    // Solución: Column de altura (maxHeight - fabClearance) + Spacers weight iguales.
+    if (kilnColors.isEsp) {
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxHeight()
         ) {
-            // Program Name and Time Row - only show if program is loaded
-            if (kilnProgram.name.isNotEmpty()) {
-                Row(
+            val fabClearance = 112.dp
+            val layoutHeight = (maxHeight - fabClearance).coerceAtLeast(320.dp)
+            val canDistribute = layoutHeight >= 420.dp
+
+            if (canDistribute) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = (-5).dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(layoutHeight)
+                        .padding(horizontal = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Left side - Program Name
-                    Column(
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(
-                            text = kilnProgram.name,
-                            color = AppColors.Primary700,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-
-                    // Separator line
+                    Spacer(modifier = Modifier.height(15.dp))
                     Box(
                         modifier = Modifier
-                            .width(1.dp)
-                            .height(40.dp)
-                            .background(AppColors.Primary200)
-                    )
-
-                    // Right side - Total Duration
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.icon_time),
-                                contentDescription = "Time",
-                                tint = AppColors.Primary700,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = kilnStatus.totalTime,
-                                color = AppColors.Primary700,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-                        Text(
-                            text = "Duración",
-                            color = AppColors.Primary400,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Temperature Display with optional circular progress
-            Box(
-                modifier = Modifier.size(235.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // Circular progress arcs showing stages (only if program is loaded)
-                if (kilnProgram.name.isNotEmpty() && kilnProgram.stages.isNotEmpty()) {
-                    ProgressArcs(
-                        stages = kilnProgram.stages,
-                        elapsedMinutes = kilnStatus.elapsedMinutes
-                    )
-                }
-                
-                // Temperature display in the center (always visible)
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(
-                            style = SpanStyle(
-                                fontSize = 80.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = AppColors.Primary700
-                            )
-                        ) {
-                            append("${kilnStatus.currentTemperature.toInt()}")
-                        }
-                        withStyle(
-                            style = SpanStyle(
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = AppColors.Primary700,
-                                baselineShift = BaselineShift(0.6f)
-                            )
-                        ) {
-                            append("°C")
-                        }
-                    },
-                    modifier = Modifier.offset(y = (-10).dp)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Push content to make space for bottom elements
-            Spacer(modifier = Modifier.weight(1f))
-            
-            // Max Temperature (left) and Remaining Time (right) - only show if program is loaded
-            if (kilnProgram.name.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Left side - Max Temperature
-                    Column(
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.etapa_temp),
-                                contentDescription = "Max Temperature",
-                                tint = AppColors.Primary700,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${kilnStatus.targetTemperature.toInt()}°C",
-                                color = AppColors.Primary700,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
-                            )
-                        }
-                        Text(
-                            text = "Temp max",
-                            color = AppColors.Primary400,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(start = 32.dp) // Alineado con la temperatura (24dp ícono + 8dp spacer)
-                        )
-                    }
-                    
-                    // Right side - Remaining Time
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.icon_time),
-                                contentDescription = "Remaining",
-                                tint = AppColors.Primary700,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = kilnStatus.remainingTime,
-                                color = AppColors.Primary700,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-                        Text(
-                            text = "Pendiente",
-                            color = AppColors.Primary400,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-                
-                // Spacer between Max Temp/Remaining and Buttons
-                // 10dp offset adicional
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            val hasProgram = kilnProgram.name.isNotEmpty()
-            val espStatus = kilnStatus.espStatus
-
-            // Mostramos los botones SIEMPRE en su posición habitual. Si el
-            // teléfono no está en la red WiFi del horno, el clic abre el
-            // diálogo guía «Conéctate al horno» en vez de mandar el comando.
-            // Solo se desactivan visualmente mientras se sube un perfil.
-            val buttonsClickable = !isUploadingProgram && !isConnectingToAp
-
-            // El ViewModel intenta primero conectarse al AP del horno por
-            // WifiNetworkSpecifier (Android 10+). Si Android no lo permite,
-            // recién ahí marca shouldShowManualWifiDialog y mostramos el
-            // diálogo con instrucciones manuales (Settings).
-            fun guardedAction(action: () -> Unit): () -> Unit = action
-
-            if (isUploadingProgram) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            when {
-                !hasProgram -> {
-                    Button(
-                        onClick = guardedAction(onLoadProgram),
-                        enabled = buttonsClickable,
-                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp)
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                            .heightIn(max = layoutHeight * 0.40f + 10.dp)
+                            .padding(horizontal = 35.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Cargar Programa",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                        EspTemperatureHorseshoe(
+                            currentTempC = kilnStatus.currentTemperature,
+                            scaleMaxC = scaleMax,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        StatusGaugeLabels(
+                            currentTempC = kilnStatus.currentTemperature,
+                            ascentRate = ascentRate
                         )
                     }
-                }
-                espStatus == "INTERRUMPIDO" -> {
-                    Text(
-                        text = "Programa interrumpido. Usá el aviso para reanudar o cancelar.",
-                        color = AppColors.Primary600,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp)
-                    )
-                }
-                espStatus == "FINALIZADO" -> {
-                    Button(
-                        onClick = guardedAction { viewModel.stopKiln() },
-                        enabled = buttonsClickable,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp)
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.icon_stop),
-                            contentDescription = "Stop",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Stop",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-                }
-                else -> {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        when {
-                            kilnStatus.isPaused -> {
-                                Button(
-                                    onClick = guardedAction { viewModel.playKiln() },
-                                    enabled = buttonsClickable,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.icon_play),
-                                        contentDescription = "Reanudar",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Reanudar",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            }
-                            espStatus == "CALENTANDO" -> {
-                                Button(
-                                    onClick = guardedAction { viewModel.pauseKiln() },
-                                    enabled = buttonsClickable,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.icon_pause),
-                                        contentDescription = "Pausa",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Pausa",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            }
-                            else -> {
-                                Button(
-                                    onClick = guardedAction { viewModel.playKiln() },
-                                    enabled = buttonsClickable,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = AppColors.Tertiary900
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.icon_play),
-                                        contentDescription = "Iniciar",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Iniciar",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            }
-                        }
 
-                        Button(
-                            onClick = guardedAction { viewModel.stopKiln() },
-                            enabled = buttonsClickable,
+                    if (hasProgram) {
+                        // Con tarjeta de programa: repartir aire arriba/abajo de la card.
+                        Spacer(modifier = Modifier.weight(0.45f))
+                        StatusSummaryCard(
+                            programName = displayProgramName,
+                            duration = kilnStatus.totalTime.ifBlank { "—" },
+                            objective = "${kilnStatus.targetTemperature.toInt()}°C",
+                            remaining = kilnStatus.remainingTime.ifBlank { "—" },
+                            stage = stageLabel,
+                            cycleProgress = cycleProgress,
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            showLastKnownStatus = !kilnStatus.isConnected,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                            modifier = Modifier.offset(y = 10.dp)
+                        )
+                        Spacer(modifier = Modifier.weight(1.55f))
+                    } else {
+                        // Sin programa: no dejar un “hueco muerto” enorme; botones cerca.
+                        Spacer(modifier = Modifier.height(28.dp))
+                        if (!kilnStatus.isConnected) {
+                            StatusOfflineCaption(
+                                lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                                lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+
+                    if (isUploadingProgram) {
+                        LinearProgressIndicator(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AppColors.Primary700
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.icon_stop),
-                                contentDescription = "Stop",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Stop",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            color = kilnColors.accent,
+                            trackColor = kilnColors.track
+                        )
                     }
+
+                    StatusActionButtons(
+                        hasProgram = hasProgram,
+                        espStatus = espStatus,
+                        isPaused = kilnStatus.isPaused,
+                        buttonsClickable = buttonsClickable,
+                        canStop = canStop,
+                        onLoadProgram = onLoadProgram,
+                        onPlay = { viewModel.playKiln() },
+                        onPause = { viewModel.pauseKiln() },
+                        onStop = { viewModel.stopKiln() },
+                        modifier = Modifier.offset(y = if (hasProgram) (-10).dp else 0.dp)
+                    )
+
+                    if (!hasProgram) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 2.dp)
+                        .padding(bottom = fabClearance),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EspTemperatureHorseshoe(
+                            currentTempC = kilnStatus.currentTemperature,
+                            scaleMaxC = scaleMax,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        StatusGaugeLabels(
+                            currentTempC = kilnStatus.currentTemperature,
+                            ascentRate = ascentRate
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(0.dp))
+                    if (hasProgram) {
+                        StatusSummaryCard(
+                            programName = displayProgramName,
+                            duration = kilnStatus.totalTime.ifBlank { "—" },
+                            objective = "${kilnStatus.targetTemperature.toInt()}°C",
+                            remaining = kilnStatus.remainingTime.ifBlank { "—" },
+                            stage = stageLabel,
+                            cycleProgress = cycleProgress,
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            showLastKnownStatus = !kilnStatus.isConnected,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs
+                        )
+                    } else if (!kilnStatus.isConnected) {
+                        StatusOfflineCaption(
+                            lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                            lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                    if (isUploadingProgram) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            color = kilnColors.accent,
+                            trackColor = kilnColors.track
+                        )
+                    }
+                    StatusActionButtons(
+                        hasProgram = hasProgram,
+                        espStatus = espStatus,
+                        isPaused = kilnStatus.isPaused,
+                        buttonsClickable = buttonsClickable,
+                        canStop = canStop,
+                        onLoadProgram = onLoadProgram,
+                        onPlay = { viewModel.playKiln() },
+                        onPause = { viewModel.pauseKiln() },
+                        onStop = { viewModel.stopKiln() },
+                        modifier = Modifier.offset(y = (-10).dp)
+                    )
                 }
             }
         }
-    }
-}
-
-/**
- * Program Progress Bar
- * Displays horizontal progress bar divided into segments representing each stage
- */
-@Composable
-fun ProgramProgressBar(
-    stages: List<ProgramStage>,
-    elapsedMinutes: Int,
-    modifier: Modifier = Modifier
-) {
-    if (stages.isEmpty()) return
-    
-    // Calculate total duration
-    val totalMinutes = stages.sumOf { it.durationMinutes }
-    
-    // Calculate how much time has elapsed in each stage
-    var remainingElapsed = elapsedMinutes
-    
-    Row(
-        modifier = modifier.height(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        stages.forEach { stage ->
-            // Calculate the width proportion for this stage
-            val stageWeight = stage.durationMinutes.toFloat() / totalMinutes.toFloat()
-            
-            // Calculate how much of this stage is completed
-            val stageProgress = when {
-                remainingElapsed <= 0 -> 0f // Not started yet
-                remainingElapsed >= stage.durationMinutes -> {
-                    remainingElapsed -= stage.durationMinutes
-                    1f // Fully completed
-                }
-                else -> {
-                    val progress = remainingElapsed.toFloat() / stage.durationMinutes.toFloat()
-                    remainingElapsed = 0
-                    progress // Partially completed
-                }
-            }
-            
-            // Draw the stage segment
-            Box(
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = kilnColors.cardBackground),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            border = null
+        ) {
+            Column(
                 modifier = Modifier
-                    .weight(stageWeight)
-                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Background (gray)
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            color = Color.LightGray,
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                )
-                
-                // Progress (blue)
-                if (stageProgress > 0f) {
-                    Box(
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EspTemperatureHorseshoe(
+                        currentTempC = kilnStatus.currentTemperature,
+                        scaleMaxC = scaleMax,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    StatusGaugeLabels(
+                        currentTempC = kilnStatus.currentTemperature,
+                        ascentRate = ascentRate
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (hasProgram) {
+                    StatusSummaryCard(
+                        programName = displayProgramName,
+                        duration = kilnStatus.totalTime.ifBlank { "—" },
+                        objective = "${kilnStatus.targetTemperature.toInt()}°C",
+                        remaining = kilnStatus.remainingTime.ifBlank { "—" },
+                        stage = stageLabel,
+                        cycleProgress = cycleProgress,
+                        lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                        showLastKnownStatus = !kilnStatus.isConnected,
+                        lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else if (!kilnStatus.isConnected) {
+                    StatusOfflineCaption(
+                        lastKnownEspStatus = kilnStatus.lastKnownEspStatus,
+                        lastLiveTelemetryAtMs = kilnStatus.lastLiveTelemetryAtMs,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                if (isUploadingProgram) {
+                    LinearProgressIndicator(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(stageProgress)
-                            .background(
-                                color = AppColors.Primary700,
-                                shape = RoundedCornerShape(4.dp)
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        color = kilnColors.accent,
+                        trackColor = kilnColors.track
+                    )
+                }
+
+                StatusActionButtons(
+                    hasProgram = hasProgram,
+                    espStatus = espStatus,
+                    isPaused = kilnStatus.isPaused,
+                    buttonsClickable = buttonsClickable,
+                    canStop = canStop,
+                    onLoadProgram = onLoadProgram,
+                    onPlay = { viewModel.playKiln() },
+                    onPause = { viewModel.pauseKiln() },
+                    onStop = { viewModel.stopKiln() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusOfflineCaption(
+    lastKnownEspStatus: String,
+    lastLiveTelemetryAtMs: Long,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            nowTick = System.currentTimeMillis()
+        }
+    }
+    val lastKnownLabel = lastKnownEspStatus.takeIf { it.isNotBlank() }
+        ?.let { KilnEspStatusLabels.label(it) }
+    val lostSince = LinkLostFormat.formatSince(lastLiveTelemetryAtMs, nowTick)
+    val text = buildString {
+        if (!lastKnownLabel.isNullOrBlank()) {
+            append("Último estado: $lastKnownLabel")
+        }
+        if (lostSince.isNotBlank()) {
+            if (isNotEmpty()) append(" · ")
+            append(lostSince)
+        }
+    }
+    if (text.isBlank()) return
+    Text(
+        text = text,
+        modifier = modifier.fillMaxWidth(),
+        color = kilnColors.muted,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+internal fun StatusGaugeLabels(
+    currentTempC: Float,
+    ascentRate: Float?,
+    showAscentRate: Boolean = true
+) {
+    val kilnColors = LocalKilnColors.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(modifier = Modifier.height(23.dp))
+        Text(
+            text = "TEMPERATURA ACTUAL",
+            color = kilnColors.body,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.5.sp
+        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = "${currentTempC.toInt()}",
+                color = kilnColors.title,
+                fontSize = 80.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 84.sp
+            )
+            Text(
+                text = "°C",
+                color = kilnColors.title,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+        }
+        if (showAscentRate) {
+            if (kilnColors.isEsp) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(1.dp)
+                        .background(kilnColors.cardBorder)
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+            }
+            Text(
+                text = "VELOCIDAD DE ASCENSO",
+                color = kilnColors.body,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.4.sp
+            )
+            Text(
+                text = formatAscentRate(ascentRate),
+                color = if (ascentRate != null && ascentRate >= 0f) {
+                    kilnColors.success
+                } else {
+                    kilnColors.muted
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusSummaryCard(
+    programName: String,
+    duration: String,
+    objective: String,
+    remaining: String,
+    stage: String,
+    cycleProgress: Float,
+    lastKnownEspStatus: String = "",
+    showLastKnownStatus: Boolean = false,
+    lastLiveTelemetryAtMs: Long = 0L,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    val panelColor = if (kilnColors.isEsp) kilnColors.cardBackground else kilnColors.screenBackground
+    val separatorColor = kilnColors.panelLine
+    val stageValue = if (stage == "—" || stage.isBlank()) "—" else "ETAPA $stage"
+    var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(showLastKnownStatus) {
+        if (!showLastKnownStatus) return@LaunchedEffect
+        while (true) {
+            delay(30_000)
+            nowTick = System.currentTimeMillis()
+        }
+    }
+    val lastKnownLabel = lastKnownEspStatus.takeIf { it.isNotBlank() }
+        ?.let { KilnEspStatusLabels.label(it) }
+    val lostSince = if (showLastKnownStatus) {
+        LinkLostFormat.formatSince(lastLiveTelemetryAtMs, nowTick)
+    } else {
+        ""
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(panelColor, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 7.5.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_programs),
+                    contentDescription = null,
+                    tint = kilnColors.accent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = programName,
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (showLastKnownStatus) {
+                        val detail = buildString {
+                            if (!lastKnownLabel.isNullOrBlank()) {
+                                append("Último estado: $lastKnownLabel")
+                            }
+                            if (lostSince.isNotBlank()) {
+                                if (isNotEmpty()) append(" · ")
+                                append(lostSince)
+                            }
+                        }
+                        if (detail.isNotBlank()) {
+                            Text(
+                                text = detail,
+                                color = kilnColors.muted,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
+                        }
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_duration),
+                        contentDescription = null,
+                        tint = kilnColors.title,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = duration,
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
+                Text(
+                    text = "DURACIÓN",
+                    color = kilnColors.body,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(separatorColor)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SummaryTile(
+                icon = R.drawable.icon_thermometer,
+                value = objective,
+                label = "OBJETIVO",
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(44.dp)
+                    .background(separatorColor)
+            )
+            SummaryTile(
+                icon = R.drawable.icon_stage,
+                value = stageValue,
+                label = "DEL CICLO",
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(44.dp)
+                    .background(separatorColor)
+            )
+            SummaryTile(
+                icon = R.drawable.icon_remaining,
+                value = remaining,
+                label = "TIEMPO RESTANTE",
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "AVANCE DEL CICLO",
+            color = kilnColors.body,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.3.sp
+        )
+        Spacer(modifier = Modifier.height(1.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(y = (-2).dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(8.dp)
+            ) {
+                val y = size.height / 2f
+                val track = kilnColors.track
+                val accent = kilnColors.accent
+                drawLine(
+                    color = track,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = size.height,
+                    cap = StrokeCap.Round
+                )
+                if (cycleProgress > 0f) {
+                    drawLine(
+                        color = accent,
+                        start = Offset(0f, y),
+                        end = Offset(size.width * cycleProgress.coerceIn(0f, 1f), y),
+                        strokeWidth = size.height,
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${(cycleProgress * 100f).roundToInt()}%",
+                color = kilnColors.accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryTile(
+    icon: Int,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    Row(
+        modifier = modifier.padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            painter = painterResource(id = icon),
+            contentDescription = null,
+            tint = kilnColors.accent,
+            modifier = Modifier
+                .padding(top = 1.dp)
+                .size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Column(horizontalAlignment = Alignment.Start) {
+            val tempParts = Regex("""^(\d+)(°C)$""").find(value)
+            if (tempParts != null) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = tempParts.groupValues[1],
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.3.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = tempParts.groupValues[2],
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+            } else {
+                Text(
+                    text = value,
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = label,
+                color = kilnColors.body,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusActionButtons(
+    hasProgram: Boolean,
+    espStatus: String,
+    isPaused: Boolean,
+    buttonsClickable: Boolean,
+    canStop: Boolean,
+    onLoadProgram: () -> Unit,
+    onPlay: () -> Unit,
+    onPause: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    Box(modifier = modifier.fillMaxWidth()) {
+    when {
+        !hasProgram -> {
+            Button(
+                onClick = onLoadProgram,
+                enabled = buttonsClickable,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = kilnColors.accent),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Cargar Programa",
+                    color = kilnColors.onAccent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        }
+        espStatus == "INTERRUMPIDO" -> {
+            Text(
+                text = "Programa interrumpido. Usá el aviso para reanudar o cancelar.",
+                color = kilnColors.muted,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        espStatus == "FINALIZADO" -> {
+            Button(
+                onClick = onStop,
+                enabled = buttonsClickable && canStop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (kilnColors.isEsp) Color.Black else kilnColors.accent
+                ),
+                border = if (kilnColors.isEsp) BorderStroke(1.dp, kilnColors.cardBorder) else null,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_stop),
+                    contentDescription = "Stop",
+                    tint = kilnColors.onAccent,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "STOP",
+                    color = kilnColors.onAccent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        }
+        else -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val primaryLabel: String
+                val primaryIcon: Int
+                val primaryAction: () -> Unit
+                when {
+                    isPaused -> {
+                        primaryLabel = "REANUDAR"
+                        primaryIcon = R.drawable.icon_play
+                        primaryAction = onPlay
+                    }
+                    espStatus == "CALENTANDO" -> {
+                        primaryLabel = "PAUSA"
+                        primaryIcon = R.drawable.icon_pause
+                        primaryAction = onPause
+                    }
+                    else -> {
+                        primaryLabel = "INICIAR"
+                        primaryIcon = R.drawable.icon_play
+                        primaryAction = onPlay
+                    }
+                }
+                val primaryButtonColor = if (kilnColors.isEsp) {
+                    Color(0xFFFF7811) // punto medio entre #FF9800 y #FF5722
+                } else {
+                    kilnColors.fab
+                }
+                Button(
+                    onClick = primaryAction,
+                    enabled = buttonsClickable,
+                    modifier = Modifier
+                        .weight(1.15f)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryButtonColor),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = primaryIcon),
+                        contentDescription = primaryLabel,
+                        tint = kilnColors.onFab,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = primaryLabel,
+                        color = kilnColors.onFab,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+                Button(
+                    onClick = onStop,
+                    enabled = buttonsClickable && canStop,
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (kilnColors.isEsp) Color.Black else kilnColors.accent,
+                        disabledContainerColor = kilnColors.cardBorder,
+                        disabledContentColor = kilnColors.muted
+                    ),
+                    border = if (kilnColors.isEsp) {
+                        BorderStroke(
+                            1.dp,
+                            if (kilnColors.isDark) {
+                                Color.White.copy(alpha = 0.35f)
+                            } else {
+                                kilnColors.title.copy(alpha = 0.25f)
+                            }
+                        )
+                    } else {
+                        null
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_stop),
+                        contentDescription = "Stop",
+                        tint = kilnColors.onAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "STOP",
+                        color = kilnColors.onAccent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-fun TemperatureGauge(
-    currentTemperature: Float,
-    targetTemperature: Float,
-    programStages: List<com.example.mysmartkiln.ui.viewmodels.ProgramStage> = emptyList(),
-    elapsedMinutes: Int = 0
-) {
-    Box(
-        modifier = Modifier.size(210.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // Temperature gauge background (simplified)
-        Box(
-            modifier = Modifier
-                .size(210.dp)
-                .background(
-                    Color.LightGray.copy(alpha = 0.2f),
-                    CircleShape
-                )
-        )
-        
-        // Arcos de progreso por etapas (desde 135° hasta 405°, 270° total)
-        ProgressArcs(stages = programStages, elapsedMinutes = elapsedMinutes)
-
-        // Temperature display
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    // Número de temperatura en 42sp
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 42.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.Primary700
-                        )
-                    ) {
-                        append("${currentTemperature.toInt()}")
-                    }
-                    // Símbolo °C en 21sp (50% de 42sp)
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = AppColors.Primary700
-                        )
-                    ) {
-                        append("°C")
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun ProgressArcs(
-    stages: List<ProgramStage> = emptyList(),
-    elapsedMinutes: Int = 15  // Minutos transcurridos desde el inicio del programa
-) {
-    if (stages.isEmpty()) return
-    
-    // Calcular duraciones y tiempo total
-    val stageDurations = stages.map { it.durationMinutes }
-    val totalMinutes = stageDurations.sum()
-    
-    val totalArcDegrees = 270f  // 270° de arco total
-    val separatorDegrees = 3f  // 3° de separación entre etapas
-    
-    // Calcular grados disponibles para las etapas (descontando separadores)
-    val numSeparators = stages.size - 1
-    val availableDegrees = totalArcDegrees - (separatorDegrees * numSeparators)
-    
-    Canvas(modifier = Modifier.size(235.dp)) {
-        var currentAngle = 135f  // Comenzar en 135° (para centrar 270° desde 135° hasta 405°)
-        var accumulatedMinutes = 0
-        
-        stages.forEachIndexed { index, stage ->
-            // Calcular el sweep angle proporcional a la duración de esta etapa
-            val stageProportion = stage.durationMinutes.toFloat() / totalMinutes.toFloat()
-            val stageSweepAngle = availableDegrees * stageProportion
-            
-            // Determinar cuánto de esta etapa está completado
-            val stageStartMinute = accumulatedMinutes
-            val stageEndMinute = accumulatedMinutes + stage.durationMinutes
-            
-            val completedInThisStage = when {
-                elapsedMinutes >= stageEndMinute -> stage.durationMinutes // Completada totalmente
-                elapsedMinutes > stageStartMinute -> elapsedMinutes - stageStartMinute // Parcialmente completada
-                else -> 0 // No iniciada
-            }
-            
-            val completedProportion = completedInThisStage.toFloat() / stage.durationMinutes.toFloat()
-            val completedSweepAngle = stageSweepAngle * completedProportion
-            
-            // Dibujar la parte GRIS (pendiente) de esta etapa
-            drawArc(
-                color = Color.DarkGray.copy(alpha = 0.4f),
-                startAngle = currentAngle,
-                sweepAngle = stageSweepAngle,
-                useCenter = false,
-                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Butt)
-            )
-            
-            // Dibujar la parte AZUL (completada) de esta etapa
-            if (completedSweepAngle > 0) {
-                drawArc(
-                    color = AppColors.Primary700,
-                    startAngle = currentAngle,
-                    sweepAngle = completedSweepAngle,
-                    useCenter = false,
-                    style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
-                )
-            }
-            
-            // Dibujar separador entre etapas (línea blanca)
-            if (index < stages.size - 1) {
-                val separatorAngle = currentAngle + stageSweepAngle + (separatorDegrees / 2f)
-                val separatorRadians = Math.toRadians(separatorAngle.toDouble())
-                val radius = size.minDimension / 2f
-                val startRadius = radius - 12.dp.toPx()
-                val endRadius = radius + 4.dp.toPx()
-                
-                drawLine(
-                    color = Color.White,
-                    start = Offset(
-                        x = center.x + (startRadius * Math.cos(separatorRadians)).toFloat(),
-                        y = center.y + (startRadius * Math.sin(separatorRadians)).toFloat()
-                    ),
-                    end = Offset(
-                        x = center.x + (endRadius * Math.cos(separatorRadians)).toFloat(),
-                        y = center.y + (endRadius * Math.sin(separatorRadians)).toFloat()
-                    ),
-                    strokeWidth = 2.dp.toPx()
-                )
-            }
-            
-            // Avanzar para la siguiente etapa
-            currentAngle += stageSweepAngle + separatorDegrees
-            accumulatedMinutes += stage.durationMinutes
-        }
     }
 }
 
 /**
- * Convierte un String de tiempo en formato "Xh YYmin" a minutos totales
- * Ejemplos: "1h 30min" -> 90, "0h 15min" -> 15, "2h 00min" -> 120
+ * Herradura circular. Respeta maxHeight del padre (para layout con weight)
+ * midiendo el diámetro por el menor entre ancho disponible y alto útil.
  */
-private fun parseTimeToMinutes(timeString: String): Int {
-    var totalMinutes = 0
-    
-    // Extraer horas (ejemplo: "1h 30min" -> "1")
-    val hoursMatch = Regex("""(\d+)h""").find(timeString)
-    if (hoursMatch != null) {
-        totalMinutes += hoursMatch.groupValues[1].toInt() * 60
+@Composable
+fun EspTemperatureHorseshoe(
+    currentTempC: Float,
+    scaleMaxC: Float,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    val trackColor = kilnColors.track
+    val progressStart = kilnColors.accent
+    val progressEnd = kilnColors.accentMuted
+    val maxC = scaleMaxC.coerceAtLeast(1f)
+    val progress = (currentTempC / maxC).coerceIn(0f, 1f)
+
+    val startAngle = 145f
+    val sweep = 250f
+    // Relación alto-canvas / diámetro para cubrir puntas del arco.
+    val arcHeightRatio = 0.78f
+
+    BoxWithConstraints(modifier = modifier) {
+        val boundedHeight = maxHeight.value.isFinite() && maxHeight < maxWidth * 3f
+        val canvasHeight = if (boundedHeight) {
+            maxHeight
+        } else {
+            maxWidth * 0.80f * arcHeightRatio
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(canvasHeight)
+        ) {
+            val strokeWidth = 17.dp.toPx()
+            val strokeStyle = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            val inset = strokeWidth / 2f
+            val diameterByHeight = (size.height - inset) / arcHeightRatio
+            val diameterByWidth = size.width - inset * 2f
+            val diameter = (minOf(diameterByHeight, diameterByWidth) + 10.dp.toPx())
+                .coerceAtMost(size.width - inset * 2f)
+            val topLeft = Offset(
+                x = (size.width - diameter) / 2f,
+                y = inset
+            )
+            val arcSize = Size(width = diameter, height = diameter)
+
+            drawArc(
+                color = trackColor,
+                startAngle = startAngle,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = strokeStyle
+            )
+            if (progress > 0f) {
+                drawArc(
+                    brush = Brush.linearGradient(
+                        colors = listOf(progressStart, progressEnd),
+                        start = Offset(topLeft.x, topLeft.y + diameter * 0.5f),
+                        end = Offset(topLeft.x + diameter, topLeft.y + diameter * 0.5f)
+                    ),
+                    startAngle = startAngle,
+                    sweepAngle = sweep * progress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = strokeStyle
+                )
+            }
+        }
     }
-    
-    // Extraer minutos (ejemplo: "1h 30min" -> "30")
-    val minutesMatch = Regex("""(\d+)min""").find(timeString)
-    if (minutesMatch != null) {
-        totalMinutes += minutesMatch.groupValues[1].toInt()
-    }
-    
-    return totalMinutes
 }
 
+/** Compat: arcs por etapas (Programa/legacy). */
+@Composable
+fun ProgressArcs(
+    stages: List<com.example.mysmartkiln.ui.viewmodels.ProgramStage> = emptyList(),
+    elapsedMinutes: Int = 0
+) {
+    if (stages.isEmpty()) return
+    val total = stages.sumOf { it.durationMinutes }.coerceAtLeast(1)
+    val maxTemp = stages.maxOfOrNull { it.targetTemp } ?: 1000f
+    // Visual de herradura por progreso temporal mapeado a temperatura de escala
+    val syntheticTemp = maxTemp * (elapsedMinutes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+    EspTemperatureHorseshoe(
+        currentTempC = syntheticTemp,
+        scaleMaxC = tempScaleMax(maxTemp),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun rememberAscentRateCPerMin(samples: List<TemperatureSample>): Float? {
+    return androidx.compose.runtime.remember(samples) {
+        computeAscentRateCPerMin(samples)
+    }
+}
+
+private fun programTotalMinutes(stagesSum: Int, formattedTotal: String): Int {
+    if (stagesSum > 0) return stagesSum
+    val match = Regex("""(\d+)h\s*(\d+)(?:min|m)""").find(formattedTotal.trim()) ?: return 0
+    val hours = match.groupValues[1].toIntOrNull() ?: 0
+    val mins = match.groupValues[2].toIntOrNull() ?: 0
+    return hours * 60 + mins
+}
+
+private fun tempScaleMax(targetTemp: Float): Float {
+    // Tope visual razonable: programas con target absurdo no inflan la herradura.
+    val base = targetTemp.coerceIn(400f, 1300f)
+    val step = 250f
+    return ((base / step).toInt() + 1) * step
+}
+
+internal fun computeAscentRateCPerMin(
+    samples: List<TemperatureSample>,
+    windowMin: Float = 3f
+): Float? {
+    if (samples.size < 2) return null
+    val last = samples.last()
+    val window = samples.filter { it.elapsedMin >= last.elapsedMin - windowMin }
+    val first = if (window.size >= 2) window.first() else samples.first()
+    val dt = last.elapsedMin - first.elapsedMin
+    if (dt < 0.15f) return null
+    return (last.temperatureC - first.temperatureC) / dt
+}
+
+private fun formatAscentRate(rate: Float?): String {
+    if (rate == null) return "—"
+    val sign = if (rate >= 0f) "+" else ""
+    return String.format("%s%.0f °C/min", sign, rate)
+}

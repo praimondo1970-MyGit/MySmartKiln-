@@ -10,6 +10,7 @@ import com.example.mysmartkiln.data.local.entity.PendingSyncEntity
 import com.example.mysmartkiln.data.local.entity.RealtimeDataEntity
 import com.example.mysmartkiln.data.firebase.FirebaseRealtimeManager
 import com.example.mysmartkiln.data.work.SyncWorker
+import com.example.mysmartkiln.utils.DeviceKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -160,21 +161,77 @@ class KilnRepository(
     }
     
     private suspend fun syncKilnToFirebase(kiln: KilnEntity) {
-        val deviceInfoPath = "users/${kiln.userId}/kilns/${kiln.macAddress}/deviceInfo"
-        firebaseManager.saveData(
-            path = deviceInfoPath,
-            data = mapOf(
-                "name" to kiln.name,
-                "model" to kiln.manufacturer,
-                "volume" to kiln.volume,
-                "macAddress" to kiln.macAddress
-            )
+        if (kiln.userId.isBlank() || kiln.userId == "test_user_123") {
+            android.util.Log.w("KilnRepository", "syncKiln: userId inválido '${kiln.userId}'")
+            return
+        }
+        val type = DeviceKind.firebaseType(kiln)
+        val isLogger = type == "DATALOGGER"
+        firebaseManager.upsertDeviceInfo(
+            userId = kiln.userId,
+            macAddress = kiln.macAddress,
+            name = kiln.name,
+            model = if (isLogger) "DATALOGGER" else kiln.manufacturer,
+            type = type,
+            volume = if (isLogger) null else kiln.volume,
+            thermocouple = DeviceKind.thermocoupleOrNull(kiln)
         )
     }
-    
+
+    /**
+     * Rellena `deviceInfo.type` en Firebase para hornos ya dados de alta
+     * (sin pisar el resto de campos).
+     */
+    fun ensureDeviceInfoTypes(kilns: List<KilnEntity>) {
+        if (kilns.isEmpty()) return
+        syncScope.launch {
+            if (!isNetworkAvailable()) return@launch
+            for (kiln in kilns) {
+                if (kiln.userId.isBlank() ||
+                    kiln.userId == "test_user_123" ||
+                    kiln.macAddress.isBlank()
+                ) {
+                    continue
+                }
+                // Backfill deviceType en Room si venía vacío
+                if (kiln.deviceType.isBlank()) {
+                    val inferred = DeviceKind.firebaseType(kiln)
+                    try {
+                        kilnDao.insertKiln(kiln.copy(deviceType = inferred))
+                    } catch (_: Exception) {
+                    }
+                }
+                try {
+                    syncKilnToFirebase(
+                        if (kiln.deviceType.isBlank()) {
+                            kiln.copy(deviceType = DeviceKind.firebaseType(kiln))
+                        } else {
+                            kiln
+                        }
+                    )
+                } catch (_: Exception) {
+                    // best-effort
+                }
+            }
+        }
+    }
+
+    /**
+     * La telemetría la escribe el ESP. Este sync solo existe por si Room tiene
+     * datos pendientes locales; nunca usa un userId hardcodeado.
+     */
     private suspend fun syncRealtimeDataToFirebase(data: RealtimeDataEntity) {
-        val realtimeDataPath = "users/test_user_123/kilns/${data.macAddress}/realtimeData"
-        firebaseManager.saveData(
+        val kiln = kilnDao.getKilnByMacAddress(data.macAddress) ?: return
+        val userId = kiln.userId.trim()
+        if (userId.isEmpty() || userId == "test_user_123") {
+            android.util.Log.w(
+                "KilnRepository",
+                "syncRealtime: sin userId válido para ${data.macAddress}"
+            )
+            return
+        }
+        val realtimeDataPath = "users/$userId/kilns/${data.macAddress}/realtimeData"
+        firebaseManager.updateData(
             path = realtimeDataPath,
             data = mapOf(
                 "temperature" to data.temperature,

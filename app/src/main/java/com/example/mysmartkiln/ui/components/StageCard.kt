@@ -3,6 +3,7 @@ package com.example.mysmartkiln.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +18,9 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 data class StageData(
@@ -57,6 +58,7 @@ fun StageCard(
     onDeleteClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     var isSwiped by remember { mutableStateOf(false) }
     var offsetX by remember { mutableStateOf(0f) }
     
@@ -71,18 +73,15 @@ fun StageCard(
             .fillMaxWidth()
             .requiredHeight(120.dp)
     ) {
-        // Delete button (background) - usando lógica de ActivityCard
+        // Acción BORRAR (mismo lenguaje visual que Programas / Hornos)
         Box(
             modifier = Modifier
                 .width(80.dp)
                 .requiredHeight(120.dp)
-                .align(Alignment.CenterEnd)
+                .align(Alignment.CenterEnd),
+            contentAlignment = Alignment.CenterEnd
         ) {
-            Group41(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .clickable { onDeleteClick() }
-            )
+            StageDeleteSwipeAction(onClick = onDeleteClick)
         }
         
         // Main card (foreground)
@@ -92,11 +91,16 @@ fun StageCard(
                 .requiredHeight(120.dp)
                 .offset(x = swipeOffset.dp)
                 .shadow(
-                    elevation = 4.dp,
+                    elevation = if (kilnColors.isEsp) 0.dp else 4.dp,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .background(
-                    color = Color.White,
+                    color = kilnColors.cardBackground,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = kilnColors.cardBorder,
                     shape = RoundedCornerShape(12.dp)
                 )
                        .pointerInput(Unit) {
@@ -152,7 +156,7 @@ fun StageCard(
                 Text(
                     text = "Etapa ${stageData.stageNumber}",
                     style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
-                        color = AppColors.Primary600,
+                        color = kilnColors.title,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.sp
                     )
@@ -163,14 +167,14 @@ fun StageCard(
                     modifier = Modifier
                         .requiredSize(24.dp)
                         .clip(CircleShape)
-                        .background(color = AppColors.Primary600)
+                        .background(color = kilnColors.accent)
                         .clickable { onStageClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = ">",
                         style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.White,
+                            color = kilnColors.onAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
@@ -197,14 +201,14 @@ fun StageCard(
                 // Speed
                 ParameterColumn(
                     icon = R.drawable.etapa_vel,
-                    value = "${stageData.speed}°C/Min",
+                    value = "${stageData.speed}°C/min",
                     label = "Velocidad"
                 )
                 
                 // Maintenance
                 ParameterColumn(
                     icon = R.drawable.etapa_mes,
-                    value = "${stageData.maintenance} min",
+                    value = "${stageData.maintenance}m",
                     label = "Meseta"
                 )
             }
@@ -219,48 +223,214 @@ private fun ParameterColumn(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = modifier.requiredWidth(100.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icon
-        Box(
-            modifier = Modifier
-                .requiredSize(35.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(color = AppColors.Primary100)
-                .padding(6.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        if (kilnColors.isEsp) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                tint = AppColors.Primary600,
+                tint = kilnColors.accent,
                 modifier = Modifier.requiredSize(24.dp)
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .requiredSize(35.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color = kilnColors.accent.copy(alpha = 0.15f))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = icon),
+                    contentDescription = null,
+                    tint = kilnColors.accent,
+                    modifier = Modifier.requiredSize(24.dp)
+                )
+            }
         }
-        
-        // Value
+
         Text(
             text = value,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge.copy(
-                color = AppColors.Primary700,
+                color = if (kilnColors.isEsp) kilnColors.title else kilnColors.body,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             ),
             modifier = Modifier.padding(top = 6.dp)
         )
-        
-        // Label
+
         Text(
             text = label,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall.copy(
-                color = AppColors.Primary700,
+                color = if (kilnColors.isEsp) kilnColors.muted else kilnColors.body,
                 fontSize = 12.sp
             ),
             modifier = Modifier.padding(top = 6.dp)
         )
+    }
+}
+
+/** Vista de etapa sin edición (p. ej. pestaña Programa del horno). */
+@Composable
+fun ReadOnlyStageCard(
+    stageData: StageData,
+    isCurrentStage: Boolean = false,
+    isCompleted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+
+    val backgroundColor = when {
+        isCurrentStage -> kilnColors.cardBackground
+        isCompleted -> kilnColors.cardBackground
+        else -> kilnColors.cardBackground
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .requiredHeight(120.dp)
+            .then(
+                if (kilnColors.isEsp) {
+                    Modifier
+                } else {
+                    Modifier.shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp))
+                }
+            )
+            .then(
+                if (isCurrentStage) {
+                    Modifier.border(2.dp, kilnColors.accent, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier.border(1.dp, kilnColors.cardBorder, RoundedCornerShape(12.dp))
+                }
+            )
+            .background(color = backgroundColor, shape = RoundedCornerShape(12.dp))
+            .padding(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopStart),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Etapa ${stageData.stageNumber}",
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp
+                )
+            )
+            if (isCurrentStage) {
+                Text(
+                    text = "En curso",
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = kilnColors.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                )
+            } else if (isCompleted) {
+                Text(
+                    text = "Completada",
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = kilnColors.success,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp
+                    )
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ParameterColumn(
+                icon = R.drawable.etapa_temp,
+                value = "${stageData.temperature}°C",
+                label = "Temperatura"
+            )
+            ParameterColumn(
+                icon = R.drawable.etapa_vel,
+                value = "${stageData.speed}°C/min",
+                label = "Velocidad"
+            )
+            ParameterColumn(
+                icon = R.drawable.etapa_mes,
+                value = "${stageData.maintenance}m",
+                label = "Meseta"
+            )
+        }
+    }
+}
+
+@Composable
+private fun StageDeleteSwipeAction(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val kilnColors = LocalKilnColors.current
+    val shape = RoundedCornerShape(12.dp)
+
+    if (kilnColors.isEsp) {
+        val tint = kilnColors.title.copy(alpha = 0.72f)
+        Column(
+            modifier = modifier
+                .requiredSize(width = 62.dp, height = 72.dp)
+                .border(1.dp, tint, shape)
+                .clip(shape)
+                .clickable(onClick = onClick),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.typedeletesize16colorblack),
+                contentDescription = "BORRAR",
+                tint = tint,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = "BORRAR",
+                color = tint,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .requiredSize(64.dp)
+                .clip(shape)
+                .background(AppColors.Primary400)
+                .clickable(onClick = onClick),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.typedeletesize16colorblack),
+                contentDescription = "borrar",
+                tint = AppColors.White,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = "borrar",
+                color = AppColors.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
     }
 }
 

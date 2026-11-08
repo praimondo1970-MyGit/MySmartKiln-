@@ -9,32 +9,50 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.example.mysmartkiln.data.local.KilnApiDefaults
+import com.example.mysmartkiln.data.local.SoftApDeviceType
 
 /**
- * Descripción de un AP de horno detectado por el escáner WiFi.
+ * Descripción de un SoftAP de dispositivo detectado por el escáner WiFi.
  *
- * - [ssid]   `SmartKiln-XXXX` (últimos 4 hex del MAC del horno).
- * - [bssid]  MAC del SoftAP (lo expone el sistema operativo). Sus últimos 4
- *            bytes (8 caracteres hex) coinciden con los del MAC base del
- *            ESP32-S3, así que sirven para derivar la passphrase WPA2 del
- *            AP, que el firmware arma con esos mismos 8 hex (uppercase).
+ * - [ssid]   `SmartKiln-XXXXXXXX` (horno) o `SmartLink-XXXXXXXX` (datalogger).
+ *            Sufijo = últimos 8 hex del MAC (= passphrase). Legacy horno: `SmartKiln-XXXX`.
+ * - [bssid]  MAC del SoftAP; últimos 8 hex = passphrase.
  * - [signalLevel] dBm de señal (más cercano a 0 = más fuerte).
+ * - [deviceType] Inferido del prefijo SSID.
  */
 data class KilnAccessPoint(
     val ssid: String,
     val bssid: String,
-    val signalLevel: Int
+    val signalLevel: Int,
+    val deviceType: SoftApDeviceType = SoftApDeviceType.UNKNOWN,
+    /** True si el teléfono ya está asociado a este SoftAP (no solo en scan). */
+    val alreadyConnected: Boolean = false
 )
 
 object WifiUtils {
 
     fun isOnSmartKilnNetwork(context: Context): Boolean {
         val ssid = getCurrentWifiSSID(context) ?: return false
-        return isSmartKilnSsid(ssid)
+        return isDeviceSoftApSsid(ssid)
     }
 
-    fun isSmartKilnSsid(ssid: String): Boolean {
-        return ssid.startsWith(KilnApiDefaults.SMART_KILN_SSID_PREFIX, ignoreCase = true)
+    /** SoftAP de dispositivo propio (horno o datalogger). */
+    fun isDeviceSoftApSsid(ssid: String): Boolean {
+        return deviceTypeFromSsid(ssid) != SoftApDeviceType.UNKNOWN
+    }
+
+    /** @deprecated Usar [isDeviceSoftApSsid]; se mantiene por compatibilidad. */
+    fun isSmartKilnSsid(ssid: String): Boolean = isDeviceSoftApSsid(ssid)
+
+    fun deviceTypeFromSsid(ssid: String): SoftApDeviceType {
+        val cleaned = ssid.trim().removeSurrounding("\"")
+        return when {
+            cleaned.startsWith(KilnApiDefaults.SMART_LINK_SSID_PREFIX, ignoreCase = true) ->
+                SoftApDeviceType.DATALOGGER
+            cleaned.startsWith(KilnApiDefaults.SMART_KILN_SSID_PREFIX, ignoreCase = true) ->
+                SoftApDeviceType.KILN
+            else -> SoftApDeviceType.UNKNOWN
+        }
     }
 
     fun isConnectedToWifi(context: Context): Boolean {
@@ -44,9 +62,15 @@ object WifiUtils {
                     ?: return false
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val network = connectivityManager.activeNetwork ?: return false
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(network)
-                return networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                // SoftAP sin internet: activeNetwork a veces es datos móviles.
+                // Contamos cualquier red WiFi asociada.
+                connectivityManager.allNetworks.forEach { network ->
+                    val caps = connectivityManager.getNetworkCapabilities(network)
+                    if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                        return true
+                    }
+                }
+                return false
             } else {
                 @Suppress("DEPRECATION")
                 val networkInfo = connectivityManager.activeNetworkInfo
@@ -60,43 +84,71 @@ object WifiUtils {
     }
 
     /**
-     * Obtiene el SSID de la red WiFi activa.
-     * En Android 10+ el SSID puede ser null sin permiso de ubicación; se usan varias vías.
+     * Obtiene el SSID de la WiFi asociada.
+     * Prioriza SoftAP SmartKiln/SmartLink si hay varias (AP local + casa).
      */
     fun getCurrentWifiSSID(context: Context): String? {
-        if (!isConnectedToWifi(context)) return null
-
         try {
-            parseSsid(transportInfoSsid(context))?.let { return it }
-            parseSsid(legacyConnectionSsid(context))?.let { return it }
+            collectWifiInfos(context).forEach { info ->
+                parseSsid(wifiInfoToSsid(info))?.let { ssid ->
+                    if (isDeviceSoftApSsid(ssid)) return ssid
+                }
+            }
+            collectWifiInfos(context).forEach { info ->
+                parseSsid(wifiInfoToSsid(info))?.let { return it }
+            }
         } catch (e: Exception) {
             android.util.Log.e("WifiUtils", "Error obteniendo SSID: ${e.message}")
         }
         return null
     }
 
-    private fun transportInfoSsid(context: Context): String? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                ?: return null
-        val network = connectivityManager.activeNetwork ?: return null
-        val caps = connectivityManager.getNetworkCapabilities(network) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-
-        val transportInfo = caps.transportInfo
-        if (transportInfo is WifiInfo) {
-            return wifiInfoToSsid(transportInfo)
+    /**
+     * SoftAP al que el teléfono ya está conectado (aunque no aparezca en scanResults).
+     */
+    fun getConnectedDeviceAccessPoint(context: Context): KilnAccessPoint? {
+        return try {
+            collectWifiInfos(context).forEach { info ->
+                val ssid = parseSsid(wifiInfoToSsid(info)) ?: return@forEach
+                if (!isDeviceSoftApSsid(ssid)) return@forEach
+                @Suppress("DEPRECATION")
+                val bssid = info.bssid?.takeIf { it.isNotBlank() && it != "02:00:00:00:00:00" }
+                    ?: ""
+                return KilnAccessPoint(
+                    ssid = ssid,
+                    bssid = bssid,
+                    signalLevel = info.rssi,
+                    deviceType = deviceTypeFromSsid(ssid),
+                    alreadyConnected = true
+                )
+            }
+            null
+        } catch (e: Exception) {
+            android.util.Log.e("WifiUtils", "Error leyendo SoftAP conectado: ${e.message}")
+            null
         }
-        return null
     }
 
-    @Suppress("DEPRECATION")
-    private fun legacyConnectionSsid(context: Context): String? {
-        val wifiManager =
-            context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-                ?: return null
-        return wifiInfoToSsid(wifiManager.connectionInfo)
+    private fun collectWifiInfos(context: Context): List<WifiInfo> {
+        val out = mutableListOf<WifiInfo>()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                cm?.allNetworks?.forEach { network ->
+                    val caps = cm.getNetworkCapabilities(network) ?: return@forEach
+                    if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return@forEach
+                    val transportInfo = caps.transportInfo
+                    if (transportInfo is WifiInfo) out.add(transportInfo)
+                }
+            }
+            @Suppress("DEPRECATION")
+            val wifiManager =
+                context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            wifiManager?.connectionInfo?.let { out.add(it) }
+        } catch (e: Exception) {
+            android.util.Log.e("WifiUtils", "Error listando WifiInfo: ${e.message}")
+        }
+        return out.distinctBy { "${parseSsid(wifiInfoToSsid(it))}|${it.bssid}" }
     }
 
     private fun wifiInfoToSsid(wifiInfo: WifiInfo?): String? {
@@ -145,42 +197,56 @@ object WifiUtils {
     }
 
     /**
-     * Devuelve los SSIDs visibles que arrancan con `SmartKiln-`, ordenados
-     * por intensidad de señal. Útil cuando solo necesitamos el SSID (por ej.
-     * mostrar nombres en una lista o filtrarlos en otro diálogo).
-     *
-     * Importante: requiere que el WiFi esté habilitado y, en Android 13+,
-     * el permiso NEARBY_WIFI_DEVICES (en versiones anteriores
-     * ACCESS_FINE_LOCATION) para que `scanResults` devuelva algo distinto a
-     * lista vacía.
+     * SoftAP visibles: horno (`SmartKiln-`) o datalogger (`SmartLink-`),
+     * más la red SoftAP ya conectada (Android a menudo no la incluye en el scan).
      */
     fun getSmartKilnNetworks(context: Context): List<String> {
         return getSmartKilnAccessPoints(context).map { it.ssid }.distinct()
     }
 
     /**
-     * Variante detallada de [getSmartKilnNetworks] que también devuelve el
-     * BSSID y la potencia de cada AP. La usa el flujo de alta para listar
-     * los hornos detectados y derivar la passphrase WPA2 a partir del BSSID
-     * (los 8 últimos caracteres hex del MAC), porque el SSID solo expone 4.
+     * Detalle de SoftAP: SSID, BSSID, señal y [SoftApDeviceType] por prefijo.
+     * Passphrase WPA2 = últimos 8 hex del BSSID/MAC (o del sufijo SSID de 8).
      */
     @Suppress("DEPRECATION")
     fun getSmartKilnAccessPoints(context: Context): List<KilnAccessPoint> {
         return try {
+            val connected = getConnectedDeviceAccessPoint(context)
             val wifiManager =
                 context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            if (wifiManager?.isWifiEnabled != true) return emptyList()
-            wifiManager.startScan()
-            wifiManager.scanResults
-                .asSequence()
-                .filter { !it.SSID.isNullOrBlank() && isSmartKilnSsid(it.SSID) }
-                .filter { !it.BSSID.isNullOrBlank() }
-                .sortedByDescending { it.level }
-                .map { KilnAccessPoint(ssid = it.SSID, bssid = it.BSSID, signalLevel = it.level) }
-                .distinctBy { it.bssid }
-                .toList()
+            val scanned = if (wifiManager?.isWifiEnabled == true) {
+                wifiManager.startScan()
+                wifiManager.scanResults
+                    .asSequence()
+                    .filter { !it.SSID.isNullOrBlank() && isDeviceSoftApSsid(it.SSID) }
+                    .filter { !it.BSSID.isNullOrBlank() }
+                    .sortedByDescending { it.level }
+                    .map {
+                        KilnAccessPoint(
+                            ssid = it.SSID,
+                            bssid = it.BSSID,
+                            signalLevel = it.level,
+                            deviceType = deviceTypeFromSsid(it.SSID),
+                            alreadyConnected = connected?.ssid.equals(it.SSID, ignoreCase = true)
+                        )
+                    }
+                    .toList()
+            } else {
+                emptyList()
+            }
+
+            buildList {
+                if (connected != null) add(connected)
+                scanned.forEach { ap ->
+                    val dup = any {
+                        it.ssid.equals(ap.ssid, ignoreCase = true) ||
+                            (it.bssid.isNotBlank() && it.bssid.equals(ap.bssid, ignoreCase = true))
+                    }
+                    if (!dup) add(ap)
+                }
+            }
         } catch (e: Exception) {
-            android.util.Log.e("WifiUtils", "Error escaneando hornos: ${e.message}")
+            android.util.Log.e("WifiUtils", "Error escaneando SoftAP dispositivo: ${e.message}")
             emptyList()
         }
     }

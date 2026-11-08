@@ -41,17 +41,19 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mysmartkiln.ui.components.AppPrimaryButton
+import com.example.mysmartkiln.ui.components.EspBrandHeader
 import com.example.mysmartkiln.ui.components.HomeIndicatorWhite
 import com.example.mysmartkiln.ui.components.Plusbtn
 import com.example.mysmartkiln.ui.components.ProgramCard
 import com.example.mysmartkiln.ui.components.ProgramCardData
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
-import com.example.mysmartkiln.ui.components.ScrollGradient
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.SearchBar
 import com.example.mysmartkiln.ui.viewmodels.ProgramsListViewModel
 import com.example.mysmartkiln.ui.viewmodels.ViewModelFactory
 import com.example.mysmartkiln.R
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -83,7 +85,7 @@ fun ProgramsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
         // Contenido principal - SIEMPRE VISIBLE
         if (hasPrograms) {
@@ -131,88 +133,11 @@ fun ProgramsScreen(
                 .requiredHeight(height = 200.dp)
                 .zIndex(2f) // Por encima del overlay del menú
         ) {
-            // Navigation Bar Background - Full width with precise curved top
-                Box(
-                    modifier = Modifier
+            // Navigation Bar Background
+            BottomNavBarBackground(
+                modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                   .background(
-                       color = Color(0xFF003D99),
-                       shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    
-                                    // Convert dp to pixels for precise positioning
-                                    val densityValue = density.density
-                                    
-                                    // Start from left edge at y=34 (relative to top of shape)
-                                    val startY = 34f * densityValue
-                                    val curveStartY = startY
-                                    
-                                    // Move to start position (left edge, y=34)
-                                    moveTo(0f, curveStartY)
-                                    
-                                    // Left side straight line (from 0,34 to 147,34)
-                                    lineTo(width * (147f/390f), curveStartY)
-                                    
-                                    // First curve: C158.046,34 166.586,43.8745 173.422,52.5508
-                                    cubicTo(
-                                        width * (158.046f/390f), curveStartY,
-                                        width * (166.586f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Second curve: C178.915,59.5232 187.435,64 197,64
-                                    cubicTo(
-                                        width * (178.915f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), curveStartY + (30f * densityValue),
-                                        width * (197f/390f), curveStartY + (30f * densityValue)
-                                    )
-                                    
-                                    // Third curve: C206.565,64 215.085,59.5232 220.578,52.5508
-                                    cubicTo(
-                                        width * (206.565f/390f), curveStartY + (30f * densityValue),
-                                        width * (215.085f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Fourth curve: C227.414,43.8745 235.954,34 247,34
-                                    cubicTo(
-                                        width * (227.414f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), curveStartY,
-                                        width * (247f/390f), curveStartY
-                                    )
-                                    
-                                    // Right side straight line (from 247,34 to right edge, y=34)
-                                    lineTo(width, curveStartY)
-                                    
-                                    // Continue to right edge at y=54
-                                    lineTo(width, curveStartY + (20f * densityValue))
-                                    
-                                    // Bottom right corner
-                                    lineTo(width, height)
-                                    
-                                    // Bottom edge
-                                    lineTo(0f, height)
-                                    
-                                    // Left side back to start
-                                    lineTo(0f, curveStartY + (20f * densityValue))
-                                    
-                                    // Close the path back to start
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
         
         // Responsive Bottom Navigation Bar
@@ -252,28 +177,53 @@ private fun ProgramsListContent(
     onDuplicateProgram: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     // Estado para rastrear qué tarjeta está abierta
     var openCardId by remember { mutableStateOf<String?>(null) }
-    
-        Column(
+
+    Column(
         modifier = modifier.padding(vertical = 10.dp) // Remover padding horizontal para permitir swipe
     ) {
-        // Title - Same position as "Crear Programa"
-        Text(
-            text = "Programas",
-            style = MaterialTheme.typography.titleLarge.copy(
-                color = Color(0xFF1E3A8A),
-                fontWeight = FontWeight.Bold
-            ),
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
-        )
+        if (kilnColors.isEsp) {
+            EspBrandHeader(
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 48.dp,
+                    bottom = 8.dp
+                )
+            )
+            Text(
+                text = "Programas",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 8.dp,
+                    bottom = 16.dp
+                )
+            )
+        } else {
+            Text(
+                text = "Programas",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = kilnColors.title,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 70.dp, bottom = 16.dp)
+            )
+        }
         
-        // Search bar
+        // Search bar (mockup ESP: compacta, icono a la izquierda)
         SearchBar(
             query = searchQuery,
             onQueryChange = onSearchQueryChange,
+            placeholder = "Buscar programas...",
             onSearchClick = { /* Solo funciona como filtro, no navega */ },
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
         )
         
         // Programs list con gradiente
@@ -299,22 +249,17 @@ private fun ProgramsListContent(
                     )
                 }
                 
-                // Espacio adicional al final para el gradiente
+                // Espacio final para poder desplazar la última tarjeta
                 item {
-                    Spacer(modifier = Modifier.height(40.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = AppColors.Primary100,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
         
-        // Bottom spacing for navigation
-        Spacer(modifier = Modifier.height(160.dp))
+        // Deja ~12–15dp entre el final del scroll y el botón + (ESP).
+        Spacer(
+            modifier = Modifier.height(if (kilnColors.isEsp) 110.dp else 160.dp)
+        )
     }
 }
 
@@ -323,6 +268,7 @@ private fun EmptyProgramsContent(
     onCreateProgram: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val kilnColors = LocalKilnColors.current
     Column(
         modifier = modifier
             .padding(horizontal = 24.dp)
@@ -330,6 +276,13 @@ private fun EmptyProgramsContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
         ) {
+            if (kilnColors.isEsp) {
+                EspBrandHeader(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp, bottom = 8.dp)
+                )
+            }
             // Top Content Group
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -355,7 +308,7 @@ private fun EmptyProgramsContent(
                     Text(
                         text = "No hay programas guardados",
                         style = MaterialTheme.typography.titleLarge.copy(
-                        color = Color(0xFF1E3A8A),
+                        color = LocalKilnColors.current.title,
                             fontWeight = FontWeight.Bold
                         ),
                         textAlign = TextAlign.Center
@@ -376,21 +329,21 @@ private fun EmptyProgramsContent(
                         Text(
                             text = "Cuando estés listo para comenzar",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "presiona comenzar para crear",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "tu primer programa de cocción",
                             style = MaterialTheme.typography.bodyLarge.copy(
-                            color = Color(0xFF1E3A8A)
+                            color = LocalKilnColors.current.title
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -410,8 +363,8 @@ private fun EmptyProgramsContent(
                         .fillMaxWidth()
                     .height(48.dp),
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Primary700,
-                        contentColor = Color.White
+                    containerColor = LocalKilnColors.current.accent,
+                        contentColor = LocalKilnColors.current.onAccent
                     ),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                 ) {

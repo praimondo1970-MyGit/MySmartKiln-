@@ -12,13 +12,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.mysmartkiln.ui.screens.SignInScreen
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
+import com.example.mysmartkiln.ui.theme.ThemePreferences
 
 class SignInActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MySmartKilnTheme {
+            MySmartKilnTheme(themeMode = ThemePreferences.read(this)) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

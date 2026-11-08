@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 
 @Composable
 fun TemperatureInput(
@@ -44,7 +45,7 @@ fun TemperatureInput(
         // Label
         Text(
             text = "Temperatura",
-            color = AppColors.color_Primary_700,
+            color = LocalKilnColors.current.accent,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier
@@ -59,9 +60,9 @@ fun TemperatureInput(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(color = Color.White)
+                .background(color = LocalKilnColors.current.cardBackground)
                 .border(
-                    border = BorderStroke(1.dp, AppColors.Primary100),
+                    border = BorderStroke(1.dp, LocalKilnColors.current.cardBorder),
                     shape = RoundedCornerShape(12.dp)
                 )
                 .clickable { onClick() }
@@ -72,11 +73,11 @@ fun TemperatureInput(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = TextStyle(
-                    color = AppColors.color_Primary_700,
+                    color = LocalKilnColors.current.accent,
                     fontSize = 16.sp,
                     textAlign = TextAlign.End
                 ),
-                cursorBrush = if (isActive) SolidColor(AppColors.color_Primary_700) else SolidColor(Color.Transparent),
+                cursorBrush = if (isActive) SolidColor(LocalKilnColors.current.accent) else SolidColor(Color.Transparent),
                 modifier = Modifier.fillMaxWidth(),
                 readOnly = true,
                 enabled = isActive
@@ -86,7 +87,7 @@ fun TemperatureInput(
             if (value.isEmpty()) {
                 Text(
                     text = "°C",
-                    color = AppColors.color_Primary_700,
+                    color = LocalKilnColors.current.accent,
                     fontSize = 16.sp,
                     textAlign = TextAlign.End
                 )

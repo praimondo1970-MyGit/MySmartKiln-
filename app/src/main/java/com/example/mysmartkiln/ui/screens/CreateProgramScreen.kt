@@ -76,10 +76,12 @@ import com.example.mysmartkiln.ui.components.Plusbtn
 import com.example.mysmartkiln.ui.components.ProgramNameInput
 import com.example.mysmartkiln.ui.components.Rectangle134
 import com.example.mysmartkiln.ui.components.ResponsiveBottomNavigation
-import com.example.mysmartkiln.ui.components.ScrollGradient
+import com.example.mysmartkiln.ui.components.BottomNavBarBackground
 import com.example.mysmartkiln.ui.components.StageCard
 import com.example.mysmartkiln.ui.components.StageData
 import com.example.mysmartkiln.ui.theme.AppColors
+import com.example.mysmartkiln.ui.theme.DialogBrand
+import com.example.mysmartkiln.ui.theme.LocalKilnColors
 import com.example.mysmartkiln.ui.theme.MySmartKilnTheme
 
 @Composable
@@ -87,7 +89,6 @@ fun CreateProgramScreen(
     programIdToEdit: String? = null,
     isEditMode: Boolean = false,
     onNavigateBack: () -> Unit = {},
-    onNavigateToAddStage: () -> Unit = {},
     onNavigateToKilns: () -> Unit = {},
     onNavigateToPrograms: () -> Unit = {},
     onNavigateToActivity: () -> Unit = {},
@@ -114,11 +115,11 @@ fun CreateProgramScreen(
         }
     }
     
-    // Navegar a Programas después de guardar exitosamente
+    // Volver a la pantalla anterior tras guardar (detalle del horno o lista de programas)
     LaunchedEffect(viewModel.programSavedSuccessfully) {
         if (viewModel.programSavedSuccessfully) {
-            onNavigateToPrograms()
             viewModel.resetSaveState()
+            onNavigateBack()
         }
     }
     
@@ -240,111 +241,105 @@ fun CreateProgramScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(color = AppColors.Primary100)
+            .background(color = LocalKilnColors.current.screenBackground)
     ) {
-        // Scrollable content con gradiente
-        Box(
+        // Header fijo + scroll solo de etapas + Guardar fijo
+        // ESP: ~110dp como Programas (más cerca del nav → más alto el scroll).
+        // Clásico: 160dp por el FAB elevado.
+        // LazyColumn: padding bottom sube el extremo inferior del listado vs GUARDAR.
+        val contentBottomPad =
+            if (LocalKilnColors.current.isEsp) 110.dp else 160.dp
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 160.dp) // 160dp from bottom
+                .padding(bottom = contentBottomPad)
         ) {
-            LazyColumn(
-                state = lazyListState, // Usar el estado para mejor detección de gestos
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 29.dp,
-                    end = 24.dp,
-                    top = 0.dp, // Sin padding superior - el contenido empieza desde arriba
-                    bottom = 40.dp // Espacio para el gradiente
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 29.dp, end = 24.dp)
             ) {
-            // Title según el modo
-            item {
                 CrearPrograma(
                     text = when {
                         programIdToEdit != null && isEditMode -> "Modificar programa"
                         programIdToEdit != null && !isEditMode -> "Duplicar programa"
                         else -> "Crear programa"
                     },
-                    modifier = Modifier.padding(top = 70.dp) // Padding superior reducido a 70dp
+                    modifier = Modifier.padding(top = 70.dp)
                 )
-            }
-            
-            // Program Name Input
-            item {
+
                 ProgramNameInput(
                     value = programName,
                     onValueChange = { viewModel.updateProgramName(it) }
                 )
-            }
-            
-            // Etapas title and Add Stage Button row
-            item {
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Etapas()
                     AddStageButton(
-                        onClick = {
-                            openCreateStageModal()
-                        }
+                        onClick = { openCreateStageModal() }
                     )
                 }
             }
-            
-            // Stages List
-            if (stages.isNotEmpty()) {
-                itemsIndexed(stages) { index, stage ->
-                    StageCard(
-                        stageData = stage,
-                        onStageClick = { editStage(index) },
-                        onDeleteClick = { deleteStage(index) }
-                    )
-                }
-            }
-            
-            // Create Button - appears when there's at least one stage
-            if (stages.isNotEmpty()) {
-                item {
-                           androidx.compose.material3.Button(
-                               onClick = { viewModel.saveProgram() },
-                               enabled = !viewModel.isSaving, // Deshabilitar mientras guarda
-                               modifier = Modifier
-                                   .fillMaxWidth()
-                                   .height(48.dp) // Same height as "Comenzar" button
-                                   .padding(top = 5.dp), // Padding superior reducido a 5dp
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Primary700, // Color Primary700 (#003D99)
-                            contentColor = Color.White,
-                            disabledContainerColor = AppColors.Neutral400, // Gris para estado inactivo
-                            disabledContentColor = AppColors.Neutral600 // Texto gris para estado inactivo
-                        ),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = if (viewModel.isSaving) {
-                                "Guardando..."
-                            } else if (programIdToEdit != null) {
-                                "Guardar"  // Tanto para editar como duplicar
-                            } else {
-                                "Crear"
-                            },
-                            style = MaterialTheme.typography.titleMedium
+
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(start = 5.dp)
+                    // Sube el extremo inferior del scroll; GUARDAR queda donde está.
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 12.dp)
+            ) {
+                if (stages.isNotEmpty()) {
+                    itemsIndexed(stages) { index, stage ->
+                        StageCard(
+                            stageData = stage,
+                            onStageClick = { editStage(index) },
+                            onDeleteClick = { deleteStage(index) }
                         )
                     }
                 }
             }
-        }
-            
-            // Gradiente en la parte inferior
-            ScrollGradient(
-                height = 40.dp,
-                backgroundColor = AppColors.Primary100,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+
+            if (stages.isNotEmpty()) {
+                androidx.compose.material3.Button(
+                    onClick = { viewModel.saveProgram() },
+                    enabled = !viewModel.isSaving,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 29.dp, end = 24.dp, bottom = 8.dp)
+                        .height(48.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = DialogBrand.primaryButton(),
+                        contentColor = LocalKilnColors.current.onAccent,
+                        disabledContainerColor = LocalKilnColors.current.cardBorder,
+                        disabledContentColor = LocalKilnColors.current.muted
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                        if (LocalKilnColors.current.isEsp) 12.dp else 16.dp
+                    )
+                ) {
+                    Text(
+                        text = if (viewModel.isSaving) {
+                            "Guardando..."
+                        } else if (programIdToEdit != null) {
+                            "Guardar"
+                        } else {
+                            "Crear"
+                        },
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
         }
         
         // Overlay del menú de agregar - SE SUPERPONE cuando isMenuOpen = true
@@ -373,88 +368,11 @@ fun CreateProgramScreen(
                 .zIndex(2f) // Por encima del overlay del menú
         ) {
             
-            // Navigation Bar Background - Full width with precise curved top
-            Box(
+            // Navigation Bar Background
+            BottomNavBarBackground(
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
                     .offset(x = 0.dp, y = 60.dp)
-                    .fillMaxWidth()
-                    .requiredHeight(height = 141.dp)
-                    .background(
-                        color = Color(0xFF003D99),
-                        shape = object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(
-                                size: androidx.compose.ui.geometry.Size,
-                                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                                density: androidx.compose.ui.unit.Density
-                            ): androidx.compose.ui.graphics.Outline {
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    val width = size.width
-                                    val height = size.height
-                                    
-                                    // Convert dp to pixels for precise positioning
-                                    val densityValue = density.density
-                                    
-                                    // Start from left edge at y=34 (relative to top of shape)
-                                    val startY = 34f * densityValue
-                                    val curveStartY = startY
-                                    
-                                    // Move to start position (left edge, y=34)
-                                    moveTo(0f, curveStartY)
-                                    
-                                    // Left side straight line (from 0,34 to 147,34)
-                                    lineTo(width * (147f/390f), curveStartY)
-                                    
-                                    // First curve: C158.046,34 166.586,43.8745 173.422,52.5508
-                                    cubicTo(
-                                        width * (158.046f/390f), curveStartY,
-                                        width * (166.586f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (173.422f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Second curve: C178.915,59.5232 187.435,64 197,64
-                                    cubicTo(
-                                        width * (178.915f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (187.435f/390f), curveStartY + (30f * densityValue),
-                                        width * (197f/390f), curveStartY + (30f * densityValue)
-                                    )
-                                    
-                                    // Third curve: C206.565,64 215.085,59.5232 220.578,52.5508
-                                    cubicTo(
-                                        width * (206.565f/390f), curveStartY + (30f * densityValue),
-                                        width * (215.085f/390f), curveStartY + (25.5232f * densityValue),
-                                        width * (220.578f/390f), curveStartY + (18.5508f * densityValue)
-                                    )
-                                    
-                                    // Fourth curve: C227.414,43.8745 235.954,34 247,34
-                                    cubicTo(
-                                        width * (227.414f/390f), curveStartY + (9.8745f * densityValue),
-                                        width * (235.954f/390f), curveStartY,
-                                        width * (247f/390f), curveStartY
-                                    )
-                                    
-                                    // Right side straight line (from 247,34 to right edge, y=34)
-                                    lineTo(width, curveStartY)
-                                    
-                                    // Continue to right edge at y=54
-                                    lineTo(width, curveStartY + (20f * densityValue))
-                                    
-                                    // Bottom right corner
-                                    lineTo(width, height)
-                                    
-                                    // Bottom edge
-                                    lineTo(0f, height)
-                                    
-                                    // Left side back to start
-                                    lineTo(0f, curveStartY + (20f * densityValue))
-                                    
-                                    // Close the path back to start
-                                    close()
-                                }
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    )
             )
             
             // Responsive Bottom Navigation Bar
@@ -481,9 +399,10 @@ fun CreateProgramScreen(
                 .offset(x = 0.dp, y = 810.dp)
         )
         
-        // Add Stage Overlay - covers entire screen with semi-transparent Primary800
+        // Add Stage Overlay - por encima de la barra de navegación/FAB
         AnimatedVisibility(
             visible = showAddStageOverlay,
+            modifier = Modifier.zIndex(3f),
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = tween(durationMillis = 300)
@@ -498,7 +417,7 @@ fun CreateProgramScreen(
                     .fillMaxSize()
                     .imePadding()
                     .background(
-                        color = AppColors.Primary800.copy(alpha = 0.9f) // 90% opacity
+                        color = LocalKilnColors.current.navBar.copy(alpha = 0.9f)
                     )
             ) {
                 // Rectangle134 component positioned at bottom with additional offset when keyboard is visible
@@ -507,27 +426,28 @@ fun CreateProgramScreen(
                         .align(alignment = Alignment.BottomCenter)
                         .offset(y = additionalOffset)
                 ) {
-                           // Agregar/Editar etapa title positioned at top-left of the modal
-                           AgregarEtapa(
-                               text = if (isEditingStage) "Editar etapa" else "Agregar etapa",
-                               modifier = Modifier
-                                   .align(alignment = Alignment.TopStart)
-                                   .padding(start = 30.dp, top = 25.dp) // Moved 5dp to the right (25dp + 5dp = 30dp)
-                           )
-                    
-                    // CircularTerciary close button positioned in the modal
+                    val isEspSheet = LocalKilnColors.current.isEsp
+                    val titleTop = if (isEspSheet) 28.dp else 25.dp
+                    val closeTop = if (isEspSheet) 34.dp else 38.dp
+
+                    AgregarEtapa(
+                        text = if (isEditingStage) "Editar etapa" else "Agregar etapa",
+                        modifier = Modifier
+                            .align(alignment = Alignment.TopStart)
+                            .padding(start = 30.dp, top = titleTop)
+                    )
+
                     CircularTerciary(
                         onClick = { closeModal() },
                         modifier = Modifier
                             .align(alignment = Alignment.TopEnd)
-                            .padding(end = 25.dp, top = 38.dp) // Moved 2dp left (27dp - 2dp = 25dp)
+                            .padding(end = 25.dp, top = closeTop)
                     )
-                    
-                    // Group20 component with input fields positioned below the title
+
                     Group20(
                         modifier = Modifier
                             .align(alignment = Alignment.TopStart)
-                            .padding(top = 100.dp), // Ya no necesita padding horizontal
+                            .padding(top = if (isEspSheet) 108.dp else 100.dp),
                         temperature = modalTemperature,
                         speed = modalSpeed,
                         maintenance = modalMaintenance,
@@ -535,13 +455,12 @@ fun CreateProgramScreen(
                         onSpeedChange = { modalSpeed = it },
                         onMaintenanceChange = { modalMaintenance = it }
                     )
-                    
-                    // Agregar button positioned at 200dp from top of the modal
+
                     AgregarButton(
                         onClick = { addStage() },
                         modifier = Modifier
                             .align(alignment = Alignment.TopStart)
-                            .padding(start = 25.dp, end = 25.dp, top = 240.dp) // Aumentar de 200dp a 240dp
+                            .padding(start = 25.dp, end = 25.dp, top = 240.dp)
                     )
                 }
             }

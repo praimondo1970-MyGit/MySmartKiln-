@@ -31,7 +31,18 @@ object KilnProgramUploader {
         if (stages.isEmpty()) {
             return Result.failure(Exception("El programa no tiene etapas"))
         }
-        val json = KilnProfileJsonBuilder.build(program.name, stages)
-        return client.uploadProfile(json).map { program.name }
+        val json = KilnProfileJsonBuilder.build(program.name, stages, program.updatedAt)
+        return client.uploadProfile(json).fold(
+            onSuccess = { resp ->
+                if (!resp.ok) {
+                    Result.failure(
+                        Exception(resp.error ?: resp.message ?: "El horno rechazó el programa")
+                    )
+                } else {
+                    Result.success(program.name)
+                }
+            },
+            onFailure = { Result.failure(it) }
+        )
     }
 }

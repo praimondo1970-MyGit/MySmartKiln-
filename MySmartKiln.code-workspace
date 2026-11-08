@@ -1,14 +1,21 @@
 {
 	"folders": [
 		{
+			"name": "android",
 			"path": "."
-		},
-		{
-			"path": "../../OneDrive/Documentos/PlatformIO/Projects/IA Kiln"
-		},
-		{
-			"path": "../../OneDrive/Documentos/PlatformIO/Projects/MAX31855"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"files.exclude": {
+			"**/.gradle": true,
+			"**/build": true,
+			"**/.kotlin": true
+		}
+	},
+	"extensions": {
+		"recommendations": [
+			"vscjava.vscode-gradle",
+			"fwcd.kotlin"
+		]
+	}
 }

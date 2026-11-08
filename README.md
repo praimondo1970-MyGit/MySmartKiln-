@@ -1,10 +1,10 @@
 # MySmartKiln
 
-App Android para control de hornos cerámicos inteligentes (BLE + WiFi SoftAP + Firebase).
+App Android para control de hornos cerámicos inteligentes (WiFi SoftAP + Firebase).
 
 | Pieza | Ubicación actual | Estado |
 |-------|------------------|--------|
-| App Android (este repo) | `app/` | En GitHub |
+| App Android (este repo) | `app/` | En GitHub — path SoftAP (sin BLE) |
 | Firmware ESP32 | Repo separado (pendiente) | Hoy en PlatformIO / OneDrive |
 | Sensor MAX31855 | Repo o carpeta firmware (pendiente) | Hoy en PlatformIO / OneDrive |
 | Backend | Firebase Realtime Database (`ia-based-kiln`) | Compartido |
@@ -13,13 +13,15 @@ App Android para control de hornos cerámicos inteligentes (BLE + WiFi SoftAP + 
 
 - Kotlin, Jetpack Compose, MVVM, Navigation Compose
 - Room (local) + Firebase Auth / Realtime Database
-- BLE (`BleManager`, `HybridConnectionManager`) y WiFi SoftAP (`KilnHttpClient`, `KilnNetworkConnector`)
+- Conexión al horno por **WiFi SoftAP / HTTP local** (`KilnHttpClient`, `KilnNetworkConnector`) y sync remota por Firebase
+
+> La versión con Bluetooth LE fue **descartada**. No hay paquete `ble/`, pantallas de escaneo BLE ni permisos Bluetooth en el manifiesto.
 
 ## Abrir el proyecto
 
 1. Clonar este repo.
 2. Abrir `MySmartKiln.code-workspace` en Cursor / Android Studio.
-3. Cuando el firmware esté en Git, clonar junto a este repo y descomentar la carpeta en el workspace (ver comentarios en el `.code-workspace`).
+3. Cuando el firmware esté en Git, clonar junto a este repo y añadir la carpeta al workspace.
 
 ## Documentación
 
@@ -27,16 +29,12 @@ App Android para control de hornos cerámicos inteligentes (BLE + WiFi SoftAP + 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura viva (corta)
 - [`docs/REORGANIZATION.md`](docs/REORGANIZATION.md) — plan de reorganización profesional
 
-La documentación histórica monolítica en la raíz fue eliminada por estar desactualizada y redundante con el código.
+## Branches
 
-## Branches relevantes
-
-- `master` — línea principal publicada
-- `feature/remote-firebase-commands` — trabajo sustancial (SoftAP / modos / UI) aún no mergeado; decidir destino en el plan de reorg
+- Línea SoftAP actual (sin BLE): historial en `feature/remote-firebase-commands` / PRs de limpieza
+- `master` histórico puede aún contener restos de la era BLE hasta mergear esta línea
 
 ## Build
-
-Abrir en Android Studio o:
 
 ```bash
 ./gradlew :app:assembleDebug

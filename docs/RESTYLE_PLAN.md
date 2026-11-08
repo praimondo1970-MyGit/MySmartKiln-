@@ -52,7 +52,7 @@ git checkout master
 
 **Done cuando:** con Oscuro la app se ve negra/naranja; con Claro idéntica (o casi) a hoy. → **alcanzado**
 
-**Restos menores (no bloquean A):** Login/Splash/SignIn, flujos BLE/Scan/Configure kiln pueden tener hex sueltos; se pueden pulir en C.
+**Restos menores (no bloquean A):** Login/Splash/SignIn y Configure kiln pueden tener hex sueltos; se pueden pulir en C. (BLE descartado — no hay flujos Scan/GATT.)
 
 ---
 

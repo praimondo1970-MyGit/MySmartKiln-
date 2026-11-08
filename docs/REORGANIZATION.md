@@ -36,7 +36,11 @@ Monorepo (`/android` + `/firmware` + `/docs`) queda como opción B si más adela
 | Archivo | Motivo |
 |---------|--------|
 | `MySmartKiln_DOCUMENTACION_COMPLETA.md` (~1500 líneas) | Desactualizado (oct 2025), monolítico, duplicaba el código |
-| `ALTERNATIVAS_RESOLUCION_PROGRAMA_BLE.md` | Nota de incidente ya implementada en `BleManager`; no es doc de producto |
+| `ALTERNATIVAS_RESOLUCION_PROGRAMA_BLE.md` | Nota de la era BLE (descartada); no es doc de producto |
+
+### Decisión de producto: BLE descartado
+
+La app usa **solo SoftAP / HTTP local + Firebase**. No reintroducir el paquete `ble/`, pantallas GATT ni permisos Bluetooth.
 
 ### Queda (lean)
 
@@ -53,7 +57,7 @@ Monorepo (`/android` + `/firmware` + `/docs`) queda como opción B si más adela
 
 | Acción | Detalle |
 |--------|---------|
-| Decidir destino de `feature/remote-firebase-commands` | Merge a `master` vía PR, o renombrar a `develop` si será la línea activa |
+| Línea SoftAP (sin BLE) | Base de trabajo; mergear a `master` vía PR |
 | Borrar `cursor/cloud-agent-*` huérfana | Si no aporta commits útiles |
 | PR por feature | Evitar commits sueltos “checkpoint” en la rama publicada |
 | Tags opcionales | `v0.x` cuando haya build estable |
@@ -63,11 +67,11 @@ Monorepo (`/android` + `/firmware` + `/docs`) queda como opción B si más adela
 | Nivel | Nombre | Uso |
 |-------|--------|-----|
 | Project | `MySmartKiln` | Producto entero (cuando firmware esté en Git + Cloud Agents) |
-| Chat | Misión concreta | Ej. “SoftAP handoff”, “Fix PROFILE_OK timeout” |
+| Chat | Misión concreta | Ej. “SoftAP handoff”, “Modo local/online” |
 | Side chat | `/btw` | Preguntas laterales |
 | Rules | `AGENTS.md` (+ `.cursor/rules` si hace falta) | Memoria estable |
 
-Hasta tener firmware en GitHub: **no** dependas de Cloud Agents para features BLE/SoftAP reales.
+Hasta tener firmware en GitHub: **no** dependas de Cloud Agents para features SoftAP / horno real.
 
 ## 6. Fases
 
@@ -76,6 +80,7 @@ Hasta tener firmware en GitHub: **no** dependas de Cloud Agents para features BL
 - [x] Borrar docs viejas/redundantes
 - [x] Añadir `README.md`, `AGENTS.md`, `docs/*`
 - [x] Workspace sin paths OneDrive rotos
+- [x] Eliminar stack BLE (paquete `ble/`, pantallas GATT, permisos Bluetooth); línea SoftAP
 
 ### Fase B — Vos en el PC (bloqueante)
 
@@ -83,11 +88,10 @@ Hasta tener firmware en GitHub: **no** dependas de Cloud Agents para features BL
 - [ ] Decidir si MAX31855 va solo o dentro del firmware
 - [ ] Clonar app + firmware bajo una carpeta `~/dev/mysmartkiln/`
 - [ ] Actualizar el `.code-workspace` local con esas rutas reales
-- [ ] Decidir destino de `feature/remote-firebase-commands`
 
 ### Fase C — Higiene de producto
 
-- [ ] Abrir PR de la feature branch (o merge planificado)
+- [ ] Mergear esta línea SoftAP (sin BLE) a `master`
 - [ ] Revisar si `google-services.json` debe seguir versionado o ir a secretos CI
 - [ ] Plan de renombrar package `com.example.mysmartkiln` → id real
 - [ ] Crear Project “MySmartKiln” en Agents Window (multi-repo)
@@ -109,16 +113,13 @@ Sin esto no puedo completar la reorg de punta a punta:
 2. **Decisión de layout**  
    - Confirmá **multi-repo (A)** o monorepo (B).
 
-3. **Branch de producto**  
-   - ¿`feature/remote-firebase-commands` es la verdad actual? ¿Mergeamos a `master`?
-
-4. **MAX31855**  
+3. **MAX31855**  
    - ¿Repo aparte o carpeta del firmware?
 
-5. **Identidad de la app**  
+4. **Identidad de la app**  
    - Package/id deseado (reemplazo de `com.example.mysmartkiln`) y si Firebase/`google-services.json` se quedan públicos en el repo.
 
-6. **Chats locales**  
+5. **Chats locales**  
    - Yo no veo el historial Desktop. Si hay hilos importantes, listá títulos o exportá notas a issues.
 
-Con (1)+(2)+(3) puedo seguir en el siguiente turno: guion de publish del firmware, PR de la feature, o Project Cursor.
+Con (1)+(2) puedo seguir: guion de publish del firmware o Project Cursor. El merge SoftAP→`master` queda en el PR de eliminación BLE.
